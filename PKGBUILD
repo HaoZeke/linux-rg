@@ -1,9 +1,9 @@
 # Maintainer: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
 
-pkgbase=linux
+pkgbase=linux-rg
 pkgver=7.0.12.arch1
 pkgrel=1
-pkgdesc='Linux'
+pkgdesc='Linux kernel for rgx1gen11 ThinkPad X1 Carbon Gen 11'
 url='https://github.com/archlinux/linux'
 arch=(
   x86_64
@@ -30,12 +30,6 @@ makedepends=(
   zlib
   zstd
 
-  # htmldocs
-  graphviz
-  imagemagick
-  python-sphinx
-  python-yaml
-  texlive-latexextra
 )
 options=(
   !debug
@@ -46,6 +40,8 @@ _srctag=v${pkgver%.*}-${pkgver##*.}
 source=(
   https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/${_srcname}.tar.{xz,sign}
   $url/releases/download/$_srctag/linux-$_srctag.patch.zst{,.sig}
+  patches/0001-bore-cachy.patch
+  config-fragments/rgx1gen11.config
 )
 source_x86_64=(config.x86_64)
 validpgpkeys=(
@@ -56,6 +52,8 @@ validpgpkeys=(
 b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b9681b9130b14e3c790d31208eb244d123249a93e35e8e6165f3d858c9'
         'SKIP'
         '26230d1a111b24fe9239273acdfacda37c5bf009f861c448ad25392dcca433514246d629a077ce5c66478c7e0f4e5477ce5f95c91d08b3a02cc87bb35b849bcf'
+        'SKIP'
+        'SKIP'
         'SKIP')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
 
@@ -63,6 +61,8 @@ b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c5
 sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'SKIP'
             'ce38af1268931b099993cf01c537d6c3b21007e08cad84d2f1e71f95cc5cb75b'
+            'SKIP'
+            'SKIP'
             'SKIP')
 
 export KBUILD_BUILD_HOST=archlinux
@@ -88,6 +88,26 @@ prepare() {
 
   echo "Setting config..."
   cp ../config.$CARCH .config
+  echo "Applying rgx1gen11 config..."
+  while IFS= read -r rg_cfg; do
+    case "$rg_cfg" in ""|\#*) continue ;; esac
+    if [[ "$rg_cfg" =~ ^CONFIG_([A-Za-z0-9_]+)=(y|m)$ ]]; then
+      if [[ "${BASH_REMATCH[2]}" == y ]]; then
+        scripts/config --enable "${BASH_REMATCH[1]}"
+      else
+        scripts/config --module "${BASH_REMATCH[1]}"
+      fi
+    elif [[ "$rg_cfg" =~ ^\#\ CONFIG_([A-Za-z0-9_]+)\ is\ not\ set$ ]]; then
+      scripts/config --disable "${BASH_REMATCH[1]}"
+    elif [[ "$rg_cfg" =~ ^CONFIG_([A-Za-z0-9_]+)=\"(.*)\"$ ]]; then
+      scripts/config --set-str "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    elif [[ "$rg_cfg" =~ ^CONFIG_([A-Za-z0-9_]+)=([0-9]+)$ ]]; then
+      scripts/config --set-val "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    else
+      echo "unsupported rgx1gen11 config line: $rg_cfg" >&2
+      exit 1
+    fi
+  done < ../rgx1gen11.config
   make olddefconfig
   diff -u ../config.$CARCH .config || :
 
@@ -99,7 +119,6 @@ build() {
   cd $_srcname
   make all
   make -C tools/bpf/bpftool vmlinux.h feature-clang-bpf-co-re=1
-  make htmldocs SPHINXOPTS=-QT
 }
 
 _package() {
@@ -279,7 +298,6 @@ _package-docs() {
 pkgname=(
   "$pkgbase"
   "$pkgbase-headers"
-  "$pkgbase-docs"
 )
 for _p in "${pkgname[@]}"; do
   eval "package_$_p() {
