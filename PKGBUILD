@@ -42,6 +42,8 @@ source=(
   $url/releases/download/$_srctag/linux-$_srctag.patch.zst{,.sig}
   0001-bore-cachy.patch
   0002-bore-fair-arch-adapt.patch
+  0003-bbr3-cachy.patch
+  0004-bbr3-arch7-adapt.patch
   rgx1gen11.config
 )
 source_x86_64=(config.x86_64)
@@ -56,6 +58,8 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         'SKIP'
         'SKIP'
         'SKIP'
+        'SKIP'
+        'SKIP'
         'SKIP')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
 
@@ -63,6 +67,8 @@ b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c5
 sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'SKIP'
             'ce38af1268931b099993cf01c537d6c3b21007e08cad84d2f1e71f95cc5cb75b'
+            'SKIP'
+            'SKIP'
             'SKIP'
             'SKIP'
             'SKIP'
@@ -86,6 +92,7 @@ prepare() {
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
     [[ $src = 0002-bore-fair-arch-adapt.patch ]] && continue
+    [[ $src = 0004-bbr3-arch7-adapt.patch ]] && continue
     echo "Applying patch $src..."
     if [[ $src = 0001-bore-cachy.patch ]]; then
       if ! patch -Np1 < "../$src"; then
@@ -93,6 +100,24 @@ prepare() {
         grep -q 'sysctl_sched_tunable_scaling' kernel/sched/fair.c.rej || exit 1
         echo "Applying Arch fair.c adaptation for BORE..."
         patch -Np1 < ../0002-bore-fair-arch-adapt.patch
+        rm -f kernel/sched/fair.c.rej
+      fi
+    elif [[ $src = 0003-bbr3-cachy.patch ]]; then
+      if ! patch -Np1 < "../$src"; then
+        local bbr_rejects=(
+          include/linux/tcp.h.rej
+          include/net/tcp.h.rej
+          net/ipv4/tcp_bbr.c.rej
+          net/ipv4/tcp_input.c.rej
+          net/ipv4/tcp_output.c.rej
+        )
+        local rej
+        for rej in "${bbr_rejects[@]}"; do
+          test -s "$rej" || exit 1
+        done
+        echo "Applying Arch TCP adaptation for BBRv3..."
+        patch -Np1 < ../0004-bbr3-arch7-adapt.patch
+        rm -f "${bbr_rejects[@]}"
       fi
     else
       patch -Np1 < "../$src"
