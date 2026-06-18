@@ -40,8 +40,8 @@ _srctag=v${pkgver%.*}-${pkgver##*.}
 source=(
   https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/${_srcname}.tar.{xz,sign}
   $url/releases/download/$_srctag/linux-$_srctag.patch.zst{,.sig}
-  patches/0001-bore-cachy.patch
-  config-fragments/rgx1gen11.config
+  0001-bore-cachy.patch
+  rgx1gen11.config
 )
 source_x86_64=(config.x86_64)
 validpgpkeys=(
