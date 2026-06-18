@@ -45,6 +45,7 @@ source=(
   0003-bbr3-cachy.patch
   0004-bbr3-arch7-adapt.patch
   0005-v4l2loopback-pf.patch
+  0006-ddcci-driver.patch
   rgx1gen11.config
 )
 source_x86_64=(config.x86_64)
@@ -62,6 +63,7 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         'SKIP'
         'SKIP'
         'SKIP'
+        'SKIP'
         'SKIP')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
 
@@ -69,6 +71,7 @@ b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c5
 sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'SKIP'
             'ce38af1268931b099993cf01c537d6c3b21007e08cad84d2f1e71f95cc5cb75b'
+            'SKIP'
             'SKIP'
             'SKIP'
             'SKIP'
@@ -171,12 +174,14 @@ _package() {
   )
   optdepends=(
     "$pkgbase-headers: headers and scripts for building modules"
+    'ddcutil: userspace DDC/CI monitor controls'
     'linux-firmware: firmware images needed for some devices'
     'scx-scheds: to use sched-ext schedulers'
     'v4l2loopback-utils: utilities to control v4l2loopback devices'
     'wireless-regdb: to set the correct wireless channels of your country'
   )
   provides=(
+    DDCCI-MODULE
     KSMBD-MODULE
     NTSYNC-MODULE
     V4L2LOOPBACK-MODULE
