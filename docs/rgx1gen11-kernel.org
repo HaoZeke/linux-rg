@@ -203,6 +203,7 @@ and pf-kernel are source pools, not wholesale dependencies.
 | Scheduler | sched_ext schedulers | mainline plus scx userspace | userspace | Kernel support is enabled; scheduler choice should switch through `scx_loader`. |
 | Network | BBRv3 | CachyOS | carried | Useful on roaming Wi-Fi/Tailscale/SSH workloads; adapted and compiled against Arch 7.0. |
 | Block | BFQ/mq-deadline contention patch | CachyOS 6.17 | carried | Applies to 7.0 and targets local NVMe mixed I/O responsiveness. |
+| Block | ADIOS scheduler | CachyOS 6.17 omnibus patch | candidate | Selected files apply to 7.0; needs extraction without unrelated omnibus changes and object compilation. |
 | GPU memory | cgroup VRAM | CachyOS 7.0 | not carried | Does not apply cleanly to this 7.0 tree; more relevant to constrained dGPU/VRAM cgroups than this iGPU laptop. |
 | Graphics RT | rt-i915 | CachyOS 7.0 | not carried | Applies, but it is for PREEMPT_RT. This package does not enable PREEMPT_RT. |
 | Media | v4l2loopback | pf-kernel 7.0 | carried | Avoids external DKMS drift for virtual camera workflows. |
