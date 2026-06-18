@@ -341,12 +341,11 @@ and `docs/literature-review.org`.
 | Block | ADIOS | CachyOS 6.17 omnibus | carried (module) | D | Non-default; NVMe A/B testing. |
 | Memory | Cachy anon/clean ratios | Cachy 6.17 extract | carried =0018= | B/D | Extracted without =CONFIG_CACHY=; welded with =0019= |
 | Memory | mglru-patches-v2 | sirlucjan 7.0 | carried =0019= | D | vmscan dev-tree adapted after ratios; not stacked with re-swappiness |
-| Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D | Deprioritized vs mglru+ratios; conflicts mglru on vmscan |
+| Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | blocked fallback | D | Try only if =0018=+=0019= fail; conflicts mglru on vmscan |
 | Memory | vmalloc/page bulk free | cachyos-fixes-v27 #16-17 | carried =0021= | B/D | Free-path batching; benchmark under pressure |
 | Scheduler | cache-aware SCHED_CACHE | sirlucjan 7.0 | carried =0020= | D | Applies on BORE stack; A/B against scx_loader |
 | Memory | DAMON reclaim/LRU sort/stat | mainline Linux | config | B | Policy in systemd units. |
 | Memory | UKSM | CachyOS KSM-era | not carried | D | No maintained 7.0 patch. |
-| Power | cpuidle TEO over menu | sirlucjan 7.0 | candidate | B | Intel laptop idle; check Arch default first. |
 | Policy | systemd-oomd | Meta PSI/OOMD | userspace | B/C | Pairs with CONFIG_PSI. |
 | GPU memory | cgroup VRAM | CachyOS 7.0 | not carried | D | iGPU laptop; patch does not apply cleanly. |
 | Graphics RT | rt-i915 | CachyOS 7.0 | not carried | D | PREEMPT_RT not enabled. |

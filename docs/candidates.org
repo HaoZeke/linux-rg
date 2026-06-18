@@ -124,12 +124,12 @@ Promote ADIOS to default only if, on this machine:
 - No regression in package build throughput or suspend/resume stability, and
 - Energy is not worse than =none= at idle (HOTSTORAGE 2023 criterion).
 
-* Candidate: re-swappiness v1.2
+* Blocked fallback: re-swappiness v1.2
 
 ** Status
 
 | Field | Value |
-| Decision | candidate (not carried) |
+| Decision | blocked fallback (not carried) |
 | Evidence grade | D (patch); A (problem framing via ATC 2020 and SWAM) |
 | Source | sirlucjan =7.0/re-swappiness-patches= |
 | Upstream project | https://github.com/firelzrd/re-swappiness |
@@ -164,8 +164,8 @@ or SWAM paper result itself.
 
 ** Risks and interactions
 
-- Overlaps =mm/vmscan.c= with MGLRU mainline code and with =mglru-patches-v2=
-  (another candidate). Do not stack without diff review.
+- Overlaps =mm/vmscan.c= with MGLRU mainline code and with the carried
+  =mglru-patches-v2= patch. Do not stack without diff review.
 - May interact with zram writeback and zswap pool pressure; test with the same
   userspace memory policy intended for production.
 - No Lenovo or ThinkPad-specific validation found.
@@ -283,7 +283,7 @@ modprobe. Full map: =docs/rgx1gen11-drivers.org=. Boot rules:
 ** Status
 
 | Field | Value |
-| Decision | candidate (partial carry) |
+| Decision | partial carry |
 | Evidence grade | B for upstream-reviewed hunks; D as bundle |
 | Source | sirlucjan =7.0/cachyos-fixes-patches-v27= (46 patches; cherry-pick subset) |
 
@@ -534,12 +534,12 @@ Compile check: =make -C /home/rgoswami/.local/share/chezmoi/.kernel-build/linux-
 Live validation compares =0018= plus =0019= against stock Arch MGLRU with the
 same zram/zswap userspace policy.
 
-* Candidate: re-swappiness v1.2
+* Blocked fallback: re-swappiness v1.2
 
 ** Status
 
 | Field | Value |
-| Decision | candidate (not carried); deprioritized vs mglru+ratios weld |
+| Decision | blocked fallback (not carried); deprioritized vs mglru+ratios weld |
 | Evidence grade | D (patch); A (problem framing) |
 | Source | firelzrd / sirlucjan =7.0/re-swappiness-patches= |
 | vissue | =linux-rg-phgx= |
@@ -827,8 +827,8 @@ from the same author lineage and overlaps the fair.c region.
 | Layer | Source (7.0) | Primary files | rgx1gen11 verdict |
 | CONFIG_CACHY fair tweaks | Cachy 6.17 omnibus | kernel/sched/fair.c, sched.h | not carried; conflicts with BORE |
 | Compiler ISA (x86-64-v3, znver4) | cpu-cachyos-patches | arch/x86/Kconfig.cpu, Makefile | not carried; 1365U is Intel, not znver4 |
-| -O3 kernel build | kbuild-cachyos-patches | Makefile, init/Kconfig | candidate; Arch uses -O2 |
-| ThinLTO distributed backend | kbuild-dev-patches | Makefile, scripts/Makefile.thinlto, vmlinux_a | candidate for remote distribution builds only |
+| -O3 kernel build | kbuild-cachyos-patches | Makefile, init/Kconfig | not carried; no laptop win shown over Arch =-O2= |
+| ThinLTO distributed backend | kbuild-dev-patches | Makefile, scripts/Makefile.thinlto, vmlinux_a | not carried while remote builders are unavailable |
 | Rust KBUILD_RUSTFLAGS sync | omnibus + cpu patch | Makefile, arch/x86/Makefile | mirrors CFLAGS (-Copt-level, -Ctarget-cpu) |
 
 ** CONFIG_CACHY fair-class section (omnibus excerpt)
@@ -916,8 +916,8 @@ without the matching Cachy Kconfig patches; symbols would be inert or fail
 | Patch | Carry? | Blocker |
 | CONFIG_CACHY fair | no | BORE stack |
 | cpu znver4 | no | wrong CPU vendor |
-| x86-64-v3 ISA choice | maybe | needs benchmark vs Arch generic |
-| -O3 / rust opt-level 3 | maybe | compile-time and size study |
+| x86-64-v3 ISA choice | no default | needs benchmark vs Arch generic |
+| -O3 / rust opt-level 3 | no default | compile-time and size study |
 | ThinLTO dist | optional | dist builder infra only |
 
 * Carried: ASA sched_ext router (arXiv:2511.11628 prototype)
@@ -1023,7 +1023,7 @@ and the BORE + sched_ext stack on 21HM002GUS. Live runtime probe 2026-06-18.
 ** Compatible tweak pools (linux-rg source mines)
 
 | Ecosystem | Taken from it | Status |
-| CachyOS / sirlucjan | BORE, 0010-0013, block 0007, ADIOS 0008, ratios/mglru candidates | Primary pool |
+| CachyOS / sirlucjan | BORE, 0010-0013, block 0007, ADIOS 0008, ratios/mglru carries | Primary pool |
 | firelzrd | BORE, ADIOS, re-swappiness | BORE + ADIOS carried |
 | pf-kernel | BBRv3, v4l2loopback | 0003-0005 carried |
 | Liquorix zen | kswapd_waiters, schedutil limits, cpuidle TEO | 0014-0016 carried |
@@ -1075,15 +1075,15 @@ Vissues: =linux-rg-eco1= (this survey), =linux-rg-zen2= (0014-0015), =linux-rg-r
 | Block | ADIOS | CachyOS 6.17 omnibus | carried (module) | D | Non-default; see ADIOS section above |
 | Memory | Cachy anon/clean ratios | Cachy 6.17 omnibus extract | carried =0018= | B/D | Extracted without =CONFIG_CACHY=; welded with mglru-patches-v2 in =0019= |
 | Memory | mglru-patches-v2 | sirlucjan 7.0 | carried =0019= | D | Adapted after ratio extract; not stacked with re-swappiness |
-| Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D / A framing | Deprioritized vs mglru+ratios weld |
+| Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | blocked fallback | D / A framing | Try only if mglru+ratios weld fails |
 | Scheduler | hot-path inlines | cachyos-fixes #06-08 / 0010 | carried | B/D | Hybrid laptop context-switch path |
 | Scheduler | detach_tasks fix | cachyos-fixes #09 / 0011 | carried | B | 1365U load balance |
 | Scheduler | sched_ext SMT idle | cachyos-fixes #18 / 0012 | carried | B | 2-way SMT wake |
 | Scheduler | migration_cost 300us | Cachy extract / 0013 | carried | D | Kolivas-adjacent sysctl |
 | Scheduler | cache-aware (SCHED_CACHE) | sirlucjan 7.0 | carried =0020= | D | Enabled for LLC locality A/B against sched_ext |
 | Scheduler | ASA router (MoS) | arXiv:2511.11628 / 0009 | carried (prototype) | D | sched_ext layer; needs scx_loader |
-| Build | Cachy -O3 / rust opt-level 3 | kbuild-cachyos-patches | candidate | D | compile tuning only |
-| Build | ThinLTO dist / vmlinux_a | kbuild-dev-patches | candidate | D | dist builder infra |
+| Build | Cachy -O3 / rust opt-level 3 | kbuild-cachyos-patches | not carried | D | compile tuning only; no local win shown |
+| Build | ThinLTO dist / vmlinux_a | kbuild-dev-patches | not carried | D | remote-builder infra unavailable |
 | Build | x86-64-v3 / CONFIG_CACHY fair | cpu-cachyos / omnibus | not carried | D | BORE replaces CACHY fair |
 | MM | kswapd_waiters | Liquorix zen / 0014 | carried | D | Memory-pressure responsiveness |
 | CPUfreq | schedutil DL limits | Liquorix zen / 0015 | carried | D | Hybrid 1365U |
