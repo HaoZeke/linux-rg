@@ -88,6 +88,13 @@ Validate the SOF + HDA audio contract:
 rgx1gen11-sof-check --live --require-boot-log
 ```
 
+Validate the KIOXIA XG8 NVMe/APST contract:
+
+```sh
+./rgx1gen11-nvme-check
+rgx1gen11-nvme-check --live
+```
+
 ## Notes
 
 Design, hardware targets, and patch rationale:

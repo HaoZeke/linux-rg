@@ -220,7 +220,14 @@ Initramfs: =nvme= only. See boot-safety doc.
 Live root: btrfs on LUKS with =discard=async=; cmdline includes LUKS discard and
 =resume_offset= for partial hibernate wiring (=linux-rg-7pnt=, =linux-rg-2ih0=).
 
-Vissues: =linux-rg-6myb=, =linux-rg-rt1t=.
+** Mechanical check
+
+#+begin_example
+./rgx1gen11-nvme-check
+rgx1gen11-nvme-check --live
+#+end_example
+
+Vissues: =linux-rg-6myb=, =linux-rg-rt1t=, =linux-rg-8s4g=.
 
 * Thunderbolt 4 and Type-C
 

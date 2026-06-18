@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
+nvme_name=nvme0
+block_name=nvme0n1
+pci_id=1e0f:0010
+expected_driver=nvme
+expected_model="KXG8AZNV1T02 LA"
+expected_firmware="5108APLA"
+expected_scheduler=bfq
+expected_power_control=auto
+expected_latency_us=100000
+feature_device=/dev/nvme0
+require_feature=0
+live=0
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-nvme-check [options]
+
+Validate the rgx1gen11 KIOXIA XG8 NVMe/APST kernel and live policy contract.
+
+Options:
+  --config PATH             Kconfig file to inspect (default: rgx1gen11.config)
+  --nvme NAME               NVMe controller sysfs name (default: nvme0)
+  --block NAME              Block device sysfs name (default: nvme0n1)
+  --pci-id ID               NVMe PCI ID for lspci (default: 1e0f:0010)
+  --driver NAME             Expected kernel driver (default: nvme)
+  --model TEXT              Expected model prefix (default: KXG8AZNV1T02 LA)
+  --firmware TEXT           Expected firmware revision (default: 5108APLA)
+  --scheduler NAME          Expected active queue scheduler (default: bfq)
+  --power-control VALUE     Expected PCI runtime PM control (default: auto)
+  --latency-us VALUE        Expected nvme_core default_ps_max_latency_us (default: 100000)
+  --feature-device PATH     Device for nvme-cli APST feature reads (default: /dev/nvme0)
+  --require-feature         Require nvme-cli APST feature 0x0c to report enabled
+  --live                    Check live lspci and sysfs state
+  -h, --help                Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      config_path=$2
+      shift 2
+      ;;
+    --nvme)
+      nvme_name=$2
+      shift 2
+      ;;
+    --block)
+      block_name=$2
+      shift 2
+      ;;
+    --pci-id)
+      pci_id=$2
+      shift 2
+      ;;
+    --driver)
+      expected_driver=$2
+      shift 2
+      ;;
+    --model)
+      expected_model=$2
+      shift 2
+      ;;
+    --firmware)
+      expected_firmware=$2
+      shift 2
+      ;;
+    --scheduler)
+      expected_scheduler=$2
+      shift 2
+      ;;
+    --power-control)
+      expected_power_control=$2
+      shift 2
+      ;;
+    --latency-us)
+      expected_latency_us=$2
+      shift 2
+      ;;
+    --feature-device)
+      feature_device=$2
+      shift 2
+      ;;
+    --require-feature)
+      require_feature=1
+      shift
+      ;;
+    --live)
+      live=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+trim() {
+  local value=$1
+  value=${value#"${value%%[![:space:]]*}"}
+  value=${value%"${value##*[![:space:]]}"}
+  printf '%s' "$value"
+}
+
+want_config() {
+  local symbol=$1
+  local want=$2
+  local got
+
+  if [[ ! -r $config_path ]]; then
+    fail "config is not readable: $config_path"
+    return
+  fi
+
+  got=$(grep -E "^(# )?${symbol}(=| is not set)" "$config_path" || true)
+  if [[ $got == "$want" ]]; then
+    pass "$want"
+  elif [[ -n $got ]]; then
+    fail "$symbol is '$got', expected '$want'"
+  else
+    fail "$symbol is missing, expected '$want'"
+  fi
+}
+
+want_readable_value() {
+  local path=$1
+  local expected=$2
+  local description=$3
+  local got
+
+  [[ $live -eq 1 ]] || return 0
+  if [[ ! -r $path ]]; then
+    fail "$description is not readable: $path"
+    return
+  fi
+
+  got=$(trim "$(<"$path")")
+  if [[ $got == "$expected" ]]; then
+    pass "$description $expected"
+  else
+    fail "$description is '$got', expected '$expected'"
+  fi
+}
+
+want_model_prefix() {
+  local path="/sys/class/nvme/$nvme_name/model"
+  local got
+
+  [[ $live -eq 1 ]] || return 0
+  if [[ ! -r $path ]]; then
+    fail "NVMe model is not readable: $path"
+    return
+  fi
+
+  got=$(trim "$(<"$path")")
+  if [[ $got == "$expected_model"* ]]; then
+    pass "$nvme_name model $got"
+  else
+    fail "$nvme_name model is '$got', expected prefix '$expected_model'"
+  fi
+}
+
+want_scheduler() {
+  local path="/sys/block/$block_name/queue/scheduler"
+  local got
+
+  [[ $live -eq 1 ]] || return 0
+  if [[ ! -r $path ]]; then
+    fail "queue scheduler is not readable: $path"
+    return
+  fi
+
+  got=$(<"$path")
+  if [[ " $got " == *" [$expected_scheduler] "* ]]; then
+    pass "$block_name scheduler $expected_scheduler"
+  else
+    fail "$block_name scheduler is '$got', expected [$expected_scheduler]"
+  fi
+}
+
+want_cmdline_token() {
+  local token=$1
+  local cmdline
+
+  [[ $live -eq 1 ]] || return 0
+  if [[ ! -r /proc/cmdline ]]; then
+    fail "/proc/cmdline is not readable"
+    return
+  fi
+
+  cmdline=$(</proc/cmdline)
+  if [[ " $cmdline " == *" $token "* ]]; then
+    pass "cmdline token $token"
+  else
+    fail "cmdline token missing: $token"
+  fi
+}
+
+want_lspci_driver() {
+  local lspci_output
+
+  [[ $live -eq 1 ]] || return 0
+  if ! command -v lspci >/dev/null 2>&1; then
+    fail "lspci is unavailable"
+    return
+  fi
+
+  if ! lspci_output=$(lspci -nnk -d "$pci_id" 2>&1); then
+    fail "lspci failed for $pci_id: $lspci_output"
+    return
+  fi
+
+  if grep -Eq "Kernel driver in use:[[:space:]]+$expected_driver$" <<<"$lspci_output"; then
+    pass "$pci_id uses $expected_driver"
+  else
+    fail "$pci_id is not bound to $expected_driver"
+  fi
+
+  if grep -Eq "Kernel modules:.*(^|[ ,])$expected_driver([, ]|$)" <<<"$lspci_output"; then
+    pass "$pci_id exposes $expected_driver"
+  else
+    fail "$pci_id does not expose $expected_driver"
+  fi
+}
+
+want_apst_feature() {
+  local output
+
+  [[ $require_feature -eq 1 ]] || return 0
+  if ! command -v nvme >/dev/null 2>&1; then
+    fail "nvme-cli is unavailable"
+    return
+  fi
+
+  if ! output=$(nvme get-feature "$feature_device" -f 0x0c -H 2>&1); then
+    fail "nvme APST feature read failed for $feature_device: $output"
+    return
+  fi
+
+  if grep -Eiq 'Autonomous Power State Transition|APST|APSTE' <<<"$output" &&
+    grep -Eiq 'Enable|Enabled|true|1' <<<"$output"; then
+    pass "$feature_device APST feature is enabled"
+  else
+    fail "$feature_device APST feature output did not report enabled: $output"
+  fi
+}
+
+want_config CONFIG_BLK_DEV_NVME 'CONFIG_BLK_DEV_NVME=m'
+want_config CONFIG_NVME_HWMON 'CONFIG_NVME_HWMON=y'
+want_config CONFIG_PCIEASPM 'CONFIG_PCIEASPM=y'
+want_config CONFIG_PCIEASPM_POWERSAVE 'CONFIG_PCIEASPM_POWERSAVE=y'
+want_config CONFIG_PCIEASPM_POWER_SUPERSAVE 'CONFIG_PCIEASPM_POWER_SUPERSAVE=y'
+want_config CONFIG_PM_ADVANCED_DEBUG 'CONFIG_PM_ADVANCED_DEBUG=y'
+
+want_lspci_driver
+want_model_prefix
+want_readable_value "/sys/class/nvme/$nvme_name/firmware_rev" "$expected_firmware" "$nvme_name firmware"
+want_readable_value "/sys/class/nvme/$nvme_name/device/power/control" "$expected_power_control" "$nvme_name runtime PM control"
+want_readable_value /sys/module/nvme_core/parameters/default_ps_max_latency_us "$expected_latency_us" "nvme_core default_ps_max_latency_us"
+want_scheduler
+want_cmdline_token pcie_aspm.policy=powersave
+want_apst_feature
+
+if (( failures > 0 )); then
+  exit 1
+fi
