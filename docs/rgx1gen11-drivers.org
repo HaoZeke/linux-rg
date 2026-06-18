@@ -192,6 +192,13 @@ rgx1gen11-gpu-check --live --require-boot-log
 
 SOF firmware: =/lib/firmware/intel/sof/= and =intel/sof-tplg/= via linux-firmware.
 
+** Mechanical check
+
+#+begin_example
+./rgx1gen11-sof-check
+rgx1gen11-sof-check --live --require-boot-log
+#+end_example
+
 Vissue: =linux-rg-sof=.
 
 * Storage (KIOXIA XG8)

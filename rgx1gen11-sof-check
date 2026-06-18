@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
+modules_dir=
+firmware_root=/lib/firmware
+pci_id=8086:51ca
+expected_driver=sof-audio-pci-intel-tgl
+require_firmware=0
+require_boot_log=0
+live=0
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-sof-check [options]
+
+Validate the rgx1gen11 SOF + HDA audio kernel contract.
+
+Options:
+  --config PATH          Kconfig file to inspect (default: rgx1gen11.config)
+  --modules-dir PATH     Installed module tree, for example /usr/lib/modules/7.0.12-1-rg
+  --firmware-root PATH   Firmware directory (default: /lib/firmware)
+  --pci-id ID            Audio PCI ID to inspect with lspci (default: 8086:51ca)
+  --driver NAME          Expected live kernel driver (default: sof-audio-pci-intel-tgl)
+  --require-firmware     Require SOF firmware and topology files under --firmware-root
+  --require-boot-log     Require current-boot SOF/HDA journal entries
+  --live                 Check the running kernel module tree and boot policy
+  -h, --help             Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      config_path=$2
+      shift 2
+      ;;
+    --modules-dir)
+      modules_dir=$2
+      shift 2
+      ;;
+    --firmware-root)
+      firmware_root=$2
+      shift 2
+      ;;
+    --pci-id)
+      pci_id=$2
+      shift 2
+      ;;
+    --driver)
+      expected_driver=$2
+      shift 2
+      ;;
+    --require-firmware)
+      require_firmware=1
+      shift
+      ;;
+    --require-boot-log)
+      require_boot_log=1
+      shift
+      ;;
+    --live)
+      config_path="/usr/lib/modules/$(uname -r)/build/.config"
+      modules_dir="/usr/lib/modules/$(uname -r)"
+      require_firmware=1
+      live=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+want_config() {
+  local symbol=$1
+  local want=$2
+  local got
+
+  if [[ ! -r $config_path ]]; then
+    fail "config is not readable: $config_path"
+    return
+  fi
+
+  got=$(grep -E "^(# )?${symbol}(=| is not set)" "$config_path" || true)
+  if [[ $got == "$want" ]]; then
+    pass "$want"
+  elif [[ -n $got ]]; then
+    fail "$symbol is '$got', expected '$want'"
+  else
+    fail "$symbol is missing, expected '$want'"
+  fi
+}
+
+want_module() {
+  local module=$1
+  local module_stem=${2:-}
+  local module_file=${module//_/-}
+  local found
+
+  [[ -n $modules_dir ]] || return 0
+  if [[ ! -d $modules_dir ]]; then
+    fail "modules directory is not readable: $modules_dir"
+    return
+  fi
+
+  found=$(
+    find "$modules_dir" -type f \
+      \( -name "$module.ko" -o -name "$module.ko.*" -o -name "$module_file.ko" -o -name "$module_file.ko.*" \
+      -o -name "$module_stem.ko" -o -name "$module_stem.ko.*" \) \
+      -print -quit
+  )
+  if [[ -n $found ]]; then
+    pass "module $module: ${found#$modules_dir/}"
+  else
+    fail "module $module is missing from $modules_dir"
+  fi
+}
+
+want_firmware() {
+  local pattern=$1
+  local firmware_dir=$firmware_root
+  local firmware_name=$pattern
+  local found
+
+  [[ $require_firmware -eq 1 ]] || return 0
+  if [[ ! -d $firmware_root ]]; then
+    fail "firmware directory is not readable: $firmware_root"
+    return
+  fi
+
+  if [[ $pattern == */* ]]; then
+    firmware_dir="$firmware_root/${pattern%/*}"
+    firmware_name=${pattern##*/}
+  fi
+  if [[ ! -d $firmware_dir ]]; then
+    fail "firmware directory is not readable: $firmware_dir"
+    return
+  fi
+
+  found=$(find "$firmware_dir" -maxdepth 1 \( -type f -o -type l \) -name "$firmware_name" -print -quit)
+  if [[ -n $found ]]; then
+    pass "firmware ${found#$firmware_root/}"
+  else
+    fail "firmware pattern missing: $firmware_root/$pattern"
+  fi
+}
+
+want_lspci_driver() {
+  local module=$1
+  local lspci_output
+  local modules_line
+  local modules_words
+
+  [[ $live -eq 1 ]] || return 0
+  if ! command -v lspci >/dev/null 2>&1; then
+    fail "lspci is unavailable"
+    return
+  fi
+
+  if ! lspci_output=$(lspci -nnk -d "$pci_id" 2>&1); then
+    fail "lspci failed for $pci_id: $lspci_output"
+    return
+  fi
+
+  if grep -Eq "Kernel driver in use:[[:space:]]+$expected_driver$" <<<"$lspci_output"; then
+    pass "$pci_id uses $expected_driver"
+  else
+    fail "$pci_id is not bound to $expected_driver"
+  fi
+
+  modules_line=$(grep -E '^[[:space:]]*Kernel modules:' <<<"$lspci_output" || true)
+  modules_words=" ${modules_line#*:} "
+  modules_words=${modules_words//,/ }
+  if [[ $modules_words == *" $module "* ]]; then
+    pass "$pci_id exposes $module"
+  else
+    fail "$pci_id does not expose $module"
+  fi
+}
+
+want_boot_log() {
+  local pattern=$1
+  local description=$2
+  local journal_output
+
+  [[ $require_boot_log -eq 1 ]] || return 0
+  if ! command -v journalctl >/dev/null 2>&1; then
+    fail "journalctl is unavailable"
+    return
+  fi
+
+  if ! journal_output=$(journalctl -k -b --no-pager -q -g "$pattern" 2>&1); then
+    fail "boot log lacks $description: $journal_output"
+    return
+  fi
+
+  if [[ -n $journal_output ]]; then
+    pass "boot log $description"
+  else
+    fail "boot log lacks $description"
+  fi
+}
+
+want_config CONFIG_SND_SOC_SOF_INTEL_TGL 'CONFIG_SND_SOC_SOF_INTEL_TGL=m'
+want_config CONFIG_SND_SOC_SOF_INTEL_MTL 'CONFIG_SND_SOC_SOF_INTEL_MTL=m'
+want_config CONFIG_SND_SOC_SOF_INTEL_COMMON 'CONFIG_SND_SOC_SOF_INTEL_COMMON=m'
+want_config CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE 'CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE=m'
+want_config CONFIG_SND_SOC_INTEL_SOF_MAXIM_COMMON 'CONFIG_SND_SOC_INTEL_SOF_MAXIM_COMMON=m'
+want_config CONFIG_SND_HDA_INTEL 'CONFIG_SND_HDA_INTEL=m'
+want_config CONFIG_SND_HDA_CODEC_REALTEK 'CONFIG_SND_HDA_CODEC_REALTEK=m'
+want_config CONFIG_SND_HDA_CODEC_HDMI 'CONFIG_SND_HDA_CODEC_HDMI=m'
+
+want_module snd_sof_pci_intel_tgl
+want_module snd_sof_intel_hda_generic
+want_module snd_sof_intel_hda_common
+want_module snd_sof
+want_module snd_hda_intel
+want_module snd_hda_codec_realtek_lib
+want_module snd_hda_codec_alc269
+want_module snd_hda_codec_hdmi
+want_module snd_soc_skl_hda_dsp snd-soc-skl_hda_dsp
+want_module snd_soc_dmic
+
+want_firmware 'intel/sof/sof-rpl.ri*'
+want_firmware 'intel/sof-tplg/sof-hda-generic-4ch.tplg*'
+
+want_lspci_driver snd_sof_pci_intel_tgl
+want_lspci_driver snd_soc_avs
+want_lspci_driver snd_hda_intel
+want_boot_log 'Digital mics found.*using SOF driver' 'DMIC SOF selection'
+want_boot_log 'using HDA machine driver skl_hda_dsp_generic' 'HDA machine driver'
+want_boot_log 'Firmware file:[[:space:]]+intel/sof/sof-rpl\.ri' 'SOF firmware path'
+want_boot_log 'Topology file:[[:space:]]+intel/sof-tplg/sof-hda-generic-4ch\.tplg' 'SOF topology path'
+want_boot_log 'Firmware info: version' 'SOF firmware version'
+want_boot_log 'loading topology: intel/sof-tplg/sof-hda-generic-4ch\.tplg' 'SOF topology load'
+want_boot_log 'ALC287' 'Realtek ALC287 codec'
+
+if [[ $failures -gt 0 ]]; then
+  exit 1
+fi

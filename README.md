@@ -81,6 +81,13 @@ Validate the Iris Xe i915/xe boot-driver contract:
 rgx1gen11-gpu-check --live --require-boot-log
 ```
 
+Validate the SOF + HDA audio contract:
+
+```sh
+./rgx1gen11-sof-check
+rgx1gen11-sof-check --live --require-boot-log
+```
+
 ## Notes
 
 Design, hardware targets, and patch rationale:
