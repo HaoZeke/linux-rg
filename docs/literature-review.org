@@ -64,12 +64,29 @@ Research implication: literature on hybrid Intel scheduling supports mainline
 topology work and sched_ext experimentation more than downstream fair-class
 patches without published evaluation.
 
-** Mixture-of-Schedulers (not carried; research only)
+** Mixture-of-Schedulers / ASA (carried as kernel prototype)
 
 - Wang et al., arXiv:2511.11628
   https://arxiv.org/abs/2511.11628
 
-Learned routing across expert scheduling policies. Research-stage only.
+Proposes Adaptive Scheduling Agent (ASA): offline ML workload recognition,
+machine-specific scheduler mapping table, runtime switching among sched_ext
+expert BPF policies (scx_lavd, scx_rusty, scx_bpfland, etc.). Built on
+sched_ext (Vernet, LPC 2024 -- grade B infrastructure).
+
+linux-rg carries =0009-asa-sched-router.patch= as a heuristic prototype
+(grade D until benchmarked on 1365U): kernel perception/voting sysfs plus
+=asa-router= userspace action. Full paper ML pipeline not shipped.
+
+** CachyOS build and CONFIG_CACHY sections (not carried; engineering reference)
+
+- Cachy 6.17 omnibus =0004-cachy.patch=: CONFIG_CACHY fair.c tuning, memory
+  ratios, ADIOS, KBUILD_RUSTFLAGS -Copt-level=3, ThinLTO dist, x86 ISA knobs.
+- sirlucjan 7.0 splits: =kbuild-cachyos-patches= (-O3), =cpu-cachyos-patches=
+  (x86-64-v2/v3, znver4), =kbuild-dev-patches= (ThinLTO distributed backend).
+
+Not Con Kolivas CK/MUQSS. Evidence grade D for performance claims; useful as
+build-system reference for rust/C flag parity and dist LTO. See =docs/candidates.org=.
 
 * TCP congestion control
 
@@ -260,14 +277,19 @@ Evidence grade: C (support matrix and hardware facts, not performance tuning).
 
 * Synthesis for rgx1gen11
 
+Machine-specific targets and vissue map: =docs/rgx1gen11-targets.org=.
+
 | Component | Literature support | Action |
-| MGLRU, PSI, memcg, zswap, zram, DAMON | Strong (A/B) | Keep; tune via userspace policy |
-| sched_ext enabled | Strong (B) | Keep; evaluate scx schedulers empirically |
-| BBRv3 default | Strong with fairness caveats (A) | Keep; document Cubic fallback |
-| BFQ plus block contention | BFQ historically strong (A); ULL NVMe benefit uncertain (HOTSTORAGE 2023) | Benchmark against =none= on KIOXIA XG8 |
-| ADIOS module | No published evaluation (D) | Carry as module only; measure before defaulting |
-| BORE | No published evaluation (D) | Highest-risk carried scheduler patch |
-| re-swappiness, cpuidle TEO, detach_tasks | Problem framed in A-tier work; patches are D until measured | Document as candidates; benchmark before carry |
+| MGLRU, PSI, memcg, zswap, zram, DAMON | Strong (A/B) | Keep; tune zram/oomd for 32 GiB box |
+| sched_ext + SMT idle + ASA heuristic | Strong (B) / prototype (D) | Keep; scx_loader A/B on 1365U |
+| BBRv3 default | Strong with fairness caveats (A) | Keep; document Cubic fallback for CNVi roam |
+| BFQ plus block contention | BFQ strong (A); ULL NVMe benefit uncertain | Benchmark on KIOXIA XG8 (=linux-rg-rt1t=) |
+| ADIOS module | No published evaluation (D) | Module only; never default without bench win |
+| BORE + 0010-0013 scheduler weld | No published evaluation (D) | Highest-risk carried fair-class work |
+| detach_tasks fix | Upstream-reviewed (B) | Carried; runtime check on hybrid CPU |
+| cache-aware SCHED_CACHE | Motivation (B); patch (D) | Branch-ready; hold behind sched_ext |
+| re-swappiness, cpuidle TEO | Problem (A/B); patches (D) | Benchmark before carry; Arch has TEO built |
+| i915 vs xe, SOF, TB4 dock | Platform docs (C) | Userspace/boot policy; see hardware targets |
 
 * Bibliography (BibTeX)
 

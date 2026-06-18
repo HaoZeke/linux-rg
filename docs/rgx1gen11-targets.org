@@ -1,0 +1,218 @@
+#+title: linux-rg rgx1gen11 hardware targets
+#+date: [2026-06-18 Thu]
+
+* Purpose
+
+This file ties the linux-rg kernel package to the actual ThinkPad X1 Carbon Gen 11
+(21HM002GUS) on the bench. It records verified hardware facts, workload profiles,
+measurable targets, and what to carry vs hold for this machine.
+
+Companion docs:
+
+- =docs/rgx1gen11-kernel.org= -- carried patches and config rationale
+- =docs/candidates.org= -- candidate evaluation and welding map
+- =docs/literature-review.org= -- evidence grades and bibliography
+
+Vissues epic: =linux-rg-ln3w=. Hardware parent: =linux-rg-wpdr=.
+
+* Verified hardware inventory (21HM002GUS)
+
+Captured 2026-06-18 on the target laptop running Arch =7.0.12.arch1=.
+
+| Component | Detail |
+|-----------|--------|
+| Model | Lenovo 21HM002GUS, ThinkPad X1 Carbon Gen 11 |
+| BIOS | N3XET64W (1.39) |
+| CPU | Intel Core i7-1365U, Raptor Lake-P/U, 10 cores / 12 threads |
+| CPU topology | Hybrid 2 P-cores + 8 E-cores (Intel core-type sysfs sparse on stock kernel) |
+| CPU freq | intel_pstate active; max 5.2 GHz; governor currently =performance= on all CPUs |
+| RAM | 32 GiB installed; ~30 GiB visible to OS |
+| iGPU | Intel Raptor Lake-P Iris Xe, PCI 8086:a7a1, driver =i915= |
+| Wi-Fi | Intel CNVi, PCI 8086:51f1, =iwlwifi= + =iwlmvm= |
+| NVMe | KIOXIA XG8 KXG8AZNV1T02 LA, 1.02 TB, FW 5108APLA, =/dev/nvme0n1= |
+| Audio | Intel cAVS 8086:51ca, SOF path (=snd_sof_pci_intel_tgl=) |
+| Thunderbolt | Dual TB4 NHI (8086:a73e, 8086:a76d) + root ports |
+| Platform profile | ACPI =balanced= available (=low-power-balanced=, =performance= in choices) |
+| Swap today | zram ~15.5 GiB (zstd) + btrfs swapfile ~15 GiB |
+
+** Graphics driver policy (stock cmdline today)
+
+The live system forces Iris Xe on =i915= and probes =xe= only for PCI ID 9a49:
+
+#+begin_example
+i915
+i915.force_probe=!9a49
+xe.force_probe=9a49
+#+end_example
+
+linux-rg carries both =CONFIG_DRM_I915=m= and =CONFIG_DRM_XE=m= so either path
+can be selected at boot without rebuilding. Document the chosen default in
+=linux-rg-i915= after first linux-rg boot.
+
+** What this hardware is not
+
+| Class | Why skip |
+| AMD znver / x86-64-v3 ISA patches | Intel Raptor Lake-U, not AMD |
+| Panther Lake PSR / Panel Replay hunks | Wrong display IP generation |
+| Handheld / Steam Deck patches | Wrong form factor |
+| Large-server SMT throughput tuning | 2-thread SMT on one socket; laptop latency matters more |
+| cgroup VRAM / rt-i915 | iGPU laptop; patches do not apply or PREEMPT_RT not enabled |
+| MUQSS / full CONFIG_CACHY fair | Superseded by EEVDF+BORE+sched_ext stack |
+
+* Workload profiles
+
+Targets are scored per profile. Default daily driver: =undocked-mixed=.
+
+| Profile | Typical load | Priority metrics |
+| undocked-mixed | Sway, browser, terminals, sync, occasional =make -j9= | wakeup latency, scroll jank, fan noise, idle power |
+| docked-office | External 4K via TB4, DDCCI brightness, Ethernet/USB dock | hotplug reliability, display wake, DDCCI, idle with dock |
+| travel | Wi-Fi roaming, VPN, suspend in bag | TCP setup latency, s2idle resume, battery drain |
+| build-heavy | =make -j9=, containers, scientific builds | build wall time, PSI memory, NVMe contention under desktop |
+| memory-pressure | browser + VM + build concurrently | swap thrash, oomd reaction, zram compression ratio |
+
+* Subsystem targets
+
+** Hybrid CPU and scheduler (i7-1365U)
+
+| Target | Rationale | Kernel / userspace | Vissue |
+| Fair-class desktop latency under mixed load | 12-thread hybrid shares P/E clusters | BORE, detach_tasks, migration_cost 300us | =linux-rg-h2e3=, =linux-rg-78xs= |
+| Load-balance correctness on P/E | Frequent migration across clusters | detach_tasks fix (0011) | =linux-rg-78xs= |
+| sched_ext policy without fair rewrite | Literature grade B; reversible | CONFIG_SCHED_CLASS_EXT, scx_loader, ASA heuristic | =linux-rg-tjsl=, =linux-rg-asa1= |
+| SMT sibling locality on wake | 2-way SMT per core; not a 64-thread server | sched_ext SMT idle (0012) | =linux-rg-9k2m= |
+| Context-switch hot path | Kolivas-adjacent, upstream-reviewed inlines | 0010 hot-path bundle | =linux-rg-q3np= |
+| cache-aware SCHED_CACHE | LLC placement experiment | Hold until scx_loader A/B fails | =linux-rg-kr7t= |
+
+Acceptance (post-boot, =linux-rg-bench-sched=):
+
+- =make -j9= wall time within 5% of stock Arch kernel or faster.
+- No sustained scheduler stalls visible in =/proc/pressure/cpu= during desktop use.
+- scx_loader trial documents chosen expert vs BORE-only for =undocked-mixed=.
+
+** NVMe and block I/O (KIOXIA XG8)
+
+| Target | Rationale | Kernel | Vissue |
+| Interactive I/O under build + browser | Single NVMe serves page cache, builds, sync | BFQ + contention patch (0007) | =linux-rg-6myb= |
+| Optional lower-latency mq scheduler | HOTSTORAGE 2023 questions default mq on ULL NVMe | ADIOS module, non-default | =linux-rg-rt1t= |
+| ASPM on PCIe | Laptop on battery | CONFIG_PCIEASPM_POWER_SUPERSAVE | =linux-rg-wpdr= |
+
+Acceptance (=linux-rg-rt1t=):
+
+- fio mixed randrw 70/30 on =nvme0n1= with desktop load in background.
+- Compare =mq-deadline= (bfq for single-queue legacy N/A), =bfq=, =adios=, =none=.
+- Do not set ADIOS default without two consecutive wins on this SSD.
+
+** Memory (32 GiB, zram-heavy today)
+
+| Target | Rationale | Kernel / userspace | Vissue |
+| Pressure visibility | Browser + build spikes | CONFIG_PSI, memcg | =linux-rg-7f5e= |
+| Reclaim quality | MGLRU mainline | CONFIG_LRU_GEN_ENABLED | =linux-rg-7f5e= |
+| Compressed swap | Already using large zram | zram size policy for 32 GiB | =linux-rg-zram= |
+| OOM avoidance before hard kill | PSI-driven kill | systemd-oomd | =linux-rg-oomd= |
+| Optional vmscan weld | If mainline insufficient | Cachy ratios + mglru-patches-v2 | =linux-rg-7zwz=, =linux-rg-5fxc= |
+| Access-aware reclaim | Stale browser mappings | DAMON units (bounded) | =linux-rg-tm76= |
+
+Suggested zram target for 32 GiB (document, do not assume current size is optimal):
+
+- Cap zram at 25-50% of RAM (~8-16 GiB) unless measurement shows benefit from 15 GiB.
+- Keep zswap enabled; measure compression ratio under =memory-pressure= profile.
+
+** Network (CNVi, roaming)
+
+| Target | Rationale | Kernel | Vissue |
+| Variable RTT paths | Travel and VPN | BBRv3 + fq default | =linux-rg-l5al= |
+| Wi-Fi firmware | 8086:51f1 CNVi | iwlwifi + linux-firmware | =linux-rg-wifi= |
+
+Acceptance (=linux-rg-bench-wifi=):
+
+- Document BBR vs Cubic on hotel/captive portal if fairness issues appear.
+- iwlwifi firmware version recorded after linux-rg boot.
+
+** Graphics and display (Iris Xe)
+
+| Target | Rationale | Config | Vissue |
+| Stable display on internal panel | Daily driver | i915 (current force_probe policy) | =linux-rg-i915= |
+| Optional xe bring-up | Upstream transition | CONFIG_DRM_XE=m | =linux-rg-i915= |
+| External display over TB4 | Dock profile | thunderbolt, i915 DP MST | =linux-rg-tb4= |
+| Docked brightness / DDC | DDCCI in-tree | CONFIG_DDCCI=m | =linux-rg-ddcci= |
+
+Skip: Cachy i915 PSR patches aimed at Panther Lake panels.
+
+** Audio (cAVS / SOF)
+
+| Target | Rationale | Config | Vissue |
+| Headphone / speaker / mic | Video calls | SOF + HDA | =linux-rg-sof= |
+| Suspend audio wake | s2idle resume | SOF PM paths | =linux-rg-slp= |
+
+Config carries =CONFIG_SND_SOC_SOF_INTEL_TGL=m=; Raptor Lake uses the TGL-class
+SOF PCI driver on this machine today.
+
+** Power, thermal, and ACPI
+
+| Target | Rationale | Config / userspace | Vissue |
+| Idle power undocked | Ultrabook | intel_idle, cpuidle TEO eval | =linux-rg-7m20= |
+| Platform profile | ThinkPad perf/balance | CONFIG_ACPI_PLATFORM_PROFILE | =linux-rg-pwr= |
+| s2idle suspend | Modern ACPI sleep | CONFIG_SUSPEND, mem_sleep | =linux-rg-slp= |
+| Fan / thermals | DTT participant present | intel_pmc, thinkpad_acpi | =linux-rg-wpdr= |
+
+Arch =config.x86_64= enables TEO, MENU, and LADDER governors. First step for
+=linux-rg-7m20=: confirm which governor is default at runtime after linux-rg boot;
+benchmark idle power before carrying sirlucjan TEO preference patch.
+
+** Initramfs and modules
+
+| Target | Rationale | Vissue |
+| Boot from NVMe | Root on =nvme0n1= | =linux-rg-initrd= |
+| Early graphics / Wi-Fi if needed | mkinitcpio hooks | =linux-rg-initrd= |
+| Thunderbolt dock pre-pivot | Optional early =thunderbolt= | =linux-rg-tb4= |
+
+Minimum module set to verify in mkinitcpio preset:
+
+- =nvme=
+- =i915= (or =xe= if policy switches)
+- =iwlwifi=, =iwlmvm=
+- =snd_soc_sof_pci_intel_tgl=, =snd_sof_intel_hda_generic=
+- =thunderbolt= (if root-on-NVMe needs no TB, still needed for dock resume)
+
+* Patch and policy priority (this machine)
+
+Ordered by expected impact on daily =undocked-mixed= profile:
+
+1. Bootable package + rEFInd rollback (=linux-rg-py5f=, =linux-rg-mxx8=)
+2. Scheduler stack already carried (0001-0013, 0009 ASA)
+3. NVMe / BFQ benchmark (=linux-rg-rt1t=)
+4. scx_loader + ASA heuristic eval (=linux-rg-tjsl=)
+5. zram + oomd policy for 32 GiB (=linux-rg-zram=, =linux-rg-oomd=)
+6. Idle power / cpuidle (=linux-rg-7m20=, =linux-rg-pwr=)
+7. Memory vmscan weld if pressure tests fail (=linux-rg-7zwz=, =linux-rg-5fxc=)
+8. cache-aware branch only if sched_ext insufficient (=linux-rg-kr7t=)
+
+* Measurement checklist (linux-rg-61pb children)
+
+| Benchmark | Tool / method | Baseline | linux-rg gate |
+| Desktop latency feel | sway input lag, scroll, alt-tab | stock Arch kernel | no regression |
+| Build throughput | =time make -j9= in linux tree | stock | within 5% |
+| Idle power | powertop --auto-tune off, 10 min idle | stock s2idle | within 5% or document trade |
+| NVMe mixed | fio + desktop load | bfq default | ADIOS only if win |
+| Scheduler | =/proc/pressure/*=, perf sched | stock | no sustained some pressure |
+| Suspend | 10x s2idle cycle | stock | 0 hangs |
+| Wi-Fi roam | wpa_supplicant roam log | stock | no regression |
+
+* Boot safety (mandatory before first linux-rg boot)
+
+See =docs/rgx1gen11-boot-safety.org=:
+
+- Stock Arch =linux= kernel stays installed until =linux-rg-slp= passes.
+- mkinitcpio MODULES minimal: =(nvme)= only; no iwlwifi/btusb in initramfs by default.
+- =linux-firmware= required (AX211 Wi-Fi + BT + SOF).
+- Driver stacks: =docs/rgx1gen11-drivers.org=.
+
+Vissue: =linux-rg-boot=.
+
+* Document index
+
+- =docs/rgx1gen11-targets.org= (this file)
+- =docs/rgx1gen11-boot-safety.org=
+- =docs/rgx1gen11-drivers.org=
+- =docs/rgx1gen11-kernel.org=
+- =docs/candidates.org=
+- =docs/literature-review.org=

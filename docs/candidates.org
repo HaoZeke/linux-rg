@@ -233,14 +233,103 @@ upstream merged TEO preference on that basis.
 Carry if TEO shows equal or better idle power without s2idle regressions. Skip
 if mainline Arch config already selects TEO.
 
+* rgx1gen11 hardware fit (21HM002GUS)
+
+Reference machine: ThinkPad X1 Carbon Gen 11, i7-1365U, 32 GiB RAM, Iris Xe
+(8086:a7a1), CNVi Wi-Fi (8086:51f1), KIOXIA XG8 1 TB NVMe, dual TB4.
+
+Full inventory and measurable targets: =docs/rgx1gen11-targets.org=.
+
+** High-fit carries (kernel)
+
+| Area | Why on this box | Patches / config |
+| Hybrid scheduler | 2P+8E, 12 threads, SMT | BORE, 0010-0013, sched_ext, ASA |
+| NVMe responsiveness | Single ULL SSD, mixed desktop+build | BFQ 0007, ADIOS module 0008 |
+| Roaming network | CNVi, travel profile | BBRv3 0003/0004 |
+| Memory pressure | 32 GiB but heavy zram today | PSI, MGLRU, zswap, zram, DAMON |
+| Docked display | TB4 + DDCCI | 0006 DDCCI |
+| DKMS avoidance | Custom kernel cadence | v4l2loopback 0005 |
+
+** Hold / skip on this box
+
+| Candidate | Reason |
+| CONFIG_CACHY fair / MUQSS | BORE stack; wrong maintenance model |
+| Panther Lake i915 PSR hunks | Raptor Lake Iris Xe panel IP |
+| znver4 / x86-64-v3 ISA | Intel CPU |
+| cgroup VRAM, rt-i915 | iGPU laptop; patch or config mismatch |
+| handheld, aufs, acpi_call | Wrong platform class |
+| cache-aware SCHED_CACHE | Hold behind 0012 + scx_loader; applies on BORE if needed |
+
+** Wi-Fi / BT on this box (verified PCI)
+
+| Device | PCI/USB | Stack | Boot-safe? |
+| AX211 Wi-Fi | 8086:51f1 CNVi | iwlmvm, iwlwifi-ma-b0 firmware | =m= modules; not in initramfs |
+| AX211 BT | 8087:0033 USB | btusb, btintel | =m= modules; not in initramfs |
+
+Kernel pins: =IWLMLD=, =IWLWIFI_LEDS=, =BT_HCIBTUSB_AUTOSUSPEND=, =bt_coex_active=
+modprobe. Full map: =docs/rgx1gen11-drivers.org=. Boot rules:
+=docs/rgx1gen11-boot-safety.org=.
+
+** Userspace-first on this box
+
+| Policy | Vissue |
+| zram sizing for 32 GiB | =linux-rg-zram= |
+| systemd-oomd PSI thresholds | =linux-rg-oomd= |
+| scx_loader laptop modes | =linux-rg-tjsl= |
+| i915 vs xe boot default | =linux-rg-i915= |
+| cpuidle governor check | =linux-rg-7m20= |
+| iwlwifi power_save A/B | =linux-rg-iwl= |
+| BT resume after s2idle | =linux-rg-bt= |
+
+* Candidate bundle: cachyos-fixes-v27 hot-path extractions
+
+** Status
+
+| Field | Value |
+| Decision | candidate (partial carry) |
+| Evidence grade | B for upstream-reviewed hunks; D as bundle |
+| Source | sirlucjan =7.0/cachyos-fixes-patches-v27= (46 patches; cherry-pick subset) |
+
+** High-value hunks for rgx1gen11
+
+| # | Subject | Files | Status |
+| 06-08 | hot-path inlines | tlb.c, sched.h, core.c | **carried** =0010= |
+| 09 | =detach_tasks()= loop_max fix | kernel/sched/fair.c | **carried** =0011= |
+| 18 | sched_ext idle SMT sibling | kernel/sched/ext_idle.c | **carried** =0012= |
+| 16 | =free_contig_range()= bulk free | mm/page_alloc.c | candidate (memory-pressure profile) |
+| 17 | =vfree()= via =free_pages_bulk()= | mm/vmalloc.c | candidate (memory-pressure profile) |
+
+** Low-value / skip for this machine
+
+| # | Reason to skip |
+| 05 | Proportional newidle balance revert -- conflicts with BORE |
+| 12 | Panther Lake C-states -- wrong CPU generation |
+| 03-04, 10+ | Hardware-specific quirks (other vendors/boards) |
+| 24-28 | i915 PSR/Panel Replay -- Panther Lake oriented; Raptor Lake Iris Xe may not benefit |
+
+** Recommended weld order
+
+1. Cherry-pick #06-#08 done (=0010=).
+2. Add #09 (detach_tasks) done (=0011=).
+3. Add #18 (sched_ext SMT idle) done (=0012=).
+4. Add #16-#17 only if memory-pressure benchmarks show vmalloc/page free wins
+   (=linux-rg-mmhp=, blocked by =linux-rg-61pb=).
+
+** Decision gate
+
+Carry inline hunks (#06-#08) if they apply cleanly and =make -j9= kernel build
+shows no sched regression in a desktop/build mixed trial. sched_ext idle (#18)
+after first scx_loader A/B on hybrid CPU.
+
 * Candidate: sched/fair detach_tasks loop_max fix
 
 ** Status
 
 | Field | Value |
-| Decision | candidate (not carried) |
-| Evidence grade | B (upstream-reviewed fix); D as downstream extract until rebased |
+| Decision | carried (=0011-detach-tasks-fix.patch=) |
+| Evidence grade | B (upstream-reviewed fix) |
 | Source | cachyos-fixes-v27 patch 09/46; sirlucjan =7.0/cachyos-fixes-patches-v27= |
+| vissue | =linux-rg-78xs= (DONE) |
 
 ** What it is
 
@@ -250,7 +339,7 @@ with the actual =cfs.h_nr_queued= count under concurrent modification.
 
 Patch behavior:
 
-- Defer =env.loop_max= assignment until after =rq_lock_irqsave(busiest)=.
+- Hold =env.loop_max= assignment until after =rq_lock_irqsave(busiest)=.
 - Use =busiest->cfs.h_nr_queued= instead of =busiest->nr_running=.
 
 Reviewed-by lines in the patch include Vincent Guittot and Valentin Schneider.
@@ -483,9 +572,9 @@ mglru+ratios because of four files vs two.
 ** Status
 
 | Field | Value |
-| Decision | candidate (not carried) |
+| Decision | candidate (not carried; branch-ready) |
 | Evidence grade | D (downstream); B (hybrid CPU motivation) |
-| Source | sirlucjan =7.0/cache-aware-patches= |
+| Source | sirlucjan =7.0/cache-aware-patches= (=kernel-patches= repo) |
 | vissue | =linux-rg-kr7t= |
 
 ** What it is
@@ -509,7 +598,9 @@ work.
 
 ** Why it is not auto-carried
 
-- Conflicts with BORE in =kernel/sched/fair.c=, =sched.h=, and =topology.c=.
+- Rebase note (2026-06-18): omnibus applies on BORE stack with offsets; =fair.o=
+  builds. Conflict is maintenance risk, not a hard apply failure.
+- Prefer sched_ext SMT idle (0012) and scx_loader trials on 1365U first.
 - Independent from the memory weld track; do not bundle with mglru or ratios.
 - No peer-reviewed evaluation found (evidence grade D).
 
@@ -526,6 +617,339 @@ work.
 Evaluate only on a branch without BORE, or after sched_ext experiments fail to
 improve hybrid placement. Compare wakeup latency and build throughput against
 BORE default and a sched_ext scheduler on the 1365U.
+
+* Liquorix / Zen kernel (linux-lqx) -- what is worth taking?
+
+** Status
+
+| Field | Value |
+| Decision | **partial cherry-picks** (0014-0015); no PDS / omnibus |
+| Evidence grade | D (desktop laptop); B (concept for low-latency) |
+| Source | damentz/liquorix-package 7.0-13, zen/v7.0.12-lqx1.patch |
+| vissue | =linux-rg-lqx1= (omnibus cancelled); zen cuts tracked here |
+
+** What Liquorix actually is (7.0.12-lqx1)
+
+Liquorix is **not** a PREEMPT_RT kernel. It ships:
+
+| Knob | Liquorix | Arch 7.0.12 (linux-rg base) |
+| CONFIG_PREEMPT_RT | **off** | off |
+| CONFIG_PREEMPT | voluntary (=y=) | voluntary (=y=) |
+| CONFIG_PREEMPT_DYNAMIC | **off** (locked full preempt) | **on** (boot-tunable) |
+| CONFIG_HZ | 1000 | 1000 (already) |
+| CONFIG_SCHED_HRTICK | y | y (already) |
+| Fair scheduler | **PDS** (=CONFIG_SCHED_PDS=y=) replaces EEVDF | EEVDF + BORE |
+| Patch bulk | single ~130k-line zen omnibus | n/a |
+
+Default CPU scheduler is **PDS** (Priority Deadline Skiplist), not BORE, not MUQSS,
+not mainline EEVDF. Enabling PDS requires the full zen patch and conflicts with BORE,
+0010-0013 fair.c work, and sched_ext coexistence testing.
+
+** Arch 7.0.12 already contains most zen driver hunks
+
+Applied the full ~130k-line zen omnibus on top of Arch 7.0.12 and diffed the
+result. iwlwifi (mvm beacon rates, mld link/tx), i915 (PSR2 scanline WA, DP aux
+parent-irq wait), and intel_pstate hybrid scaling all **reject as .rej** -- Arch
+7.0.12 already ships the same fixes. No separate iwlwifi/i915 zen patches are
+needed for AX211 / Iris Xe on this machine.
+
+** Overlap with linux-rg already carried
+
+| Liquorix idea | linux-rg equivalent |
+| enter_lazy_tlb / finish_task_switch inlines | 0010 cachyos-fixes #06-08 (carried) |
+| 1000 Hz tick | Arch base config (already) |
+| Low-latency desktop goal | BORE + 0010-0013 + sched_ext (scx_lavd/bpfland) + ASA |
+| iwlwifi AX211 beacon/AMSdu fixes | Arch 7.0.12 mainline (already) |
+| i915 PSR/DP aux dock paths | Arch 7.0.12 mainline (already) |
+| intel_pstate hybrid scaling | Arch 7.0.12 mainline (already) |
+| =sysctl_sched_migration_cost= / ZEN_INTERACTIVE fair.c | 0013 (carried); skip zen fair.c |
+
+** Zen cherry-picks carried (BORE-safe, boot-safe)
+
+| Patch | Zen source | Why carry |
+| 0014 | =mm/page_alloc.c= + =mm/vmscan.c= kswapd_waiters | Keeps kswapd awake while allocators or throttled direct reclaimers wait; reduces memory-pressure stalls under browser/build load |
+| 0015 | =kernel/sched/cpufreq_schedutil.c= DL path | Sets =limits_changed= instead of =need_freq_update= when DL bandwidth exceeds minimum -- aligns with mainline schedutil limit plumbing on hybrid 1365U |
+
+Both apply cleanly after 0001-0013; =page_alloc.o=, =vmscan.o=, =cpufreq_schedutil.o=
+build on the linux-rg stack. No =CONFIG_ZEN_INTERACTIVE= or =CONFIG_SCHED_ALT=
+required.
+
+** Liquorix-only knobs (evaluated, not carried)
+
+| Knob | Laptop fit | Boot risk | Verdict |
+| CONFIG_RCU_NOCB_CPU_DEFAULT_ALL | Offloads RCU from all CPUs; can smooth jitter under load | Medium; power + hybrid interaction | **Hold**; try =preempt=full= first |
+| CONFIG_RT_GROUP_SCHED=y | Only helps SCHED_FIFO/RR workloads | Low alone; needs PDS stack | Skip without PDS |
+| PDS / BMQ alt scheduler | Desktop gaming benchmark narrative | **High**; replaces fair.c | **Do not** with BORE stack |
+| CONFIG_ZEN_INTERACTIVE fair.c sysctl / elevator BFQ default | Desktop tuning bundled with PDS | Medium; conflicts 0013 + 0007 | **Skip** |
+| zen i915 display hunks (PSR/DP) | ThinkPad panel + TB dock | n/a on Arch 7.0.12 | **Already upstream** |
+| zen iwlwifi hunks | AX211 CNVi | n/a on Arch 7.0.12 | **Already upstream** |
+| RCU_EXPERT tuning | Server/workstation | Medium | Skip on ultrabook |
+
+** Boot-safe alternative without Liquorix rebuild
+
+Arch already has =CONFIG_PREEMPT_DYNAMIC=y=. For a one-line latency experiment on
+stock or linux-rg without recompiling:
+
+#+begin_example
+# cmdline (reversible): force full voluntary preemption
+preempt=full
+#+end_example
+
+Compare against default dynamic preempt before touching RCU_NOCB or PDS.
+
+** Decision gate
+
+Port Liquorix only if BORE + sched_ext trials fail *and* you commit to maintaining
+PDS + zen omnibus on every 7.0 bump. For rgx1gen11, prefer sched_ext userspace
+(=linux-rg-tjsl=) over PDS.
+
+* PREEMPT_RT (realtime kernel) -- what is worth taking?
+
+** Status
+
+| Field | Value |
+| Decision | not carried |
+| Evidence grade | A for control loops; **D** for this laptop daily driver |
+| Source | linux-rt / =CONFIG_PREEMPT_RT= tree |
+| vissue | =linux-rg-prert= |
+
+** What it is
+
+PREEMPT_RT converts most kernel spinlocks to sleeping locks and reduces non-preemptible
+sections so SCHED_FIFO/RR deadlines are met. It is a **different kernel flavour**, not
+a small patch on Arch PREEMPT.
+
+Linux 7.x continues RT merge toward mainline, but Arch 7.0.12 desktop config does
+**not** enable =CONFIG_PREEMPT_RT=.
+
+** Why not on ThinkPad X1 Gen 11 daily driver
+
+| Concern | Detail |
+| Boot / driver coverage | iwlwifi, i915, SOF, NVMe paths have historically been RT lagging or fragile |
+| Conflicts linux-rg stack | sched_ext + ASA + BORE tuned for !RT; rt-i915 (Cachy) needs RT and does not apply cleanly |
+| Power / thermals | RT increases timer pressure; ultrabook idle power suffers |
+| Use case mismatch | No hard real-time workload on this box (audio prod at most -> PipeWire + SCHED_FIFO userspace) |
+| Boot safety | Highest regression risk of any option considered |
+
+** What to use instead for "realtime feel"
+
+| Need | Approach |
+| Audio dropouts | PipeWire realtime module + user =@audio= group; not kernel RT |
+| Low UI latency | BORE, 0010-0013, scx_lavd via scx_loader |
+| Network jitter | BBR + fq; Wi-Fi power_save tuning (=linux-rg-iwl=) |
+| Actual RT tasks | Separate RT VM or dual-boot linux-rt; never first linux-rg boot |
+
+** Decision gate
+
+Revisit PREEMPT_RT only for a dedicated benchmark partition or audio-prod experiment
+with rollback, never as the primary rEFInd entry.
+
+* Con Kolivas CK / MUQSS / BFS -- why not port?
+
+** Status
+
+| Field | Value |
+| Decision | not carried; largely superseded |
+| Last upstream release | 5.12-ck1 / MUQSS (April 2021); Kolivas retired CK/MUQSS Aug 2021 |
+| Source | http://ck.kolivas.org/patches/ |
+
+** What CK actually was
+
+The CK patchset was a **full alternate scheduler class** (MUQSS: per-CPU
+skiplist, earliest virtual deadline), not a set of fair.c tweaks. It replaced
+CFS/fair scheduling wholesale on desktop-focused kernels (Arch =linux-ck=, etc.).
+Goals: deterministic desktop latency, simple rules, no endless sysctl tuning.
+
+MUQSS design explicitly evolved toward mainline EEVDF (Kolivas cites EEVDF/Staircase
+Deadline lineage in =sched-MuQSS.txt=). Mainline 7.0 **is** EEVDF-based now.
+
+** What linux-rg already takes from the Kolivas lineage
+
+| Kolivas idea | linux-rg equivalent |
+| MUQSS/BFS desktop interactivity | BORE burst scoring (fair-class tweak, not replacement) |
+| SD scheduler =update_load_set= scaling | BORE patch cites Kolivas SD scheduler in =fair.c= comment |
+| Smaller slices / lower migration cost | Partially mirrored in Cachy =CONFIG_CACHY= fair hunks -- not carried (BORE overlap) |
+| Separate scheduler for low latency | =CONFIG_SCHED_CLASS_EXT=y= + scx_lavd / scx_bpfland / ASA router |
+
+BORE is from Masahito Suzuki (firelzrd), not Kolivas, but the BORE fair.c patch
+literally references Con Kolivas's SD scheduler for sysctl granularity logic.
+
+** Why wholesale MUQSS port is a bad fit for 7.0.12 + rgx1gen11
+
+1. **No maintained tree.** Last CK/MUQSS is 5.12 (2021). Forward-porting to 7.0
+   is a multi-thousand-line scheduler rewrite with no upstream reviewer.
+2. **Architectural conflict.** MUQSS adds =SCHED_MUQSS= and bypasses EEVDF fair
+   class. linux-rg commits to EEVDF + BORE + sched_ext + ASA. You cannot stack
+   MUQSS on top; you must *replace* the fair stack and drop BORE.
+3. **Hybrid CPUs.** i7-1365U P/E topology post-dates MUQSS retirement. Kolivas
+   design predates Intel hybrid load-balance work; mainline + scx experiments are
+   the current answer for P/E placement.
+4. **Kolivas's own conclusion.** Aug 2021 blog: ending MUQSS/CK maintenance;
+   mainline had absorbed key ideas; further desktop work belongs in different
+   approaches (community moved to gaming patches, scx schedulers).
+5. **Better modern equivalents.** For MUQSS-like "desktop feel without ripping
+   out EEVDF": try =scx_bpfland= or =scx_lavd= via scx_loader (sched_ext), or
+   benchmark BORE (already carried) before attempting a dead scheduler port.
+
+** If you still want Kolivas-style behaviour
+
+| Approach | Cost | Recommendation |
+| Port 5.12 MUQSS to 7.0 | Very high; unmaintained | Do not |
+| Replace BORE with MUQSS branch kernel | Loses BORE, sched_ext coexistence testing | Only as separate experimental branch |
+| Extract non-scheduler CK hunks from 5.12 | High rebase; likely upstream already has them | Only if a specific hunk is identified |
+| scx_bpfland / scx_lavd on hybrid CPU | Userspace; reversible | **Try first** |
+| cachyos-fixes #06-#08 inline hot paths | Low; compatible with BORE | Carried as =0010= |
+
+** Decision gate
+
+Revisit MUQSS only if BORE + sched_ext experiments fail on repeated hybrid-CPU
+desktop trials *and* someone commits to maintaining a 5.12->7.0 scheduler forward
+port. Otherwise treat Kolivas work as historical design input already partially
+present in BORE and mainline EEVDF.
+
+* CachyOS kernel patchset (CK / build / rust) -- deep dive
+
+** Clarification: "CK" in CachyOS context
+
+CachyOS does not ship Con Kolivas's historical CK/MUQSS patchset on 7.0.
+The omnibus =0004-cachy.patch= (6.17) and sirlucjan 7.0 splits use
+=CONFIG_CACHY= as a compile-time gate for Cachy-specific fair-class and
+misc tweaks, not MUQSS. BORE in linux-rg already carries burst scoring
+from the same author lineage and overlaps the fair.c region.
+
+| Layer | Source (7.0) | Primary files | rgx1gen11 verdict |
+| CONFIG_CACHY fair tweaks | Cachy 6.17 omnibus | kernel/sched/fair.c, sched.h | not carried; conflicts with BORE |
+| Compiler ISA (x86-64-v3, znver4) | cpu-cachyos-patches | arch/x86/Kconfig.cpu, Makefile | not carried; 1365U is Intel, not znver4 |
+| -O3 kernel build | kbuild-cachyos-patches | Makefile, init/Kconfig | candidate; Arch uses -O2 |
+| ThinLTO distributed backend | kbuild-dev-patches | Makefile, scripts/Makefile.thinlto, vmlinux_a | candidate for cosmolab dist builds only |
+| Rust KBUILD_RUSTFLAGS sync | omnibus + cpu patch | Makefile, arch/x86/Makefile | mirrors CFLAGS (-Copt-level, -Ctarget-cpu) |
+
+** CONFIG_CACHY fair-class section (omnibus excerpt)
+
+When =CONFIG_CACHY=y=, Cachy lowers EEVDF base slice and migration cost:
+
+- =sysctl_sched_base_slice=: 350000 ns (vs 700000 mainline in that extract).
+- =sysctl_sched_migration_cost=: 300000 ns (vs 500000).
+- =SCHED_NR_MIGRATE_BREAK=: 8 (same threshold as PREEMPT_RT path).
+
+These are desktop-latency policy choices without published evaluation (grade D).
+linux-rg keeps BORE instead; do not enable =CONFIG_CACHY= fair hunks on this
+profile.
+
+** Why Rust is in the kernel (not a perf play)
+
+Kernel Rust is **not** pushed because Rust is faster than C. The goal is:
+
+| Goal | Mechanism |
+| Memory safety | Type system + borrow checker eliminate large classes of UAF, double-free, and data races in *new* code |
+| Safer driver authoring | =rust/kernel/= abstractions wrap C APIs; leaf drivers use safe APIs where possible |
+| Incremental migration | New subsystems in Rust (binder IPC, Nova/Tyr DRM, rnull block, ...) without rewriting all of C |
+| Security ROI | Industry consensus (Android, Google, Microsoft research) that kernel CVE reduction justifies the investment |
+
+References: kernel =Documentation/rust/general-information.rst=; Rust-for-Linux
+project; Greg K-H on permanent Rust support (2025); USENIX ATC 2024 Android
+binder Rust evaluation.
+
+On Arch 7.0.12 with =CONFIG_RUST=y=, the **active** Rust path on a desktop
+build is mainly =CONFIG_ANDROID_BINDER_IPC_RUST=y= (binder IPC). Iris Xe uses
+=CONFIG_DRM_I915= (C), not =CONFIG_DRM_NOVA= (Rust). So enabling Rust does
+**not** rewrite the graphics, Wi-Fi, or NVMe stack on this laptop today.
+
+** Cachy =KBUILD_RUSTFLAGS= is a separate, smaller question**
+
+CachyOS syncs =KBUILD_RUSTFLAGS= with =KBUILD_CFLAGS= (-Copt-level, -Ctarget-cpu).
+That only affects the **small fraction** of the image compiled from =*.rs=
+(binder, optional Nova/rnull modules). It is build tuning for Rust objects, not
+the reason upstream adopted Rust.
+
+1. =CC_OPTIMIZE_FOR_PERFORMANCE_O3=: sets =KBUILD_RUSTFLAGS += -Copt-level=3=
+   alongside =-O3= for C -- requires =kbuild-cachyos-patches= Kconfig symbol.
+2. CPU target flags: =KBUILD_RUSTFLAGS += -Ctarget-cpu=x86-64-v3= tracks
+   =-march=*= (cpu-cachyos-patches).
+3. ThinLTO dist mode (kbuild-dev-patches): distributed LTO backend split.
+
+** Overlay hygiene warning**
+
+=rgx1gen11.config= currently sets =CONFIG_ZEN_INTERACTIVE=y= and
+=CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y=. Neither symbol exists in mainline
+7.0.12 Kconfig without Cachy patches. =scripts/config= may append them to
+=.config=, but they are **inert** at compile time. Remove =ZEN_INTERACTIVE=
+(entirely bogus). For =O3=, either carry =0001-Cachy-Allow-O3.patch= or drop
+the overlay line and stay on Arch =-O2=.
+
+** Decision gate (kbuild / rust / CONFIG_CACHY)
+
+| Patch | Carry? | Blocker |
+| CONFIG_CACHY fair | no | BORE stack |
+| cpu znver4 | no | wrong CPU vendor |
+| x86-64-v3 ISA choice | maybe | needs benchmark vs Arch generic |
+| -O3 / rust opt-level 3 | maybe | compile-time and size study |
+| ThinLTO dist | optional | dist builder infra only |
+
+* Carried: ASA sched_ext router (arXiv:2511.11628 prototype)
+
+** Status
+
+| Field | Value |
+| Decision | carried (prototype) |
+| Evidence grade | D (research paper; heuristic kernel port) |
+| Patch | =0009-asa-sched-router.patch= |
+| Config | =CONFIG_SCHED_ASA=y= (depends on =SCHED_CLASS_EXT= + =PSI=) |
+| Userspace | =asa-router= -> =/usr/bin/asa-router= |
+
+** What it is
+
+Mixture-of-Schedulers (MoS) proposes an Adaptive Scheduling Agent (ASA) that
+routes workloads to expert sched_ext policies instead of designing one monolithic
+fair-class scheduler. The paper (Wang et al., arXiv:2511.11628) uses offline ML
+(XGBoost ensemble) plus a three-stage calibration pipeline; runtime action loads
+expert BPF schedulers via sched_ext.
+
+linux-rg implements a kernel prototype faithful to the architecture split:
+
+| Module | Implementation |
+| Perception | PSI averages, runqueue load, context-switch rate -> sysfs |
+| Decision | Heuristic classifier + time-weighted probability voting |
+| Action | sysfs =recommended_scheduler= + uevents; =asa-router= calls =scx_loader= |
+
+Default expert mapping (paper portfolio subset):
+
+| Workload class | Default scx expert |
+| interactive | scx_lavd |
+| cpu | scx_rusty |
+| io | scx_bpfland |
+| mixed | scx_p2dq |
+
+** Sysfs interface
+
+=/sys/kernel/sched_ext/asa/=:
+
+- =perception= -- sampled metrics (read-only).
+- =workload= -- voted class name.
+- =recommended_scheduler= -- mapped expert for current class.
+- =mapping= -- =class=scheduler= table (read/write).
+- =enabled= -- start/stop sampling timer.
+- =cooldown_ms=, =sample_ms=, =voting_window=, =decay_pct= -- tunables.
+
+** How to test
+
+#+begin_src sh
+# after booting linux-rg with CONFIG_SCHED_ASA
+cat /sys/kernel/sched_ext/asa/mapping
+echo 1 | sudo tee /sys/kernel/sched_ext/asa/enabled
+watch -n1 cat /sys/kernel/sched_ext/asa/recommended_scheduler
+
+# userspace action (needs scx_loader + scx-scheds)
+sudo asa-router --enable --dry-run   # observe recommendations
+sudo asa-router --enable             # live switching
+#+end_src
+
+** Limitations
+
+- No XGBoost model shipped; heuristic classifier only until offline training
+  pipeline from the paper is reproduced.
+- Scheduler switch still requires userspace BPF load (sched_ext design).
+- Not a replacement for BORE; operates at sched_ext layer when enabled.
 
 * Userspace policy candidates (not kernel patches)
 
@@ -555,20 +979,29 @@ trying scx schedulers on hybrid CPUs before adding more fair-class patches.
 | Memory | Cachy anon/clean ratios | Cachy 6.17 omnibus extract | candidate | B/D | Weld with mglru-patches-v2; see welding map |
 | Memory | mglru-patches-v2 | sirlucjan 7.0 | candidate | D | Best welded with ratio extract; not with re-swappiness |
 | Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D / A framing | Deprioritized vs mglru+ratios weld |
-| Scheduler | cache-aware (SCHED_CACHE) | sirlucjan 7.0 | candidate | D | Conflicts with BORE; separate from mm weld |
+| Scheduler | hot-path inlines | cachyos-fixes #06-08 / 0010 | carried | B/D | Hybrid laptop context-switch path |
+| Scheduler | detach_tasks fix | cachyos-fixes #09 / 0011 | carried | B | 1365U load balance |
+| Scheduler | sched_ext SMT idle | cachyos-fixes #18 / 0012 | carried | B | 2-way SMT wake |
+| Scheduler | migration_cost 300us | Cachy extract / 0013 | carried | D | Kolivas-adjacent sysctl |
+| Scheduler | cache-aware (SCHED_CACHE) | sirlucjan 7.0 | candidate | D | Branch-ready; hold behind scx_loader |
+| Scheduler | ASA router (MoS) | arXiv:2511.11628 / 0009 | carried (prototype) | D | sched_ext layer; needs scx_loader |
+| Build | Cachy -O3 / rust opt-level 3 | kbuild-cachyos-patches | candidate | D | compile tuning only |
+| Build | ThinLTO dist / vmlinux_a | kbuild-dev-patches | candidate | D | dist builder infra |
+| Build | x86-64-v3 / CONFIG_CACHY fair | cpu-cachyos / omnibus | not carried | D | BORE replaces CACHY fair |
 | Power | cpuidle TEO | upstream via sirlucjan 7.0 | candidate | B | Check Arch default first |
-| Scheduler | detach_tasks fix | cachyos-fixes-v27 #09 | candidate | B | Likely BORE-compatible |
 | Scheduler | newidle balance revert | cachyos-fixes-v27 #05 | not carried | D | Conflicts with BORE |
+| Memory | vmalloc/page bulk free #16-17 | cachyos-fixes-v27 | candidate | B/D | After memory-pressure bench |
 | Policy | systemd-oomd | Meta PSI/OOMD | userspace | B/C | Pairs with CONFIG_PSI |
 | Policy | scx_loader | sched_ext ecosystem | userspace | B | Hybrid CPU experiments |
 
 * Document index
 
+- =docs/rgx1gen11-targets.org= -- hardware inventory, workload profiles, targets
 - =docs/rgx1gen11-kernel.org= -- machine profile and carried patch rationale
 - =docs/literature-review.org= -- research bibliography and evidence grades
 - =docs/candidates.org= -- this file
 
-Issue tracking: vissues project =linux-rg=, epic =linux-rg-ln3w=. Memory weld
-track: =linux-rg-7zwz= (ratios extract), =linux-rg-5fxc= (mglru weld,
-blocked by 7zwz), =linux-rg-phgx= (re-swappiness, deprioritized). Scheduler:
-=linux-rg-kr7t= (cache-aware).
+Issue tracking: vissues project =linux-rg=, epic =linux-rg-ln3w=.
+Hardware: =linux-rg-wpdr= and children in =docs/rgx1gen11-targets.org=.
+Memory weld: =linux-rg-7zwz=, =linux-rg-5fxc=, =linux-rg-phgx=.
+Scheduler: =linux-rg-kr7t= (cache-aware), =linux-rg-tjsl= (scx_loader).

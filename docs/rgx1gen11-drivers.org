@@ -1,0 +1,169 @@
+#+title: linux-rg rgx1gen11 driver map
+#+date: [2026-06-18 Thu]
+
+* Purpose
+
+Kernel driver stacks for 21HM002GUS, verified on the bench 2026-06-18. Use with
+=docs/rgx1gen11-boot-safety.org= before first boot.
+
+* Wi-Fi (Intel CNVi AX211 class)
+
+| Field | Value |
+| PCI | 8086:51f1 (Raptor Lake PCH CNVi WiFi) |
+| Kernel modules | =iwlmvm= -> =iwlwifi= -> =mac80211= -> =cfg80211= |
+| Firmware | =iwlwifi-ma-b0-gf-a0-*.ucode= + =.pnvm= from linux-firmware |
+| Regulatory | wireless-regdb + crda/country code |
+| RF kill | =thinkpad_acpi=, =rfkill=, =CONFIG_WIRELESS_HOTKEY=m= |
+
+** Kernel config pins (rgx1gen11.config)
+
+- =CONFIG_IWLWIFI=m=, =CONFIG_IWLMVM=m= (MVM for 802.11ac/ax/be)
+- =CONFIG_IWLMLD=m= (multi-link device support on 7.0)
+- =CONFIG_IWLWIFI_LEDS=y=
+- Do not disable =CONFIG_CFG80211=m= or =CONFIG_MAC80211=m= (Arch base).
+
+** Module parameters (shipped modprobe.d)
+
+File: =/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf=
+
+- =bt_coex_active=1: Wi-Fi/BT antenna coexistence on CNVi + USB BT combo.
+- =power_save=: default module Y; use =iw dev wlan0 set power_save off= for
+  low-latency desktop, =on= for battery (linux-rg-pwr).
+
+** Userspace dependencies
+
+- =linux-firmware= (required)
+- =wireless-regdb= (recommended)
+- NetworkManager or iwd
+
+** What we are not doing
+
+- No out-of-tree iwlwifi patches (boot risk, rebase cost).
+- No firmware baked into =CONFIG_EXTRA_FIRMWARE=.
+- No built-in (=y=) iwlwifi.
+
+Vissues: =linux-rg-wifi=, =linux-rg-bench-wifi=.
+
+* Bluetooth (Intel AX211 USB)
+
+| Field | Value |
+| USB | 8087:0033 Intel AX211 Bluetooth |
+| Driver | =btusb= with =btintel= / =btmtk= helpers |
+| ThinkPad switch | =thinkpad_acpi= rfkill for =tpacpi_bluetooth_sw= |
+
+** Kernel config pins
+
+- =CONFIG_BT=m=, =CONFIG_BT_INTEL=m=, =CONFIG_BT_HCIBTUSB=m=
+- =CONFIG_BT_HCIBTUSB_AUTOSUSPEND=y=, =CONFIG_BT_HCIBTUSB_POLL_SYNC=y=
+- =CONFIG_BT_HCIUART=m= + =CONFIG_BT_HCIUART_INTEL=y= (Arch default; not the
+  active path on this box, but kept for ACPI UART fallback variants).
+
+This machine uses *USB* BT, not =CONFIG_BT_INTEL_PCIE=. Do not disable =btusb=.
+
+** Module parameters
+
+File: =/usr/lib/modprobe.d/rgx1gen11-btusb.conf=
+
+- Autosuspend enabled via Kconfig; document =hciconfig= / =bluetoothctl= after
+  resume if devices disappear (linux-rg-slp).
+
+Vissue: =linux-rg-bt=.
+
+* Graphics (Iris Xe 8086:a7a1)
+
+| Field | Value |
+| PCI | 8086:a7a1 Raptor Lake-P Iris Xe |
+| Active driver | =i915= (stock cmdline policy) |
+| Alternate | =xe= module present but not default for this panel |
+
+** Kernel config
+
+- =CONFIG_DRM_I915=m=, =CONFIG_DRM_XE=m= (both modules)
+- =CONFIG_ACPI_VIDEO=m=, =CONFIG_THINKPAD_ACPI_VIDEO=y=
+
+** Boot policy
+
+Keep existing cmdline unless =linux-rg-i915= documents a successful xe switch:
+
+#+begin_example
+i915
+i915.force_probe=!9a49
+xe.force_probe=9a49
+#+end_example
+
+Do not force xe-only without internal panel + suspend testing.
+
+* Audio (cAVS 8086:51ca)
+
+| Field | Value |
+| PCI | 8086:51ca Raptor Lake cAVS |
+| Stack | SOF + HDA: =snd_sof_pci_intel_tgl=, =snd_sof_intel_hda_generic=, =snd_hda_intel= |
+
+** Kernel config pins
+
+- =CONFIG_SND_SOC_SOF_INTEL_TGL=m= (active path on bench)
+- =CONFIG_SND_SOC_SOF_INTEL_MTL=m= (Raptor Lake class fallback module)
+- =CONFIG_SND_SOC_SOF_INTEL_COMMON=m=
+- =CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE=m=
+- =CONFIG_SND_HDA_INTEL=m=, Realtek + HDMI codecs
+
+SOF firmware: =/lib/firmware/intel/sof/= and =intel/sof-tplg/= via linux-firmware.
+
+Vissue: =linux-rg-sof=.
+
+* Storage (KIOXIA XG8)
+
+| Field | Value |
+| PCI | 1e0f:0010 KIOXIA XG8 |
+| Driver | =nvme=, =nvme_core= |
+| Scheduler | BFQ default; ADIOS optional module |
+
+** Kernel config
+
+- =CONFIG_BLK_DEV_NVME=m= (must match Arch for initramfs)
+- =CONFIG_NVME_HWMON=y=, =CONFIG_NVME_MULTIPATH=y=
+
+Initramfs: =nvme= only. See boot-safety doc.
+
+Vissues: =linux-rg-6myb=, =linux-rg-rt1t=.
+
+* Thunderbolt 4 and Type-C
+
+| Field | Value |
+| Controllers | 8086:a73e, 8086:a76d (NHI); USB4 =8086:a71e= |
+| Modules | =thunderbolt=, =usb4=, =typec_ucsi=, =ucsi_acpi= |
+
+** Kernel config pins
+
+- =CONFIG_TYPEC_TCPM=m=
+- =CONFIG_TYPEC_MUX_INTEL_PMC=m= (Intel PMC mux for DP/TBT alt modes)
+- =CONFIG_TYPEC_DP_ALTMODE=m=, =CONFIG_TYPEC_TBT_ALTMODE=m=
+- =CONFIG_INTEL_WMI_THUNDERBOLT=m=
+
+Vissue: =linux-rg-tb4=.
+
+* Platform: thermal, ACPI, input
+
+| Component | Modules / config |
+| DTT thermal | =CONFIG_ACPI_DPTF=y= |
+| ThinkPad | =thinkpad_acpi=, =CONFIG_THINKPAD_ACPI_HOTKEY_POLL=y= |
+| Platform profile | =CONFIG_ACPI_PLATFORM_PROFILE=y= (balanced/performance) |
+| Touchpad | =hid_multitouch=, =i2c_hid_acpi= |
+| RF hotkeys | =CONFIG_WIRELESS_HOTKEY=m=, =CONFIG_LENOVO_WMI_HOTKEY_UTILITIES=m= |
+| PMC telemetry | =intel_pmc_core=, =intel_pmt_telemetry= |
+
+Vissues: =linux-rg-pwr=, =linux-rg-wpdr=.
+
+* Safe improvement backlog (kernel-side, no boot risk)
+
+| Item | Type | Vissue |
+| cpuidle TEO runtime check | config eval | =linux-rg-7m20= |
+| iwlwifi power_save A/B | modprobe / iw | =linux-rg-wifi= |
+| cachyos mm hot-path #16-17 | patch, post-bench | =linux-rg-mmhp= |
+| cache-aware SCHED_CACHE | branch only | =linux-rg-kr7t= |
+
+* Document index
+
+- =docs/rgx1gen11-drivers.org= (this file)
+- =docs/rgx1gen11-boot-safety.org=
+- =docs/rgx1gen11-targets.org=

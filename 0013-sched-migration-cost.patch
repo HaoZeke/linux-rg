@@ -1,0 +1,24 @@
+From linux-rg Mon Sep 17 00:00:00 2001
+From: linux-rg maintainers <linux-rg@local>
+Date: Thu, 18 Jun 2026 00:00:00 +0000
+Subject: [PATCH 13/13] sched/fair: lower default migration_cost (Cachy/Kolivas-adjacent)
+
+CachyOS desktop policy uses 300000 ns vs mainline 500000. BORE already
+disables tunable scaling; this sysctl tweak is the remaining low-risk
+fair-class latency knob compatible with BORE and detach_tasks.
+
+---
+ kernel/sched/fair.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -96,7 +96,7 @@ static unsigned int normalized_sysctl_sched_base_slice	= 700000ULL;
+ #endif /* CONFIG_SCHED_BORE */
+ 
+-__read_mostly unsigned int sysctl_sched_migration_cost	= 500000UL;
++__read_mostly unsigned int sysctl_sched_migration_cost	= 300000UL;
+ 
+ static int __init setup_sched_thermal_decay_shift(char *str)
+ {

@@ -1,0 +1,82 @@
+#!/bin/bash
+# ASA userspace action module (arXiv:2511.11628 prototype).
+# Watches /sys/kernel/sched_ext/asa/ and loads expert sched_ext schedulers.
+set -euo pipefail
+
+ASA_SYSFS=/sys/kernel/sched_ext/asa
+SCX_LOADER=(scx_loader)
+
+usage() {
+	cat <<'EOF'
+Usage: asa-router [--enable] [--dry-run] [--mapping FILE]
+
+  --enable     Write 1 to asa/enabled after starting
+  --dry-run    Print recommendations without loading schedulers
+  --mapping    Optional mapping file (class=scheduler per line)
+
+Requires: kernel with CONFIG_SCHED_ASA, sched_ext enabled, scx_loader.
+EOF
+}
+
+enable_asa=0
+dry_run=0
+mapping_file=
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--enable) enable_asa=1 ;;
+	--dry-run) dry_run=1 ;;
+	--mapping) mapping_file=$2; shift ;;
+	-h|--help) usage; exit 0 ;;
+	*) echo "unknown arg: $1" >&2; usage; exit 1 ;;
+	esac
+	shift
+done
+
+if [[ ! -d $ASA_SYSFS ]]; then
+	echo "ASA sysfs missing; boot a CONFIG_SCHED_ASA kernel" >&2
+	exit 1
+fi
+
+if [[ -n $mapping_file ]]; then
+	while IFS= read -r line || [[ -n $line ]]; do
+		[[ $line =~ ^# ]] && continue
+		[[ -z $line ]] && continue
+		echo "$line" >"$ASA_SYSFS/mapping"
+	done <"$mapping_file"
+fi
+
+if [[ $enable_asa -eq 1 ]]; then
+	echo 1 >"$ASA_SYSFS/enabled"
+fi
+
+current=
+apply_scheduler() {
+	local sched=$1
+	[[ $sched == none || -z $sched ]] && return 0
+	[[ $sched == "$current" ]] && return 0
+	if [[ $dry_run -eq 1 ]]; then
+		echo "[dry-run] would load $sched"
+		current=$sched
+		return 0
+	fi
+	if ! command -v scx_loader >/dev/null; then
+		echo "scx_loader not found; recommendation: $sched" >&2
+		return 1
+	fi
+	echo "ASA: switching sched_ext expert to $sched"
+	"${SCX_LOADER[@]}" switch "$sched"
+	current=$sched
+}
+
+apply_scheduler "$(cat "$ASA_SYSFS/recommended_scheduler")"
+
+if command -v udevadm >/dev/null; then
+	udevadm monitor --udev --subsystem-match=kernel | while read -r _ _; do
+		apply_scheduler "$(cat "$ASA_SYSFS/recommended_scheduler")"
+	done
+else
+	while sleep "$(cat "$ASA_SYSFS/sample_ms" 2>/dev/null || echo 1000)"; do
+		apply_scheduler "$(cat "$ASA_SYSFS/recommended_scheduler")"
+	done
+fi

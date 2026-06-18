@@ -1,0 +1,92 @@
+#+title: linux-rg rgx1gen11 boot safety
+#+date: [2026-06-18 Thu]
+
+* Rule zero
+
+linux-rg must boot to the same root filesystem as stock Arch. If linux-rg fails,
+rEFInd (or the firmware boot menu) must still start the stock =linux= kernel
+without manual recovery.
+
+Vissue: =linux-rg-boot=. Parent: =linux-rg-mxx8=.
+
+* What must not change (boot-critical)
+
+| Item | Requirement | Why |
+| Root disk driver | =CONFIG_BLK_DEV_NVME=m= (match Arch) | Root is on KIOXIA XG8 =nvme0n1= |
+| GPU driver | =CONFIG_DRM_I915=m=, =CONFIG_DRM_XE=m= | Pick one via cmdline; both built as modules |
+| Wi-Fi / BT | =CONFIG_IWLWIFI=m=, =CONFIG_BT_HCIBTUSB=m= | Load after init; need linux-firmware |
+| Scheduler patches | Compile-tested only | BORE/0010-0013 must not block early boot |
+| Firmware in kernel | =CONFIG_EXTRA_FIRMWARE=""= (Arch default) | Firmware stays in linux-firmware package |
+
+** Never do for this profile
+
+- Build =nvme=, =i915=, =xe=, or =iwlwifi= as built-in (=y=) unless Arch already does
+  (it does not).
+- Embed iwlwifi firmware into the kernel image.
+- Enable =CONFIG_MQ_IOSCHED_DEFAULT_ADIOS= (ADIOS stays non-default module).
+- Switch default DRM from i915 to xe without a tested cmdline on this panel.
+- Drop =CONFIG_FW_LOADER= or =CONFIG_FW_LOADER_COMPRESS=.
+
+* Before first linux-rg boot
+
+1. Stock Arch kernel still installed: =pacman -Q linux linux-headers=.
+2. linux-firmware installed: =pacman -Q linux-firmware= (AX211 Wi-Fi + BT firmware).
+3. wireless-regdb installed if using regulatory domain helpers.
+4. Successful =makepkg= for linux-rg (=linux-rg-py5f=).
+5. mkinitcpio preset run for linux-rg with *minimal* MODULES (see below).
+6. rEFInd entry points at linux-rg *after* stock entry (stock stays default until
+   verified).
+
+* mkinitcpio: minimal MODULES (mandatory)
+
+Root on NVMe. Wi-Fi, Bluetooth, SOF, and Thunderbolt are *not* required to mount
+root. Keep initramfs small and close to Arch defaults.
+
+#+begin_example
+# /etc/mkinitcpio.conf.d/rgx1gen11.conf  (example drop-in)
+MODULES=(nvme)
+# Add btrfs/xfs if root uses them, e.g. MODULES=(nvme btrfs)
+# Do NOT add iwlwifi btusb i915 thunderbolt unless you debug early-boot networking.
+#+end_example
+
+Hooks: keep Arch default =base udev autodetect microcode modconf kms keyboard
+keymap consolefont block filesystems fsck=.
+
+** Optional early KMS
+
+If the internal panel stays black until late boot, add =i915= to MODULES *only
+after* confirming the same cmdline driver policy as today (=i915=, not =xe=):
+
+#+begin_example
+MODULES=(nvme i915)
+#+end_example
+
+* Rollback procedure
+
+1. At rEFInd, select stock Arch =linux= entry.
+2. If boot menu unavailable: firmware boot manager -> EFI partition -> stock
+   =vmlinuz-linux= via existing bootloader path.
+3. Do not remove =linux= package until =linux-rg-mxx8= and =linux-rg-slp= pass.
+4. Documented in =linux-rg-61pb= acceptance.
+
+* First-boot verification sequence
+
+Run in order; stop and rollback if any step fails.
+
+1. Boot linux-rg -> login on internal display.
+2. =uname -r= shows linux-rg localversion.
+3. =lsmod | rg 'nvme|i915|iwlmvm|btusb|snd_sof'= all load on demand.
+4. =dmesg | rg -i 'iwlwifi.*loaded|firmware.*ma-b0|Bluetooth'= no firmware -ENOENT.
+5. =ping -c1 127.0.0.1= only; then Wi-Fi via NetworkManager (linux-rg-wifi).
+6. One =systemctl suspend= + resume (linux-rg-slp).
+7. Only then set rEFInd default to linux-rg.
+
+* Package modprobe drop-ins
+
+linux-rg ships =/usr/lib/modprobe.d/rgx1gen11-*.conf= for Wi-Fi/BT coexistence.
+These apply at module load and do not change the initramfs. Override in
+=/etc/modprobe.d/= if needed.
+
+* Driver doc cross-reference
+
+Full PCI IDs, firmware names, and module stacks: =docs/rgx1gen11-drivers.org=.

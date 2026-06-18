@@ -15,8 +15,16 @@ then applies a small machine overlay in `rgx1gen11.config`.
 - v4l2loopback from pf-kernel, built in-tree as `CONFIG_V4L2_LOOPBACK=m`.
 - DDCCI and DDCCI backlight support from `ddcci-driver-linux`, built in-tree.
 - CachyOS block-layer contention patch for BFQ and mq-deadline.
+- Scheduler weld for hybrid i7-1365U: hot-path inlines (0010), detach_tasks fix
+  (0011), sched_ext SMT idle (0012), migration_cost sysctl (0013).
+- Liquorix zen cherry-picks (no PDS): kswapd_waiters MM fix (0014), schedutil
+  DL limits_changed (0015). iwlwifi/i915 zen hunks skipped -- already in Arch 7.0.12.
+- ADIOS block scheduler module (non-default) and ASA sched_ext router prototype
+  (arXiv:2511.11628) with `asa-router` userspace helper.
 - PSI, memcg, DAMON, MGLRU, KSM, zswap, zram, BFQ, sched_ext, and
   ThinkPad/Intel laptop support pinned in the machine config overlay.
+- Intel AX211 Wi-Fi/BT: `IWLMLD`, `bt_coex_active` modprobe drop-in; `linux-firmware`
+  in package depends.
 - BBR and fq selected as the default TCP congestion control and qdisc.
 
 ## Build
@@ -39,8 +47,12 @@ machine.
 
 ## Notes
 
-Design and patch rationale:
+Design, hardware targets, and patch rationale:
 
+- `docs/rgx1gen11-boot-safety.org` -- **read before first boot** (rollback, mkinitcpio)
+- `docs/rgx1gen11-drivers.org` -- Wi-Fi/BT/GPU/audio/NVMe/TB4 driver map
+- `docs/rgx1gen11-targets.org` -- verified hardware inventory, workload profiles,
+  measurable targets, vissue map
 - `docs/rgx1gen11-kernel.org` -- machine profile and carried patches
 - `docs/literature-review.org` -- research bibliography and evidence grades
 - `docs/candidates.org` -- ADIOS, re-swappiness, cpuidle TEO, detach_tasks, and

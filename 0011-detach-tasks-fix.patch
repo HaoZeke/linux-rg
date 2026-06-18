@@ -1,0 +1,28 @@
+From linux-rg Mon Sep 17 00:00:00 2001
+From: linux-rg maintainers <linux-rg@local>
+Date: Thu, 18 Jun 2026 00:00:00 +0000
+Subject: [PATCH 11/13] sched/fair: detach_tasks loop_max fix (#09)
+
+---
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index d9fa107fd..a8384b979 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -11934,12 +11934,15 @@ static int sched_balance_rq(int this_cpu, struct rq *this_rq,
+ 		 * still unbalanced. ld_moved simply stays zero, so it is
+ 		 * correctly treated as an imbalance.
+ 		 */
+-		env.loop_max  = min(sysctl_sched_nr_migrate, busiest->nr_running);
+-
+ more_balance:
+ 		rq_lock_irqsave(busiest, &rf);
+ 		update_rq_clock(busiest);
+ 
++		if (!env.loop_max)
++			env.loop_max  = min(sysctl_sched_nr_migrate, busiest->cfs.h_nr_queued);
++		else
++			env.loop_max  = min(env.loop_max, busiest->cfs.h_nr_queued);
++
+ 		/*
+ 		 * cur_ld_moved - load moved in current iteration
+ 		 * ld_moved     - cumulative load moved across iterations

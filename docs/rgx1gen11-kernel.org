@@ -3,6 +3,10 @@
 * Document index
 
 - =docs/rgx1gen11-kernel.org= (this file) -- machine profile and carried patches
+- =docs/rgx1gen11-boot-safety.org= -- rollback and mkinitcpio rules (read first)
+- =docs/rgx1gen11-drivers.org= -- Wi-Fi/BT/GPU/audio/NVMe driver stacks
+- =docs/rgx1gen11-targets.org= -- verified hardware inventory, workload profiles,
+  measurable targets, vissue map
 - =docs/literature-review.org= -- research bibliography and evidence grades
 - =docs/candidates.org= -- ADIOS, re-swappiness, cpuidle TEO, detach_tasks,
   and other candidate or policy notes
@@ -22,7 +26,10 @@ Target machine:
 - GPU: Intel Raptor Lake-P Iris Xe Graphics.
 - Network: Intel Raptor Lake PCH CNVi Wi-Fi.
 - I/O: Thunderbolt 4, USB 3.2, Intel PCH I2C, NVMe.
-- Storage: KIOXIA XG8 NVMe.
+- Storage: KIOXIA XG8 NVMe (1 TB class, PCI 1e0f:0010).
+- RAM: 32 GiB (30 GiB visible); swap via zram and btrfs swapfile on stock system.
+
+Verified live inventory and per-subsystem targets: =docs/rgx1gen11-targets.org=.
 
 The package starts from Arch's `linux` package, not a generic vendor kernel.
 The base source is kernel.org Linux plus the Arch patch release for
@@ -150,6 +157,47 @@ I/O scheduler").
 Literature: no peer-reviewed ADIOS evaluation exists (evidence grade D). Carry
 is justified as a modular experiment path, not as a literature-mandated default.
 
+** Scheduler hot-path and hybrid CPU patches (0010-0013)
+
+Source: sirlucjan =7.0/cachyos-fixes-patches-v27= cherry-picks plus Cachy sysctl
+extract.
+
+Why: the i7-1365U is a 12-thread hybrid CPU. These hunks target context-switch
+latency, load-balance correctness, sched_ext wake locality, and desktop migration
+cost without porting MUQSS or CONFIG_CACHY fair.
+
+| Patch | Role |
+| 0010 | =enter_lazy_tlb()=, =raw_spin_rq_unlock()=, =finish_task_switch()= inlines |
+| 0011 | =detach_tasks()= loop_max fix under RQ lock |
+| 0012 | sched_ext idle SMT sibling preference |
+| 0013 | =sysctl_sched_migration_cost= 300000 ns default |
+
+** Zen omnibus cherry-picks (0014-0015)
+
+Source: Liquorix =zen/v7.0.12-lqx1.patch= (damentz/liquorix-package 7.0-13),
+**not** the full omnibus or PDS scheduler.
+
+Why: most zen driver hunks (iwlwifi AX211, i915 PSR/DP aux, intel_pstate hybrid
+scaling) already match Arch 7.0.12. Two MM/schedutil cuts remain valuable on the
+BORE stack without =CONFIG_ZEN_INTERACTIVE= or =CONFIG_SCHED_ALT=.
+
+| Patch | Role |
+| 0014 | =kswapd_waiters=: keep kswapd awake while page allocators wait |
+| 0015 | schedutil DL path uses =limits_changed= for bandwidth spikes |
+
+Skipped from zen: PDS/BMQ alt scheduler, fair.c ZEN_INTERACTIVE sysctl (0013
+covers migration_cost), duplicate 0010 inlines, CONFIG_ZEN_INTERACTIVE elevator
+and swap tuning. See =docs/candidates.org= Liquorix section for the full matrix.
+
+** ASA sched_ext router (0009)
+
+Source: arXiv:2511.11628 prototype; =asa-router= userspace helper.
+
+Why: reversible sched_ext expert switching (interactive/cpu/io/mixed) without
+replacing EEVDF fair class. Pairs with =CONFIG_SCHED_CLASS_EXT=y= on hybrid CPUs.
+
+Fit: =CONFIG_SCHED_ASA=y=, sysfs under =/sys/kernel/sched_ext/asa/=.
+
 ** PSI and memory pressure
 
 Source: mainline Linux configuration.
@@ -269,7 +317,13 @@ and `docs/literature-review.org`.
 | Scheduler | BORE | CachyOS 7.0 | carried | D | Compiles on Arch 7.0; no peer-reviewed evaluation. |
 | Scheduler | Prjc/BMQ/PDS | CachyOS 7.0 | not carried | D | Conflicts with BORE plus sched_ext. |
 | Scheduler | sched_ext schedulers | mainline plus scx userspace | userspace | B | See literature review; use `scx_loader`. |
-| Scheduler | detach_tasks loop_max fix | cachyos-fixes-v27 #09 | candidate | B | Hybrid CPU load-balance fix; likely BORE-compatible. |
+| Scheduler | hot-path inlines 0010 | cachyos-fixes #06-08 | carried | B/D | Context-switch path; hybrid laptop fit |
+| Scheduler | detach_tasks fix 0011 | cachyos-fixes #09 | carried | B | Hybrid load-balance; fair.o builds with BORE |
+| Scheduler | sched_ext SMT idle 0012 | cachyos-fixes #18 | carried | B | 2-way SMT laptop wake locality |
+| Scheduler | migration_cost 0013 | Cachy sysctl extract | carried | D | Desktop latency knob with BORE |
+| MM | kswapd_waiters 0014 | Liquorix zen omnibus | carried | D | Memory-pressure responsiveness; boot-safe |
+| CPUfreq | schedutil limits 0015 | Liquorix zen omnibus | carried | D | Hybrid DL bandwidth on 1365U |
+| Scheduler | ASA router 0009 | arXiv:2511.11628 | carried (prototype) | D | sched_ext layer; needs scx_loader |
 | Scheduler | newidle balance revert | cachyos-fixes-v27 #05 | not carried | D | Conflicts with BORE. |
 | Network | BBRv3 | CachyOS | carried | A | Roaming paths; fairness caveats documented. |
 | Block | BFQ/mq-deadline contention | CachyOS 6.17 | carried | A/D | BFQ literature strong; patch and ULL NVMe benefit uncertain. |
@@ -277,7 +331,7 @@ and `docs/literature-review.org`.
 | Memory | Cachy anon/clean ratios | Cachy 6.17 extract | candidate | B/D | Weld with mglru-patches-v2; see candidates.org |
 | Memory | mglru-patches-v2 | sirlucjan 7.0 | candidate | D | vmscan dev-tree; weld with ratios not re-swappiness |
 | Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D | Deprioritized vs mglru+ratios; conflicts mglru on vmscan |
-| Scheduler | cache-aware SCHED_CACHE | sirlucjan 7.0 | candidate | D | LLC placement; conflicts BORE; separate from mm weld |
+| Scheduler | cache-aware SCHED_CACHE | sirlucjan 7.0 | candidate | D | Applies on BORE stack; hold behind scx_loader |
 | Memory | DAMON reclaim/LRU sort/stat | mainline Linux | config | B | Policy in systemd units. |
 | Memory | UKSM | CachyOS KSM-era | not carried | D | No maintained 7.0 patch. |
 | Power | cpuidle TEO over menu | sirlucjan 7.0 | candidate | B | Intel laptop idle; check Arch default first. |

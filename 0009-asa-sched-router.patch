@@ -1,0 +1,540 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Thu, 18 Jun 2026 00:00:00 +0000
+Subject: [PATCH 9/9] sched: ASA router prototype (arXiv:2511.11628)
+
+Adaptive Scheduling Agent kernel router for sched_ext expert
+selection. Heuristic perception and time-weighted voting; userspace
+loads expert BPF schedulers via tools/asa-router.
+
+---
+--- a/kernel/sched/build_policy.c
++++ b/kernel/sched/build_policy.c
+@@ -61,6 +61,9 @@
+ # include "ext_internal.h"
+ # include "ext.c"
+ # include "ext_idle.c"
++# ifdef CONFIG_SCHED_ASA
++#  include "asa.c"
++# endif
+ #endif
+ 
+ #include "syscalls.c"
+
+--- a/kernel/sched/ext.c
++++ b/kernel/sched/ext.c
+@@ -3686,6 +3686,10 @@ static int scx_cgroup_init(struct scx_sc
+ #endif
+ 
+ 
++#ifdef CONFIG_SCHED_ASA
++int asa_init(struct kset *scx_kset);
++#endif
++
+ /********************************************************************************
+  * Sysfs interface and ops enable/disable.
+  */
+@@ -7545,6 +7549,14 @@ static int __init scx_init(void)
+ 		return ret;
+ 	}
+ 
++#ifdef CONFIG_SCHED_ASA
++	ret = asa_init(scx_kset);
++	if (ret) {
++		pr_err("sched_ext: Failed to initialize ASA router (%d)\n", ret);
++		return ret;
++	}
++#endif
++
+ 	if (!alloc_cpumask_var(&scx_bypass_lb_donee_cpumask, GFP_KERNEL) ||
+ 	    !alloc_cpumask_var(&scx_bypass_lb_resched_cpumask, GFP_KERNEL)) {
+ 		pr_err("sched_ext: Failed to allocate cpumasks\n");
+
+--- a/kernel/Kconfig.preempt
++++ b/kernel/Kconfig.preempt
+@@ -192,3 +192,15 @@ config SCHED_CLASS_EXT
+ 	  For more information:
+ 	    Documentation/scheduler/sched-ext.rst
+ 	    https://github.com/sched-ext/scx
++
++config SCHED_ASA
++	bool "Adaptive Scheduling Agent router (ASA prototype)"
++	depends on SCHED_CLASS_EXT && PSI
++	default n
++	help
++	  Prototype kernel support for the Mixture-of-Schedulers Adaptive
++	  Scheduling Agent (ASA) from arXiv:2511.11628. Exposes heuristic
++	  workload perception, time-weighted voting, and sched_ext expert
++	  mapping under /sys/kernel/sched_ext/asa/. Userspace loads expert
++	  sched_ext BPF schedulers; the kernel recommends switches via sysfs
++	  uevents.
+
+--- a/kernel/sched/asa.c	2026-06-16 11:41:50.131862895 -0500
++++ b/kernel/sched/asa.c
+@@ -0,0 +1,465 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Adaptive Scheduling Agent (ASA) prototype for linux-rg.
++ *
++ * Implements the perception/decision/action split from arXiv:2511.11628 using
++ * heuristic workload classification and time-weighted probability voting.
++ * Expert sched_ext BPF programs are loaded from userspace; the kernel exports
++ * sysfs state under /sys/kernel/sched_ext/asa/.
++ */
++#include <linux/timer.h>
++#include <linux/kobject.h>
++#include <linux/mutex.h>
++#include <linux/psi.h>
++#include <linux/sched/loadavg.h>
++
++#include "sched.h"
++
++#define ASA_CLASS_NR		4
++#define ASA_NAME_LEN		32
++#define ASA_MAP_LINE_LEN	64
++
++enum asa_workload_class {
++	ASA_CLASS_INTERACTIVE = 0,
++	ASA_CLASS_CPU,
++	ASA_CLASS_IO,
++	ASA_CLASS_MIXED,
++};
++
++static const char * const asa_class_names[ASA_CLASS_NR] = {
++	"interactive",
++	"cpu",
++	"io",
++	"mixed",
++};
++
++static const char * const asa_default_schedulers[ASA_CLASS_NR] = {
++	"scx_lavd",
++	"scx_rusty",
++	"scx_bpfland",
++	"scx_p2dq",
++};
++
++struct asa_vote_slot {
++	u64		timestamp;
++	u16		probs[ASA_CLASS_NR];
++};
++
++struct asa_router {
++	struct timer_list	sample_timer;
++
++	char			schedulers[ASA_CLASS_NR][ASA_NAME_LEN];
++	char			recommended[ASA_NAME_LEN];
++	enum asa_workload_class	voted_class;
++
++	unsigned int		enabled;
++	unsigned int		cooldown_ms;
++	unsigned int		sample_ms;
++	unsigned int		voting_window;
++	unsigned int		vote_threshold_pct;
++	unsigned int		decay_pct;
++
++	struct asa_vote_slot	*vote_ring;
++	unsigned int		vote_head;
++	unsigned int		vote_count;
++
++	unsigned long		last_switch_jiffies;
++	u64			last_ctxsw;
++	unsigned long		last_sample_jiffies;
++
++	struct mutex		lock;
++};
++
++static struct asa_router asa;
++static struct kobject *asa_kobj;
++
++static u32 asa_load_pct(unsigned long load)
++{
++	return load * 100U / LOAD_AVG_MAX;
++}
++
++static void asa_collect_features(u32 *rq_avg, u32 *csw_per_sec,
++				 u32 *cpu_psi, u32 *io_psi, u32 *mem_psi)
++{
++	unsigned int cpu, nr = 0, sum = 0;
++	u64 now, ctxsw, dt_jiffies;
++
++	cpus_read_lock();
++	for_each_online_cpu(cpu) {
++		sum += cpu_rq(cpu)->nr_running;
++		nr++;
++	}
++	cpus_read_unlock();
++	*rq_avg = nr ? DIV_ROUND_UP(sum * 100, nr) : 0;
++
++	now = jiffies;
++	ctxsw = nr_context_switches();
++	dt_jiffies = max(now - asa.last_sample_jiffies, 1UL);
++	*csw_per_sec = div64_u64((ctxsw - asa.last_ctxsw) * HZ * 100,
++				 dt_jiffies);
++	asa.last_ctxsw = ctxsw;
++	asa.last_sample_jiffies = now;
++
++	mutex_lock(&psi_system.avgs_lock);
++	*cpu_psi = asa_load_pct(psi_system.avg[PSI_CPU_SOME][0]);
++	*io_psi = asa_load_pct(psi_system.avg[PSI_IO_SOME][0]);
++	*mem_psi = asa_load_pct(psi_system.avg[PSI_MEM_SOME][0]);
++	mutex_unlock(&psi_system.avgs_lock);
++}
++
++static void asa_classify(u32 rq_avg, u32 csw_per_sec, u32 cpu_psi,
++			 u32 io_psi, u32 mem_psi, u16 probs[ASA_CLASS_NR])
++{
++	u32 scores[ASA_CLASS_NR] = { 0 };
++	u32 total = 0;
++	int i;
++
++	scores[ASA_CLASS_IO] = io_psi * 3 + mem_psi;
++	scores[ASA_CLASS_CPU] = cpu_psi * 2 + rq_avg;
++	scores[ASA_CLASS_INTERACTIVE] = csw_per_sec / 50 + (rq_avg < 200) * 40;
++	if (rq_avg > 150 && cpu_psi > 20)
++		scores[ASA_CLASS_CPU] += rq_avg / 2;
++	if (csw_per_sec > 200 && io_psi < 15)
++		scores[ASA_CLASS_INTERACTIVE] += 60;
++	scores[ASA_CLASS_MIXED] = 25 + (rq_avg / 4) + (cpu_psi / 4) + (io_psi / 4);
++
++	for (i = 0; i < ASA_CLASS_NR; i++)
++		total += scores[i];
++	if (!total) {
++		probs[ASA_CLASS_MIXED] = 10000;
++		return;
++	}
++
++	for (i = 0; i < ASA_CLASS_NR; i++)
++		probs[i] = DIV_ROUND_CLOSEST(scores[i] * 10000U, total);
++}
++
++static enum asa_workload_class asa_vote_locked(void)
++{
++	u64 scores[ASA_CLASS_NR] = { 0 };
++	unsigned int i, w, window = max(asa.voting_window, 1U);
++	enum asa_workload_class best = ASA_CLASS_MIXED;
++	u64 best_score = 0;
++
++	for (i = 0; i < asa.vote_count; i++) {
++		unsigned int idx = (asa.vote_head - 1 - i) % window;
++		struct asa_vote_slot *slot = &asa.vote_ring[idx];
++		u64 weight = asa.decay_pct ?
++			max(1ULL, (100ULL - asa.decay_pct) / 10ULL) : 1;
++		int c;
++
++		for (c = 0; c < ASA_CLASS_NR; c++)
++			scores[c] += (u64)slot->probs[c] * weight;
++	}
++
++	for (w = 0; w < ASA_CLASS_NR; w++) {
++		if (scores[w] > best_score) {
++			best_score = scores[w];
++			best = w;
++		}
++	}
++
++	asa.voted_class = best;
++	return best;
++}
++
++static void asa_update_recommendation_locked(bool force_notify)
++{
++	enum asa_workload_class cls = asa.voted_class;
++	const char *next = asa.schedulers[cls];
++	char new_rec[ASA_NAME_LEN];
++	bool changed;
++
++	if (!next[0])
++		strscpy(new_rec, "none");
++	else
++		strscpy(new_rec, next);
++
++	changed = force_notify || strcmp(asa.recommended, new_rec);
++	strscpy(asa.recommended, new_rec);
++
++	if (changed && time_after(jiffies,
++	    asa.last_switch_jiffies + msecs_to_jiffies(asa.cooldown_ms))) {
++		asa.last_switch_jiffies = jiffies;
++		kobject_uevent(asa_kobj, KOBJ_CHANGE);
++	}
++}
++
++static void asa_sample(struct asa_router *r)
++{
++	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi;
++	u16 probs[ASA_CLASS_NR];
++	struct asa_vote_slot *slot;
++	unsigned int idx;
++
++	mutex_lock(&r->lock);
++
++	if (!r->enabled) {
++		mutex_unlock(&r->lock);
++		return;
++	}
++
++	asa_collect_features(&rq_avg, &csw_per_sec, &cpu_psi, &io_psi, &mem_psi);
++	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, probs);
++
++	idx = r->vote_head % max(r->voting_window, 1U);
++	slot = &r->vote_ring[idx];
++	slot->timestamp = jiffies;
++	memcpy(slot->probs, probs, sizeof(probs));
++
++	r->vote_head++;
++	if (r->vote_count < r->voting_window)
++		r->vote_count++;
++
++	asa_vote_locked();
++	asa_update_recommendation_locked(false);
++
++	mutex_unlock(&r->lock);
++}
++
++static void asa_timer_fn(struct timer_list *t)
++{
++	struct asa_router *r = container_of(t, struct asa_router, sample_timer);
++
++	asa_sample(r);
++	mod_timer(&r->sample_timer, jiffies + msecs_to_jiffies(r->sample_ms));
++}
++
++static ssize_t asa_attr_show(char *buf, ssize_t (*fill)(char *buf))
++{
++	ssize_t ret;
++
++	mutex_lock(&asa.lock);
++	ret = fill(buf);
++	mutex_unlock(&asa.lock);
++	return ret;
++}
++
++static ssize_t asa_perception_show(char *buf)
++{
++	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi;
++
++	asa_collect_features(&rq_avg, &csw_per_sec, &cpu_psi, &io_psi, &mem_psi);
++	return sysfs_emit(buf,
++			  "rq_avg_pct=%u\n"
++			  "ctxsw_per_sec=%u\n"
++			  "cpu_psi_pct=%u\n"
++			  "io_psi_pct=%u\n"
++			  "mem_psi_pct=%u\n",
++			  rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi);
++}
++
++static ssize_t perception_show(struct kobject *kobj, struct kobj_attribute *a,
++			       char *buf)
++{
++	return asa_attr_show(buf, asa_perception_show);
++}
++
++static ssize_t workload_show(struct kobject *kobj, struct kobj_attribute *a,
++			     char *buf)
++{
++	return sysfs_emit(buf, "%s\n", asa_class_names[asa.voted_class]);
++}
++
++static ssize_t recommended_scheduler_show(struct kobject *kobj,
++					  struct kobj_attribute *a, char *buf)
++{
++	return sysfs_emit(buf, "%s\n", asa.recommended);
++}
++
++static ssize_t mapping_show(struct kobject *kobj, struct kobj_attribute *a,
++			    char *buf)
++{
++	ssize_t at = 0;
++	int i;
++
++	for (i = 0; i < ASA_CLASS_NR; i++)
++		at += sysfs_emit_at(buf, at, "%s=%s\n",
++				    asa_class_names[i], asa.schedulers[i]);
++	return at;
++}
++
++static ssize_t mapping_store(struct kobject *kobj, struct kobj_attribute *a,
++			     const char *buf, size_t count)
++{
++	char line[ASA_MAP_LINE_LEN];
++	char key[ASA_NAME_LEN], val[ASA_NAME_LEN];
++	const char *p = buf;
++	size_t len = count;
++	int i;
++
++	while (len > 0) {
++		size_t chunk = min(len, sizeof(line) - 1);
++		const char *eq;
++
++		memcpy(line, p, chunk);
++		line[chunk] = '\0';
++		p += chunk;
++		len -= chunk;
++
++		eq = strchr(line, '=');
++		if (!eq)
++			continue;
++
++		strscpy(key, line);
++		key[eq - line] = '\0';
++		strscpy(val, eq + 1);
++
++		mutex_lock(&asa.lock);
++		for (i = 0; i < ASA_CLASS_NR; i++) {
++			if (!strcmp(key, asa_class_names[i])) {
++				strscpy(asa.schedulers[i], val);
++				break;
++			}
++		}
++		asa_update_recommendation_locked(true);
++		mutex_unlock(&asa.lock);
++	}
++
++	return count;
++}
++
++static ssize_t enabled_show(struct kobject *kobj, struct kobj_attribute *a,
++			    char *buf)
++{
++	return sysfs_emit(buf, "%u\n", asa.enabled);
++}
++
++static ssize_t enabled_store(struct kobject *kobj, struct kobj_attribute *a,
++			     const char *buf, size_t count)
++{
++	unsigned int val;
++	int ret;
++
++	ret = kstrtouint(buf, 10, &val);
++	if (ret)
++		return ret;
++
++	mutex_lock(&asa.lock);
++	asa.enabled = !!val;
++	if (asa.enabled && !timer_pending(&asa.sample_timer))
++		mod_timer(&asa.sample_timer, jiffies + msecs_to_jiffies(asa.sample_ms));
++	else if (!asa.enabled)
++		timer_delete_sync(&asa.sample_timer);
++	mutex_unlock(&asa.lock);
++
++	return count;
++}
++
++#define ASA_UINT_ATTR(_name, field)					\
++	static ssize_t _name##_show(struct kobject *kobj,		\
++				    struct kobj_attribute *a, char *buf) \
++	{								\
++		return sysfs_emit(buf, "%u\n", asa.field);		\
++	}								\
++	static ssize_t _name##_store(struct kobject *kobj,		\
++				     struct kobj_attribute *a,		\
++				     const char *buf, size_t count)	\
++	{								\
++		unsigned int val;					\
++		int ret = kstrtouint(buf, 10, &val);			\
++		if (ret)						\
++			return ret;					\
++		mutex_lock(&asa.lock);					\
++		asa.field = val;					\
++		mutex_unlock(&asa.lock);				\
++		return count;						\
++	}								\
++	static struct kobj_attribute asa_attr_##_name = {			\
++		.attr = { .name = __stringify(_name), .mode = 0644 },	\
++		.show = _name##_show,					\
++		.store = _name##_store,					\
++	}
++
++ASA_UINT_ATTR(cooldown_ms, cooldown_ms);
++ASA_UINT_ATTR(sample_ms, sample_ms);
++ASA_UINT_ATTR(voting_window, voting_window);
++ASA_UINT_ATTR(vote_threshold_pct, vote_threshold_pct);
++ASA_UINT_ATTR(decay_pct, decay_pct);
++
++static struct kobj_attribute asa_attr_perception = {
++	.attr = { .name = "perception", .mode = 0444 },
++	.show = perception_show,
++};
++
++static struct kobj_attribute asa_attr_workload = {
++	.attr = { .name = "workload", .mode = 0444 },
++	.show = workload_show,
++};
++
++static struct kobj_attribute asa_attr_recommended_scheduler = {
++	.attr = { .name = "recommended_scheduler", .mode = 0444 },
++	.show = recommended_scheduler_show,
++};
++
++static struct kobj_attribute asa_attr_mapping = {
++	.attr = { .name = "mapping", .mode = 0644 },
++	.show = mapping_show,
++	.store = mapping_store,
++};
++
++static struct kobj_attribute asa_attr_enabled = {
++	.attr = { .name = "enabled", .mode = 0644 },
++	.show = enabled_show,
++	.store = enabled_store,
++};
++
++static struct attribute *asa_attrs[] = {
++	&asa_attr_perception.attr,
++	&asa_attr_workload.attr,
++	&asa_attr_recommended_scheduler.attr,
++	&asa_attr_mapping.attr,
++	&asa_attr_enabled.attr,
++	&asa_attr_cooldown_ms.attr,
++	&asa_attr_sample_ms.attr,
++	&asa_attr_voting_window.attr,
++	&asa_attr_vote_threshold_pct.attr,
++	&asa_attr_decay_pct.attr,
++	NULL,
++};
++
++static const struct attribute_group asa_attr_group = {
++	.attrs = asa_attrs,
++};
++
++int asa_init(struct kset *scx_kset)
++{
++	int i, ret;
++
++	mutex_init(&asa.lock);
++	asa.cooldown_ms = 5000;
++	asa.sample_ms = 1000;
++	asa.voting_window = 8;
++	asa.vote_threshold_pct = 5500;
++	asa.decay_pct = 20;
++	asa.voted_class = ASA_CLASS_MIXED;
++	asa.last_ctxsw = nr_context_switches();
++	asa.last_sample_jiffies = jiffies;
++
++	for (i = 0; i < ASA_CLASS_NR; i++)
++		strscpy(asa.schedulers[i], asa_default_schedulers[i]);
++	strscpy(asa.recommended, asa_default_schedulers[ASA_CLASS_MIXED]);
++
++	asa.vote_ring = kcalloc(asa.voting_window, sizeof(*asa.vote_ring),
++				GFP_KERNEL);
++	if (!asa.vote_ring)
++		return -ENOMEM;
++
++	asa_kobj = kobject_create_and_add("asa", &scx_kset->kobj);
++	if (!asa_kobj) {
++		kfree(asa.vote_ring);
++		return -ENOMEM;
++	}
++
++	ret = sysfs_create_group(asa_kobj, &asa_attr_group);
++	if (ret) {
++		kobject_put(asa_kobj);
++		kfree(asa.vote_ring);
++		return ret;
++	}
++
++	timer_setup(&asa.sample_timer, asa_timer_fn, 0);
++
++	pr_info("sched_asa: router initialized (arXiv:2511.11628 prototype)\n");
++	return 0;
++}
+\ No newline at end of file

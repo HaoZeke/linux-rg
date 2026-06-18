@@ -48,7 +48,17 @@ source=(
   0006-ddcci-driver.patch
   0007-block-cachy.patch
   0008-adios-cachy.patch
+  0009-asa-sched-router.patch
+  0010-cachy-hotpath-inline.patch
+  0011-detach-tasks-fix.patch
+  0012-sched-ext-smt-idle.patch
+  0013-sched-migration-cost.patch
+  0014-zen-kswapd-waiters.patch
+  0015-zen-schedutil-limits.patch
   rgx1gen11.config
+  asa-router
+  rgx1gen11-iwlwifi.conf
+  rgx1gen11-btusb.conf
 )
 source_x86_64=(config.x86_64)
 validpgpkeys=(
@@ -56,35 +66,56 @@ validpgpkeys=(
   647F28654894E3BD457199BE38DBBDC86092693E  # Greg Kroah-Hartman
   83BC8889351B5DEBBB68416EB8AC08600F108CDF  # Jan Alexander Steffens (heftig)
 )
-b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b9681b9130b14e3c790d31208eb244d123249a93e35e8e6165f3d858c9'
-        'SKIP'
-        '26230d1a111b24fe9239273acdfacda37c5bf009f861c448ad25392dcca433514246d629a077ce5c66478c7e0f4e5477ce5f95c91d08b3a02cc87bb35b849bcf'
-        'SKIP'
-        'SKIP'
-        'SKIP'
-        'SKIP'
-        'SKIP'
-        'SKIP'
-        'SKIP'
-        'SKIP'
-        'de2717075b6af543f888d2a6604180f0d256fa3abe0109efeaf876939ad186195d57b667dc5a757d97c4fdc77a1fca4f4499c144a82793d9cb7bc00db0ef5412'
-        'SKIP')
-b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
-
-# https://www.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc
 sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'SKIP'
             'ce38af1268931b099993cf01c537d6c3b21007e08cad84d2f1e71f95cc5cb75b'
             'SKIP'
-            'SKIP'
-            'SKIP'
-            'SKIP'
-            'SKIP'
-            'SKIP'
-            'SKIP'
-            'SKIP'
+            'f594e3a0cf55649377e09bc22e6dd5152ecafe6a96460a68036a35bba5ba932e'
+            '12e8cf31882138d0c90a59d8e2ad863ce87099fa300dded743a32887ccc2ad90'
+            '8ea77c5038568d79d54319c7277363686c1ae44f927d3bf2f0d65c4ec2bad91f'
+            'f798b7896d3014f99316777a0a1415a9cf3a08ed1abfaaad9a97277f9ef8433a'
+            '4552ccbf50e5a7c45c7f70ca8db55a444584c99c53f61ec42c74ced68ffd4658'
+            'd8ae5e09265e87370655a672156bf95b9cdc3b85acc19d9b82fbf4e895efedd0'
+            '1c9c4cfda09760a06927574e74e4094193d081dfb9b81e3a958379c60c17272b'
             '0fb154e8401fa57055e184b6fe922a6a81c3d5ae41e19d31548e548339839327'
-            'SKIP')
+            '5a99717aa7708a3b8715ec87065c7974fdbd55908a5e18c09861b972dc48bd08'
+            '882c1b29e935d2bee1873c0ce135ea4ce1d91343a49f41d902ecaf8d9be8f9f8'
+            '92c8bfd96f91ff0da27d7714360188da4e442aff1722830b1803770b9cd21a0d'
+            '509246930ad9065f9d4c3a98ac267ad164f3233aa8769cdfe0d4c54ee602cad8'
+            'be700356b32a79561e4e45c12b16cc7724bebdf82b1af4e8c9a7348351e8cc9c'
+            '3102018370fd41d6beee22b579349bc9420495dac7eac89175b29a2d25fb7a54'
+            'f936b1e3264284b87ffe25ddbde24e1f2cbd17337576767c4d630d7271fab0b0'
+            '01891cb1035cae26e1eec896118db609ef8074d33d9f3f2a68359b8f244dcbc7'
+            'fa9059e8274b60d3caf1d5e78a1fe21b92d937fe21562df5920b9c66d0013923'
+            '134551c9ab2a33011cd2cdf366e66da4cc9297011146a8abe8840f5b7a3f7408'
+            '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74')
+sha256sums_x86_64=('0ed8c43b4ad6c3c3f3affe1317581992ba0eac6697d421a5c6d8210bf1e29ad7')
+b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b9681b9130b14e3c790d31208eb244d123249a93e35e8e6165f3d858c9'
+        'SKIP'
+        '26230d1a111b24fe9239273acdfacda37c5bf009f861c448ad25392dcca433514246d629a077ce5c66478c7e0f4e5477ce5f95c91d08b3a02cc87bb35b849bcf'
+        'SKIP'
+        '9dc1a5a46d8ecf606323926f22b4ce0aaf910dc47fd9ab9b8d08d1600e0bb45109babf7098f390562d8d8456239bb44b7db13b175fe2f529b9784a603dc11fbe'
+        '82d0b6b7cbaf4cf6df3e9e57d618082743853eef62292e05f7b04f2aeace9d1e9861b8aa4f42ab16d9e19d0b21238d0431d4c735d557aef3153ec2f7e0c4b980'
+        '582d2cc4c417ea20b5d361c469c0c1f70a1733dcdedb1e3f80b7339f19dc3229bd3ebe605c30955fce21973e51fff1de89bcd2d153eba43cc5b987b98397ccb8'
+        '7757e61dacd89512b14257427ad4bb94924f5957d4b0112799b26775a631e0ce2b90fb6d6b753c1ea9103d0269d946bd0063dc41a97537d1341aed0b25472af8'
+        'b4f108a878bfcebf5d765c7ef37a96ef4e76894c4453595aaca7a200dd65234572bf95b7bec8640af2c2f97534230e12c06a6330e853134932e22625308b3124'
+        'b13e277497e8d688beb8e69bf8eac9e4b0f760d927a4c02b4b0fe80c8be43022dc3e8e5b68377827aca40fd03eefd648dc638e51024b837a9dd438448cbfa0a1'
+        '1e03198bd2c832238c5d4dfc0fa742ea32db994f4a19bfde84745d40d77c85476aee1832b45d153d071fb124e967423fac112c1f8b4da38ac90458fd3e023493'
+        'de2717075b6af543f888d2a6604180f0d256fa3abe0109efeaf876939ad186195d57b667dc5a757d97c4fdc77a1fca4f4499c144a82793d9cb7bc00db0ef5412'
+        'c5586d7c26a3685822c745198635637573bf146180834b4435f1d0f059dbc5682e30d243f4496efb53b23629f1859abadf04a291feb502f52880af3458d5db42'
+        'b2260db749e3632a80b6d45d8d0777e0cff8d481798c3b079364dfa327c14f7534960f082e3b37486413e6f89812e9e6ded4a9d17b8997d94da2522c5c69c18f'
+        'c9ff8674f26e0bd49a1cbecbd7ef4ab76507ecca4d5d3e085fdbadf6c809fb652fa209395684e5042b28532cc723ac11083d48414aa7805536c199abfef33797'
+        '3eff3a53ffc70df96b1a620883acd6fff4e0f875edf9191598957e40e028fca2f614d505faad410ac9d4fd1c0ebd0c048fa1c04383d069e1a1e4abc5ed2c9110'
+        '43092dc75bf584705b4075be1a53a85833420c7e3a7ea55b02e9add1a33160f06bf497792a4f5dcd11be2e99eb5fa3a91f13ea79bb1873434350ac975dec2b72'
+        '08e550a84c84df1059225a0096e5d829a223c695511464b753614c0102b60ba59f7960a35535459822a56ef434c89ee54601e813c0cf3d4985ea05f1e31e4561'
+        '8ca24572f81b16fbb1138b7b4681e34c107b9e77bf031e69884a4abb0216aa666cf24215e5235276b15e335e397a3a42645103c1cb515f84f69172a145dddc85'
+        'bda91e1f1e795cfe67abf2421d4a38d017f4039316342608388eae0903f78fd1f5621acf31a8ec459ea73f41d6f5f24eed5e6d4e70a363c4f284fd683dfc270b'
+        '4f290c4b5aeed7d8a2e048410f304c891955129c1641b5a1145302e61f1e9f76593448d9c765fc13e1717159245c9d304948087f79e04d69e53fdfea4a5e5f13'
+        '9baa113f8982af04ffafd26096c48c0a099e7aebeafc635c97e79fd5c70da2c348d7b40e05110d01a5f2e2c2ebf5750bab37ebe6b080b5e6c27520aec6dffc82'
+        '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a')
+b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
+
+# https://www.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc
 
 export KBUILD_BUILD_HOST=archlinux
 export KBUILD_BUILD_USER=$pkgbase
@@ -177,12 +208,14 @@ _package() {
     coreutils
     initramfs
     kmod
+    linux-firmware
   )
   optdepends=(
     "$pkgbase-headers: headers and scripts for building modules"
     'ddcutil: userspace DDC/CI monitor controls'
-    'linux-firmware: firmware images needed for some devices'
+    'linux-firmware: AX211 Wi-Fi/BT and SOF firmware (also in depends)'
     'scx-scheds: to use sched-ext schedulers'
+    'scx_loader: ASA router expert scheduler switching'
     'v4l2loopback-utils: utilities to control v4l2loopback devices'
     'wireless-regdb: to set the correct wireless channels of your country'
   )
@@ -213,6 +246,10 @@ _package() {
   echo "Installing modules..."
   ZSTD_CLEVEL=19 make INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 \
     DEPMOD=/doesnt/exist modules_install  # Suppress depmod
+
+  install -Dm755 ../asa-router "$pkgdir/usr/bin/asa-router"
+  install -Dm644 ../rgx1gen11-iwlwifi.conf "$pkgdir/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf"
+  install -Dm644 ../rgx1gen11-btusb.conf "$pkgdir/usr/lib/modprobe.d/rgx1gen11-btusb.conf"
 
   # remove build link
   rm "$modulesdir"/build

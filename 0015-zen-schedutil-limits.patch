@@ -1,0 +1,25 @@
+From: damentz <damentz@users.noreply.github.com>
+Subject: [PATCH] sched: cpufreq_schedutil: use limits_changed for DL boost
+
+Cherry-picked from Liquorix zen/v7.0.12-lqx1.patch (schedutil subset only).
+When DL bandwidth exceeds the minimum, flag policy limit changes instead of
+forcing an immediate frequency update through need_freq_update.
+
+Signed-off-by: damentz <damentz@users.noreply.github.com>
+---
+ kernel/sched/cpufreq_schedutil.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/sched/cpufreq_schedutil.c b/kernel/sched/cpufreq_schedutil.c
+index 153232dd8276..a8b4c1d2e3f1 100644
+--- a/kernel/sched/cpufreq_schedutil.c
++++ b/kernel/sched/cpufreq_schedutil.c
+@@ -393,7 +393,7 @@ static inline bool sugov_hold_freq(struct sugov_cpu *sg_cpu) { return false; }
+ static inline void ignore_dl_rate_limit(struct sugov_cpu *sg_cpu)
+ {
+ 	if (cpu_bw_dl(cpu_rq(sg_cpu->cpu)) > sg_cpu->bw_min)
+-		sg_cpu->sg_policy->need_freq_update = true;
++		sg_cpu->sg_policy->limits_changed = true;
+ }
+ 
+ static inline bool sugov_update_single_common(struct sugov_cpu *sg_cpu,
