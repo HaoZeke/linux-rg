@@ -30,6 +30,8 @@ then applies a small machine overlay in `rgx1gen11.config`.
   wired into classic reclaim and MGLRU without carrying `CONFIG_CACHY`.
 - MGLRU dev-tree vmscan weld (0019): writeback handling helper, evictable-size
   scan budgeting, and batch eviction flow adapted to keep the 0018 ratio gates.
+- MM bulk-free hot paths (0021): `free_contig_range()` and `vfree()` batched
+  page freeing carried for memory-pressure benchmarking.
 - Intel AX211 Wi-Fi/BT: `IWLMLD`, `bt_coex_active` modprobe drop-in; `linux-firmware`
   in package depends; `rgx1gen11-ax211-check` validates the config, module tree,
   modprobe policy, and firmware inventory.

@@ -293,8 +293,8 @@ modprobe. Full map: =docs/rgx1gen11-drivers.org=. Boot rules:
 | 06-08 | hot-path inlines | tlb.c, sched.h, core.c | **carried** =0010= |
 | 09 | =detach_tasks()= loop_max fix | kernel/sched/fair.c | **carried** =0011= |
 | 18 | sched_ext idle SMT sibling | kernel/sched/ext_idle.c | **carried** =0012= |
-| 16 | =free_contig_range()= bulk free | mm/page_alloc.c | candidate (memory-pressure profile) |
-| 17 | =vfree()= via =free_pages_bulk()= | mm/vmalloc.c | candidate (memory-pressure profile) |
+| 16 | =free_contig_range()= bulk free | mm/page_alloc.c | **carried** =0021= |
+| 17 | =vfree()= via =free_pages_bulk()= | mm/vmalloc.c | **carried** =0021= |
 
 ** Low-value / skip for this machine
 
@@ -309,8 +309,8 @@ modprobe. Full map: =docs/rgx1gen11-drivers.org=. Boot rules:
 1. Cherry-pick #06-#08 done (=0010=).
 2. Add #09 (detach_tasks) done (=0011=).
 3. Add #18 (sched_ext SMT idle) done (=0012=).
-4. Add #16-#17 only if memory-pressure benchmarks show vmalloc/page free wins
-   (=linux-rg-mmhp=, blocked by =linux-rg-61pb=).
+4. Add #16-#17 done (=0021=); memory-pressure benchmarks decide whether they
+   remain in the default package (=linux-rg-mmhp=, blocked by =linux-rg-61pb=).
 
 ** Decision gate
 
@@ -1064,7 +1064,7 @@ and the BORE + sched_ext stack on 21HM002GUS. Live runtime probe 2026-06-18.
 5. scx_loader + ASA (linux-rg-tjsl)
 6. NVMe scheduler A/B (linux-rg-rt1t)
 7. Memory vmscan weld if PSI tests fail (linux-rg-7zwz, linux-rg-5fxc)
-8. cachyos-fixes #16-17 if memory-pressure bench wins (linux-rg-mmhp)
+8. cachyos-fixes #16-17 carried as =0021=; memory-pressure bench decides default retention (linux-rg-mmhp)
 
 Vissues: =linux-rg-eco1= (this survey), =linux-rg-zen2= (0014-0015), =linux-rg-rust1= (Rust pins),
 =linux-rg-7m20= (0016 + bench-idle gate).
@@ -1090,7 +1090,7 @@ Vissues: =linux-rg-eco1= (this survey), =linux-rg-zen2= (0014-0015), =linux-rg-r
 | Power | cpuidle TEO default | sirlucjan 7.0 / 0016 | carried | B | Live probe: menu governor today |
 | Rust | binder + fw_loader pins | Arch 7.0.12 mainline | carried (config) | B/C | Not a driver rewrite |
 | Scheduler | newidle balance revert | cachyos-fixes-v27 #05 | not carried | D | Conflicts with BORE |
-| Memory | vmalloc/page bulk free #16-17 | cachyos-fixes-v27 | candidate | B/D | After memory-pressure bench |
+| Memory | vmalloc/page bulk free #16-17 | cachyos-fixes-v27 / 0021 | carried | B/D | Needs memory-pressure bench |
 | Policy | systemd-oomd | Meta PSI/OOMD | userspace | B/C | Pairs with CONFIG_PSI |
 | Policy | scx_loader | sched_ext ecosystem | userspace | B | Hybrid CPU experiments |
 

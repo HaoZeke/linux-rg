@@ -273,7 +273,7 @@ Not kernel drivers, but measured policy that interacts with MM and IO:
 | Item | Type | Vissue |
 | cpuidle TEO runtime check | config eval | =linux-rg-7m20= |
 | iwlwifi power_save A/B | modprobe / iw | =linux-rg-wifi= |
-| cachyos mm hot-path #16-17 | patch, post-bench | =linux-rg-mmhp= |
+| cachyos mm hot-path #16-17 | carried =0021=, post-bench | =linux-rg-mmhp= |
 | cache-aware SCHED_CACHE | carried =0020= | =linux-rg-kr7t= |
 
 * Document index
