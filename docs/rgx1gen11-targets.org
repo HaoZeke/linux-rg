@@ -30,10 +30,24 @@ Captured 2026-06-18 on the target laptop running Arch =7.0.12.arch1=.
 | iGPU | Intel Raptor Lake-P Iris Xe, PCI 8086:a7a1, driver =i915= |
 | Wi-Fi | Intel CNVi, PCI 8086:51f1, =iwlwifi= + =iwlmvm= |
 | NVMe | KIOXIA XG8 KXG8AZNV1T02 LA, 1.02 TB, FW 5108APLA, =/dev/nvme0n1= |
+| NVMe temp (hwmon) | Composite **49.9°C** at 2026-06-18 probe | =nvme-pci-0400= via sensors |
 | Audio | Intel cAVS 8086:51ca, SOF path (=snd_sof_pci_intel_tgl=) |
 | Thunderbolt | Dual TB4 NHI (8086:a73e, 8086:a76d) + root ports |
 | Platform profile | ACPI =balanced= available (=low-power-balanced=, =performance= in choices) |
 | Swap today | zram ~15.5 GiB (zstd) + btrfs swapfile ~15 GiB |
+| Fingerprint | Synaptics Prometheus USB =06cb:00fc= |
+| Webcam | Chicony integrated =04f2:b751=, driver =uvcvideo= |
+| Bluetooth | Intel USB =8087:0033= (AX211 companion) |
+| TPM | =/dev/tpm0= present |
+| Microcode | Revision =0x00006134= (2026-06-18 dmesg) |
+
+** Boot cmdline facts (stock, 2026-06-18)
+
+| Parameter | Value | Notes |
+| LUKS discard | =allow-discards=, =rd.luks.option=discard= | Pairs with btrfs =discard=async= |
+| Hibernate | =resume=/dev/mapper/luks resume_offset=533760= | Partial wiring; full gate =linux-rg-2ih0= |
+| PCIe ASPM | =pcie_aspm.policy=powersave= | Aligns with kernel ASPM pins |
+| Graphics | =i915=, =i915.force_probe=!9a49=, =xe.force_probe=9a49= | Iris Xe on i915 today |
 
 ** Graphics driver policy (stock cmdline today)
 
@@ -111,10 +125,22 @@ Acceptance (=linux-rg-rt1t=):
 | Optional vmscan weld | If mainline insufficient | Cachy ratios + mglru-patches-v2 | =linux-rg-7zwz=, =linux-rg-5fxc= |
 | Access-aware reclaim | Stale browser mappings | DAMON units (bounded) | =linux-rg-tm76= |
 
-Suggested zram target for 32 GiB (document, do not assume current size is optimal):
+** Measured memory policy baseline (2026-06-18, stock kernel)
 
-- Cap zram at 25-50% of RAM (~8-16 GiB) unless measurement shows benefit from 15 GiB.
-- Keep zswap enabled; measure compression ratio under =memory-pressure= profile.
+| Metric | Value | Source |
+| zram size | ~15.5 GiB (ram/2) | zram-generator + chezmoi |
+| zram algorithm | zstd | =/sys/block/zram0/comp_algorithm= |
+| zram compression | **~3.68x** | =mm_stat= (4.9 GiB orig / 1.33 GiB compr) |
+| zswap | enabled, zstd | module parameters |
+| swappiness | 100 | =/etc/sysctl.d/99-memory.conf= |
+| dirty writeback | ratio 10/5, expire 30s, wb 15s | chezmoi rationale (anti-spike) |
+| browser.slice | MemoryHigh 6G | chezmoi |
+| build.slice | MemoryHigh 12G, MemoryMax 20G | chezmoi |
+| rust-analyzer.slice | MemoryHigh 10G, MemoryMax 14G | chezmoi |
+
+Suggested zram target for 32 GiB: current ram/2 policy is **empirically active**;
+revisit only if =memory-pressure= bench shows thrash or ratio collapse. Keep zswap
+enabled as second layer; document combined behavior under PSI.
 
 ** Network (CNVi, roaming)
 
@@ -154,9 +180,22 @@ SOF PCI driver on this machine today.
 | s2idle suspend | Modern ACPI sleep | CONFIG_SUSPEND, mem_sleep | =linux-rg-slp= |
 | Fan / thermals | DTT participant present | intel_pmc, thinkpad_acpi | =linux-rg-wpdr= |
 
-Arch =config.x86_64= enables TEO, MENU, and LADDER governors. First step for
-=linux-rg-7m20=: confirm which governor is default at runtime after linux-rg boot;
-benchmark idle power before carrying sirlucjan TEO preference patch.
+Live probe 2026-06-18 (stock Arch): cpuidle governor =menu= despite TEO built.
+linux-rg carries =0016-cpuidle-teo-default.patch=; validate =teo= at runtime and
+idle power via =linux-rg-bench-idle= after first boot.
+
+Live power state: intel_pstate =performance= on all CPUs; platform_profile =balanced=.
+Userspace tuning (=linux-rg-pwr=) is higher priority than additional kernel patches.
+
+** Platform peripherals (pass 8 gaps)
+
+| Target | Rationale | Layer | Vissue |
+| Fingerprint login | Prometheus reader present | fprintd + libfprint | =linux-rg-1j07= |
+| Webcam privacy | UVC loaded on USB | udev autosuspend, shutter | =linux-rg-al83= |
+| Touchpad feel | I2C designware + PS/2 trackpoint | libinput palm detect | =linux-rg-8mmb= |
+| Hardware video | Video calls, power | VAAPI + GuC/HuC policy | =linux-rg-r8jz= |
+| Discard / trim | LUKS+btrfs already discard=async | fstrim.timer policy | =linux-rg-7pnt= |
+| Writeback stalls | Build + browser cache writes | vm.dirty_* sysctl | =linux-rg-5x78= |
 
 ** Initramfs and modules
 

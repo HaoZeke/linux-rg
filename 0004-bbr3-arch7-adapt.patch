@@ -54,6 +54,7 @@ index 21a384e..18c6cd7 100644
  
  	/* new value of cwnd after loss (required) */
  	u32  (*undo_cwnd)(struct sock *sk);
+ 
 diff --git a/include/net/tcp_ecn.h b/include/net/tcp_ecn.h
 index 865d5c5..1e0b8fd 100644
 --- a/include/net/tcp_ecn.h

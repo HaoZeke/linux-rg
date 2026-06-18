@@ -30,11 +30,28 @@ File: =/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf=
 - =power_save=: default module Y; use =iw dev wlan0 set power_save off= for
   low-latency desktop, =on= for battery (linux-rg-pwr).
 
+** Firmware versions on bench (2026-06-18)
+
+Packages present under =/lib/firmware/=:
+
+- =iwlwifi-ma-b0-gf-a0-86.ucode.zst=
+- =iwlwifi-ma-b0-gf-a0-89.ucode.zst=
+- =iwlwifi-ma-b0-gf-a0.pnvm.zst=
+
+Record the loaded microcode revision from =dmesg | rg iwlwifi= after each
+=linux-firmware= bump and linux-rg boot (=linux-rg-wifi=).
+
 ** Userspace dependencies
 
 - =linux-firmware= (required)
 - =wireless-regdb= (recommended)
 - NetworkManager or iwd
+
+** Rust firmware loader
+
+Arch 7.0.12 builds =CONFIG_RUST_FW_LOADER_ABSTRACTIONS=y= (pinned in
+=rgx1gen11.config=). This is a safer firmware-loader API layer; iwlwifi remains
+a C driver. See =docs/candidates.org= Rust subsection and =linux-rg-rust1=.
 
 ** What we are not doing
 
@@ -68,6 +85,31 @@ File: =/usr/lib/modprobe.d/rgx1gen11-btusb.conf=
   resume if devices disappear (linux-rg-slp).
 
 Vissue: =linux-rg-bt=.
+
+* Fingerprint (Synaptics Prometheus)
+
+| Field | Value |
+| USB | 06cb:00fc Synaptics Prometheus MIS |
+| Userspace | =fprintd= + =libfprint= (not active on bench 2026-06-18) |
+| Kernel | USB HID stack; no custom kernel driver needed |
+
+Prometheus readers on recent ThinkPads often need a current =libfprint= build and
+matching udev rules. This is userspace-only for linux-rg; validate enroll/auth
+after stock boot stability.
+
+Vissue: =linux-rg-1j07=.
+
+* Webcam (Chicony UVC)
+
+| Field | Value |
+| USB | 04f2:b751 Chicony integrated camera |
+| Driver | =uvcvideo= (loaded) |
+| Privacy | ThinkPad camera shutter / kill switch via ACPI where exposed |
+
+Kernel pins: none beyond USB stack and =CONFIG_MEDIA_CAMERA_SUPPORT= (Arch base).
+Policy focus: autosuspend, shutter integration, PipeWire portal permissions.
+
+Vissue: =linux-rg-al83=.
 
 * Graphics (Iris Xe 8086:a7a1)
 
@@ -121,9 +163,14 @@ Vissue: =linux-rg-sof=.
 ** Kernel config
 
 - =CONFIG_BLK_DEV_NVME=m= (must match Arch for initramfs)
-- =CONFIG_NVME_HWMON=y=, =CONFIG_NVME_MULTIPATH=y=
+- =CONFIG_NVME_HWMON=y= (thermal telemetry -- use on bench)
+- =CONFIG_NVME_MULTIPATH=y= (single XG8 on this machine; **likely unnecessary**;
+  see pass 8 in =docs/candidates.org=; consider =m= without default enable)
 
 Initramfs: =nvme= only. See boot-safety doc.
+
+Live root: btrfs on LUKS with =discard=async=; cmdline includes LUKS discard and
+=resume_offset= for partial hibernate wiring (=linux-rg-7pnt=, =linux-rg-2ih0=).
 
 Vissues: =linux-rg-6myb=, =linux-rg-rt1t=.
 
@@ -148,11 +195,23 @@ Vissue: =linux-rg-tb4=.
 | DTT thermal | =CONFIG_ACPI_DPTF=y= |
 | ThinkPad | =thinkpad_acpi=, =CONFIG_THINKPAD_ACPI_HOTKEY_POLL=y= |
 | Platform profile | =CONFIG_ACPI_PLATFORM_PROFILE=y= (balanced/performance) |
-| Touchpad | =hid_multitouch=, =i2c_hid_acpi= |
+| Touchpad | =hid_multitouch=, =i2c_hid_acpi=, I2C designware + PS/2 trackpoint |
 | RF hotkeys | =CONFIG_WIRELESS_HOTKEY=m=, =CONFIG_LENOVO_WMI_HOTKEY_UTILITIES=m= |
 | PMC telemetry | =intel_pmc_core=, =intel_pmt_telemetry= |
+| TPM 2.0 | =/dev/tpm0= (firmware + systemd, not a driver patch) |
 
-Vissues: =linux-rg-pwr=, =linux-rg-wpdr=.
+Vissues: =linux-rg-pwr=, =linux-rg-wpdr=, =linux-rg-8mmb= (libinput palm).
+
+* Userspace stack evidence (chezmoi, 2026-06-18)
+
+Not kernel drivers, but measured policy that interacts with MM and IO:
+
+| Component | Evidence | Doc |
+| Memory sysctl | =/etc/sysctl.d/99-memory.conf= (swappiness 100, dirty 10/5, writeback cadence) | =docs/candidates.org= pass 9 |
+| zram | ~3.68x compression ratio from =mm_stat= | =docs/rgx1gen11-targets.org= |
+| zswap | enabled, zstd compressor | live module params |
+| NVMe thermal | 49.9°C composite via =nvme-pci-0400= hwmon | pass 9 |
+| journald | =99-persistent-storage.conf= conflicts with =volatile-storage.conf= | pass 9; audit =linux-rg-chzm= |
 
 * Safe improvement backlog (kernel-side, no boot risk)
 

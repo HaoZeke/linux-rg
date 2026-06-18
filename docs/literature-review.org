@@ -17,6 +17,151 @@ Sources are limited to peer-reviewed venues, IETF drafts, kernel.org and LWN
 primary coverage, USENIX/LPC proceedings, and vendor technical documentation.
 Downstream patch aggregators are not treated as evidence on their own.
 
+Companion: =docs/candidates.org= ecosystem survey and live hardware probe tables.
+
+* Citation workflow (OokCite MCP)
+
+All citable claims in this file should be validated through the =ookcite= MCP server
+before adding DOIs to the bibliography or citing papers in prose. Do **not** use web
+search for DOI/title/author metadata when OokCite is available.
+
+** Tool sequence
+
+| Step | OokCite tool | When |
+| 1 | =health_check= | Before a batch validation session |
+| 2 | =reverse_lookup= with =use_live_queries: true= | Messy title/author strings (workshop papers, LPC talks) |
+| 3 | =validate_doi= or =verify_references= | Known or candidate DOIs |
+| 4 | =batch_format= with =use_live_queries: true= | Normalize several citations to APA/IEEE |
+| 5 | =add_to_collection= / =batch_add_to_collection= | Persist verified entries to collection =linux-rg= |
+| 6 | =export_collection= format =bibtex= | Refresh bibliography block below |
+
+** What OokCite resolves well
+
+Peer-reviewed ACM/USENIX/arXiv DOIs (BBR, BFQ, BBR/IMC, EuroSys scheduler paper,
+SWAM, ASA preprint). Crossref-backed metadata includes corrected author lists.
+
+** What often fails (keep URL + venue, no fabricated DOI)
+
+| Source type | Example | OokCite result |
+| USENIX ATC full papers | Lebeck ATC 2020, Li KBench ATC 2024 | Often no Crossref DOI; use usenix.org PDF URL |
+| HOTSTORAGE workshop | Whitaker ULL NVMe 2023 | Workshop proceedings may not index |
+| LPC / Linux Plumbers | sched_ext, MGLRU, hybrid Intel | Slides/PDF only; grade B not A |
+| LWN / kernel.org docs | EEVDF, PSI, MGLRU | Primary engineering literature; no DOI |
+| Vendor blogs | Meta OOMD, Intel whitepapers | Grade C; reverse_lookup unreliable |
+
+When =reverse_lookup= returns low scores or wrong-domain matches (e.g. nursing
+admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
+
+** OokCite collection =linux-rg= (validated 2026-06-18; expanded pass 2)
+
+| DOI | Title | Use in linux-rg |
+| 10.1145/3012426.3022184 | BBR (Cardwell et al., Queue 2016) | BBRv3 default justification |
+| 10.1145/3517745.3561420 | BBR model IMC 2022 (Scherrer et al.) | Fairness caveats |
+| 10.1145/2367589.2367590 | BFQ (Valente & Andreolini, SYSTOR 2012) | Block default |
+| 10.1145/2901318.2901326 | The Linux scheduler (Lozi et al., EuroSys 2016) | Server load-balance context |
+| 10.48550/arxiv.2306.08345 | SWAM (Lim et al., 2023) | Swap responsiveness framing |
+| 10.48550/arxiv.2511.11628 | Mixture-of-Schedulers / ASA (Wang et al., 2025) | ASA prototype |
+| 10.1145/3599691.3603400 | Whitaker HOTSTORAGE 2023 ULL NVMe | ADIOS skepticism; =linux-rg-rt1t= |
+| 10.1145/3366626.3368125 | DAMON profiling (Park et al., 2019) | DAMON reclaim framing |
+| 10.1145/3649329.3655943 | ElasticZRAM (Li et al., DAC 2024) | zram sizing vs folklore |
+| 10.1145/3607923 | IOSR swap I/O (Li et al., TECS 2023) | Swap IO scheduling context |
+| 10.48550/arxiv.2506.06067 | memtierd VM tiering (Prakash et al., 2025) | memtierd vs DAMON |
+| 10.48550/arxiv.2409.13327 | Flexible Swapping (Pandurov et al., 2024) | Tiered swap research |
+| 10.48550/arxiv.2509.01245 | Agentic OS schedulers (Zheng et al., 2025) | Not carried; grade D |
+| 10.1016/j.diin.2014.05.011 | In lieu of swap (Richard & Case, 2014) | zram/zswap compressed swap forensics |
+
+Export: =export_collection collection=linux-rg format=bibtex= via MCP.
+
+** OokCite failures (keep URL, no fabricated DOI)
+
+| Source | OokCite result | Action |
+| Lebeck ATC 2020 mobile MM | reverse_lookup unrelated hits | USENIX PDF URL; grade A framing |
+| PSI design | no clean DOI | kernel.org + LWN + Meta blog |
+| TMO ASPLOS 2022 | reverse_lookup failed | CMU PDF URL |
+| MGLRU | LPC slides only | grade B engineering |
+| cpuidle TEO | kernel docs + LWN | grade B |
+
+** Prior mistake (corrected)
+
+Earlier prose cited "Lagarde et al., EuroSys 2016" for the wasted-cores paper.
+OokCite resolves DOI 10.1145/2901318.2901326 to **Lozi et al.** (first author
+Jean-Pierre Lozi). Subtitle in community lore is "a decade of wasted cores"; ACM
+title is "The Linux scheduler."
+
+* Why kernel research feels absent ("why is no one studying this?")
+
+If you tune a desktop kernel from Liquorix threads, CachyOS patches, or Kolivas
+mailing-list lore, the honest answer is: **a lot of kernel work is never written
+up as citable science**. That is not the same as "no one studies kernels." The
+field is split across venues, incentives, and publication cultures that rarely
+reach patch READMEs or distro forums.
+
+** Structural reasons academia under-publishes *your* kernel questions
+
+| Factor | Effect |
+| Measurement cost | A scheduler or IO scheduler claim needs fixed hardware, kernel ABI, config matrix, thermal state, and workload script. One laptop model is one data point. Reviewers want generalization; practitioners want one box that boots. |
+| Incentive mismatch | OS faculty moved toward cloud isolation, eBPF security, ML systems, and hardware-software co-design. "Does BFQ beat none on a ThinkPad NVMe under Sway?" is too specific for SOSP, too applied for theory venues. |
+| Mainline as publication | Many "results" land as lkml threads + merge commits. EEVDF shipped in Linux 6.6 with LWN coverage, not an ACM proceedings paper. The *artifact* is the patch, not a PDF. |
+| Industry owns production tuning | Meta (PSI, OOMD), Google (MGLRU path, Android binder Rust), Intel (hybrid scheduling LPC), and cloud vendors publish blogs and LPC slides. Peer review is optional when billions of machines run your code. |
+| Downstream patch desert | BORE, Liquorix zen cuts, Cachy CONFIG_CACHY hunks, and ADIOS ship as git series with Phoronix posts, not controlled studies. Users confuse *availability* with *evidence*. |
+| Negative results vanish | "mq-deadline did nothing on ULL NVMe" (HOTSTORAGE 2023) is valuable. Few academics publish "we tried ten schedulers on a laptop and nothing helped." |
+| Reproducibility debt | Kernel + firmware + ACPI + panel + NVMe APST + iwlwifi power_save = opaque state. Papers that omit this are not reproducible on a second machine. |
+
+** What people mistake for "kernel research"
+
+| You see | What it actually is | Literature grade |
+| Phoronix headline "X% faster" | Benchmark journalism; often one kernel build, one machine | C at best |
+| Reddit / Discord patch stacks | Engineering folklore; may be correct, unverified | D |
+| Distro default config | Accumulated conservatism, not optimization proof | B/C |
+| =make -j9= wall time | Build throughput proxy; weak proxy for UI latency | D unless paired with sched/PSI metrics |
+| Gaming FPS tests | GPU-bound; tells you little about fair.c sysctl | D for scheduler claims |
+
+** Where kernel research *does* happen (map of venues)
+
+| Venue / channel | Typical topics | Peer review? | rgx1gen11 relevance |
+| USENIX OSDI / SOSP / EuroSys | Isolation, new OS structures, sched frameworks in research kernels, memory offloading | Yes | Indirect; sets trends years before mainline |
+| USENIX ATC / NSDI | Storage, networking at scale, production kernel pathology, security | Yes | PSI/OOMD framing; NVMe datacenter studies (transfer carefully to laptop) |
+| ASPLOS | HW/SW co-design, memory tiering, TMO-style offloading | Yes | Memory pressure framing; not ThinkPad-specific |
+| HOTSTORAGE / SYSTOR / FAST | Block layer, NVMe, filesystems | Yes | **Direct** for KIOXIA XG8 scheduler question |
+| IMC / CoNEXT / SIGCOMM | TCP congestion, Wi-Fi cellular measurement | Yes | **Direct** for BBR on roaming CNVi paths |
+| PAM | Internet measurement, BBRv3 evaluation | Yes | BBR default justification |
+| Linux Plumbers / LPC | Scheduler, MM, power, driver maintainer sessions | Proceedings; not always journal | **Best source** for hybrid Intel, MGLRU, sched_ext |
+| LWN.net | Pre-merge design review of mainline patches | Editorial + primary quotes | **Best readable** source for EEVDF, sched_ext, MGLRU |
+| Kernel.org Documentation | Maintainer-intended semantics | B | Config and sysfs truth |
+| arXiv (systems) | sched_ext ecosystem preprints (e.g. ASA MoS), measurement preprints | Preprint | Prototype ideas; verify before carry |
+| Vendor whitepapers | Intel DTT, Meta PSI, Android Rust binder | C | Production constraints |
+| Linux Foundation / CMU reports | Kernel development model, safety, scale | C/B | Why backports are hard; not laptop tuning |
+
+** The citation gap linux-rg sits in
+
+Mainline Linux 7.0 on a 2023 ultrabook is **post-CFS, post-MGLRU-merge, mid-sched_ext**,
+running **hybrid Intel** silicon that post-dates most classic scheduler papers.
+The published literature lags the patch queue by 2-5 years. Your distro choices
+therefore sit in a **known evidence desert**:
+
+- Carried fair-class tweaks (BORE, 0010-0013): engineering bets, grade D.
+- Carried zen MM/cpufreq cuts (0014-0016): Liquorix folklore, partially upstreamed.
+- Literature-backed choices: MGLRU, PSI, BBR family, BFQ *class*, HOTSTORAGE
+  skepticism on ULL NVMe defaults, hybrid scheduling *problem statement*.
+
+That is why this repo grades patches A-D and separates *problem framing* (often A)
+from *patch implementation* (often D).
+
+** What would count as real science for this project
+
+Minimum bar for promoting any candidate from D to B on this machine:
+
+1. Fixed hardware: 21HM002GUS, documented firmware and BIOS.
+2. Fixed workload scripts per =docs/rgx1gen11-targets.org= profiles.
+3. A/B: stock Arch kernel vs linux-rg; never compare against a moving upstream tip.
+4. Metrics: PSI averages, scheduler latency (perf sched), idle power (RAPL or
+   powertop), NVMe fio percentiles, s2idle success rate -- not a single FPS chart.
+5. Pre-declared success thresholds (already in targets.org acceptance tables).
+6. Negative results recorded in =docs/candidates.org= decision gates.
+
+This is reproducible systems measurement, not a paper -- but it is **more honest**
+than most patch-stack marketing.
+
 * Evidence grading
 
 | Grade | Meaning | Examples |
@@ -24,6 +169,28 @@ Downstream patch aggregators are not treated as evidence on their own.
 | B | Primary kernel engineering literature | kernel.org docs, LWN, LPC slides with published materials |
 | C | Vendor or production engineering reports | Intel, Lenovo, Meta/Facebook engineering notes |
 | D | Downstream implementation without independent study | Single-author patch stacks without published evaluation |
+
+* Literature coverage by subsystem (what is studied vs not)
+
+| Subsystem | Studied well? | Representative work | Gap for rgx1gen11 |
+| CPU fair scheduling (mainline) | Medium | EEVDF design (LWN, kernel docs); decade-of-wasted-cores (EuroSys 2016) on server skew | Laptop hybrid 2P+8E under interactive load; few peer-reviewed A/B vs stock |
+| sched_ext / BPF schedulers | Growing | LPC 2024 maintainer sessions; userspace scx_* tools | Which expert wins on 1365U -- **local bench only** |
+| Downstream fair patches (BORE, PDS, MUQSS) | Poor | Design blogs; no independent eval | Entire linux-rg fair weld is grade D until bench-sched |
+| TCP CC (BBR family) | Strong | Queue 2016; IMC mobile BBR; PAM BBRv3 | CNVi bufferbloat on hotel Wi-Fi -- measure, do not assume |
+| Block / NVMe mq schedulers | Strong skepticism | HOTSTORAGE 2023 ULL NVMe; BFQ OSR 2012 | KIOXIA XG8 + BFQ vs none vs ADIOS -- **open on this SSD** |
+| MGLRU / reclaim | Good (engineering) | LPC 2024 MGLRU; LWN series | Ratio knobs + dev-tree vmscan welds -- downstream only |
+| Swap / zram / zswap | Medium | ATC 2020 mobile MM; SWAM; zram LF slides | 32 GiB + 15 GiB zram sizing -- **no paper for this box** |
+| PSI + oomd | Good (production) | Meta OOMD; kernel PSI docs | Threshold tuning -- userspace, grade B/C |
+| cpuidle / intel_pstate | Medium | Loehle TEO upstream rationale; intel_pstate docs | TEO vs menu on s2idle ultrabook -- patch carried, bench pending |
+| Wi-Fi / iwlwifi | Driver-focused | 802.11 research; few "Linux desktop latency" studies | power_save, bt_coex -- module params, not papers |
+| i915 / laptop display PM | Panel-specific | FOSDEM 2018 battery; mjg59 PSR analysis | Raptor Lake Iris Xe != Panther/Lunar PSR papers |
+| Rust in kernel | Safety narrative | USENIX ATC Android binder Rust eval; LF memory-safety reports | **Not a perf literature** for iwlwifi/i915 paths |
+| PREEMPT_RT | Strong for RT apps | OSAD workshop; driver lag documented | Explicitly wrong daily-driver choice here |
+| Security / bugs | Very strong | KBench (ATC 2024); NDSS kernel fuzzing | Informs risk posture, not scheduler choice |
+
+Takeaway: **the kernel is studied heavily for security, cloud scale, and protocol
+measurement**. It is **under-studied for "my laptop feels snappier with patch X"**
+where X is a downstream fair.c diff. That is the WTF feeling, stated precisely.
 
 * CPU scheduling
 
@@ -41,6 +208,51 @@ Downstream patch aggregators are not treated as evidence on their own.
   https://lwn.net/Articles/991205/
 
 Evidence grade for sched_ext as infrastructure: B.
+
+** EEVDF (mainline fair class since 6.6)
+
+EEVDF (Earliest Eligible Virtual Deadline First) replaced CFS latency-nice heuristics
+with an explicit eligible-time / virtual-deadline model. Primary sources are
+kernel documentation and LWN pre-merge series (Molnar, Gorton, 2023-2024), not a
+standalone ACM paper. Wikipedia and kernel docs summarize the algorithm; treat
+design rationale as grade B, formal verification as absent.
+
+- LWN: Replacing CFS with EEVDF (series)
+  https://lwn.net/Articles/925371/
+- Kernel documentation:
+  https://docs.kernel.org/scheduler/sched-eevdf.html
+
+Research implication: downstream patches that fight EEVDF fair.c (PDS, MUQSS,
+large ZEN_INTERACTIVE hunks) are **opposing a mainline design with public review
+history** but without a single "EEVDF beats CFS on laptops" paper. linux-rg stays
+on EEVDF + BORE tweaks, not replacement.
+
+** sched_ext publication trail
+
+sched_ext adds a BPF-loadable scheduler class with safe fallback to fair.c.
+Maintainer presentations at Linux Plumbers Conference 2024 are the authoritative
+design record. Academic preprints on mixture-of-schedulers (ASA, arXiv 2025) build
+on sched_ext but are not independent verification of scx_lavd/bpfland on consumer
+hybrid CPUs.
+
+- LPC 2024: The extensible scheduler class
+  https://lpc.events/event/18/contributions/1667/
+- LWN coverage:
+  https://lwn.net/Articles/991205/
+
+Evidence grade: B for infrastructure; D for any specific BPF policy until bench.
+
+** Server-centric scheduler criticism (context, not prescription)
+
+Lozi et al., EuroSys 2016 ("The Linux scheduler"; community name "decade of wasted
+cores") documented socket-level scheduling inefficiencies on **large servers**.
+OokCite DOI: 10.1145/2901318.2901326. The work influenced awareness of load-balance
+bugs; it is **not** a laptop study and predates Intel hybrid topology. Useful for
+understanding why detach_tasks-class fixes matter; do not extrapolate core-waste
+numbers to a 12-thread ultrabook.
+
+- https://doi.org/10.1145/2901318.2901326
+- Author PDF: https://people.ece.ubc.ca/sasha/papers/eurosys16-final29.pdf
 
 ** Intel hybrid topology (directly relevant to i7-1365U)
 
@@ -141,6 +353,7 @@ Evidence grade: A for BFQ on shared and rotational workloads.
 - Whitaker et al., HOTSTORAGE 2023: Do we still need IO schedulers for
   low-latency disks?
   https://www.hotstorage.org/2023/papers/hotstorage23-final1.pdf
+- OokCite DOI: 10.1145/3599691.3603400 (validated 2026-06-18)
 
 Evidence grade: A.
 
@@ -228,15 +441,56 @@ Welding map: =docs/candidates.org=.
   https://cdrdv2-public.intel.com/846438/ZSWAPwithIAA_1.0.pdf
 - LWN: zswap writeback discussion
   https://lwn.net/Articles/1064478/
+- Li et al., ElasticZRAM, DAC 2024 (OokCite 10.1145/3649329.3655943): elastic
+  zram sizing on mobile; up to 24.8% response-time improvement claim on Pixel 6.
+- Li et al., IOSR, ACM TECS 2023 (OokCite 10.1145/3607923): swap I/O scheduling
+  and reshaping for mobile responsiveness.
 
-Evidence grade: B/C.
+- Richard & Case, Digital Investigation 2014 (OokCite 10.1016/j.diin.2014.05.011):
+  forensic analysis of compressed RAM swap paths on Linux and macOS.
+
+Evidence grade: B/C for engineering slides; **A for problem framing** on mobile
+swap/zram (ElasticZRAM, IOSR, SWAM, ATC 2020 URL). **Empirical anchor (2026-06-18):**
+rgx1gen11 zram =mm_stat= shows **~3.68x** compression (4.9 GiB → 1.33 GiB stored)
+with chezmoi policy (swappiness 100, zstd, ram/2). Compare after linux-rg boot and
+=memory-pressure= bench (=linux-rg-zram=).
 
 ** DAMON (enabled in linux-rg)
 
 - Kernel documentation:
   https://docs.kernel.org/admin-guide/mm/damon/index.html
+- Park et al., Middleware Industrial Track 2019 (OokCite 10.1145/3366626.3368125):
+  DAMON profiling foundation.
+- Reclaim module: kernel docs
+  https://docs.kernel.org/admin-guide/mm/damon/reclaim.html
 
 Evidence grade: B.
+
+** Memory tiering and reclaim actors (memtierd vs DAMON)
+
+- Prakash et al., arXiv:2506.06067 (OokCite validated): VM memory tiering inside
+  guest; host-agnostic consolidation for skewed huge pages.
+- Pandurov et al., Flexible Swapping for the Cloud, arXiv:2409.13327: userspace
+  swap policy framework for VMs.
+
+On a bare-metal laptop (not a VM host), memtierd is **grade C** until a workload
+needs explicit tiering. DAMON reclaim is already pinned; live probe shows module
+not loaded on stock kernel until =rg-damon-reclaim= runs (=linux-rg-e9fx=).
+
+Evidence grade: C for memtierd on this box; B for DAMON reclaim as primary actor.
+
+** Page cache writeback (vm.dirty_*)
+
+- Kernel documentation: https://docs.kernel.org/admin-guide/sysctl/vm.html
+- Practitioner guide: lonesysadmin dirty_ratio writeback latency (2013)
+
+No peer-reviewed laptop study found for optimal =vm.dirty_ratio= on NVMe+btrfs.
+IOSR (OokCite 10.1145/3607923) addresses **swap I/O scheduling**, not dirty
+page writeback thresholds. Live host uses Arch defaults (=dirty_ratio=10=,
+=dirty_background_ratio=5=); tune only with measured UI stalls under build load
+(=linux-rg-5x78=).
+
+Evidence grade: B for kernel semantics; D for specific values on XG8 until bench.
 
 * Power, idle, and graphics
 
@@ -247,7 +501,7 @@ Evidence grade: B.
 
 Evidence grade: B.
 
-** cpuidle TEO vs menu (candidate; see =docs/candidates.org=)
+** cpuidle TEO vs menu (carried as 0016; see =docs/candidates.org=)
 
 - Upstream rationale: Christian Loehle patch merging TEO preference when menu
   interactivity boost is no longer decisive.
@@ -275,6 +529,87 @@ that class. Evidence for external Thunderbolt displays is panel-specific.
 
 Evidence grade: C (support matrix and hardware facts, not performance tuning).
 
+* Kernel engineering, safety, and development (context)
+
+These lines do not pick a scheduler for rgx1gen11, but explain **why evidence is
+sparse and backports expensive**.
+
+** Development model and scale
+
+- Can the Linux kernel sustain 30 more years of growth? (development bottlenecks)
+  USP / LF collaborative report:
+  https://repositorio.usp.br/directbitstream/a2f2b345-3f1c-4e8c-b102-fbf58d9fc3a2/3271049_-_Can_the_Linux_kernel_sustain_30_more_years_of_growth_Toward_mitigating_bottlenecks_in_its_development_model.pdf
+
+** Security and testing (strong literature)
+
+- KBench: understanding kernel bugs (USENIX ATC 2024):
+  https://www.usenix.org/system/files/atc24-li-hongyu.pdf
+- Kernel vulnerability lifetimes and patching (NDSS and related venues, 2024)
+
+Research implication: the kernel *is* studied -- just mostly for **correctness and
+security**, not "which sysctl makes Firefox snappier."
+
+** Rust for Linux (safety, not throughput)
+
+- Kernel Rust documentation:
+  https://docs.kernel.org/rust/general-information.html
+- Android binder Rust evaluation (USENIX ATC 2024 track -- verify citation against
+  proceedings): memory-safety and CVE reduction narrative.
+
+rgx1gen11 pins =CONFIG_RUST_FW_LOADER_ABSTRACTIONS= for firmware-path safety
+(iwlwifi/SOF), not because Rust scheduler code exists for Iris Xe.
+
+* Downstream patch culture vs literature (why forums feel science-free)
+
+| Patch ecosystem | Claims | Literature |
+| CachyOS / sirlucjan | Desktop latency, -O3, hybrid fixes | LPC-adjacent hunks only; bundle is grade D |
+| Liquorix / Zen | PDS gaming scheduler | No peer review; zen MM cuts partially upstreamed into Arch |
+| Kolivas CK/MUQSS | MUQSS interactivity | Historical; retired 2021; predates EEVDF and hybrid |
+| XanMod / tkg | Low latency, gaming | Benchmark posts; no controlled laptop studies |
+| firelzrd (BORE, ADIOS) | Burst scheduling, adaptive IO | GitHub + blog; grade D |
+| Phoronix | Kernel version comparisons | Useful signal; not peer review |
+
+** Honest position for linux-rg:** we carry grade-D patches where mainline or
+literature leaves a **known gap** (hybrid desktop feel, ULL NVMe scheduler doubt,
+firmware-in-tree modules), and we **document the gap** instead of pretending
+Liquorix/Cachy marketing is science.
+
+* Live validation baseline (=linux-rg-e9fx=, stock kernel 2026-06-18)
+
+Probes on =rgx1gen11= before first linux-rg boot establish what is **already true**
+vs what **requires the custom kernel**:
+
+| Observation | Implication |
+| Running =7.0.12-arch1-1= stock | No BORE, BBR, TEO-default, sched_ext, ADIOS on running system |
+| =tcp_congestion_control=cubic=, =fq_codel= | Network carries untested; do not claim BBR benefit yet |
+| cpuidle =menu= despite TEO in config | 0016 changes default governor only after patch boot |
+| P/E via cpufreq max (5200 vs 3900 MHz) | Hybrid topology confirmed; HFI capacity sysfs absent |
+| zram ~15.5 GiB + swappiness 100 | Chezmoi memory policy active; literature compares to ElasticZRAM/SWAM framing |
+| =/proc/acpi/ibm/fan= readable | thinkfan viable; DPTF/TLP remain first-line |
+| PSI + systemd-oomd active | Observability stack works; 30s PSI CSV captured via =rg-bench-matrix= |
+| Industry scripts missing from PATH until symlink | Deployment gap fixed 2026-06-18; chezmoi apply should own symlinks |
+| sched_ext on stock 7.0.12 | =state=disabled= but sysfs present | Prior "missing" probe was incorrect |
+| zram compression ratio | ~3.68x from =mm_stat= | Empirical memory policy anchor |
+| NVMe hwmon temp | 49.9°C composite | Storage thermal baseline |
+| journald drop-in conflict | persistent vs volatile | Audit before blaming kernel IO |
+
+Full probe tables: =docs/candidates.org= validation log + pass 9 measured evidence.
+
+* Research agenda (what we can measure on 21HM002GUS)
+
+Contributions this repo can make without writing academic papers:
+
+| Question | Method | Fills literature gap? |
+| BORE+0010-0016 vs stock Arch on hybrid CPU | linux-rg-bench-sched + PSI | Yes -- unpublished A/B on 1365U |
+| BFQ vs none vs ADIOS on KIOXIA XG8 | fio + desktop background (HOTSTORAGE protocol) | Yes -- replicates ULL question on laptop SSD |
+| TEO vs menu idle power | linux-rg-bench-idle after 0016 | Partial -- extends Loehle rationale with data |
+| zram 8-16 GiB vs 15.5 GiB | memory-pressure profile + PSI | Yes -- sizing folklore vs measurement |
+| scx_lavd/bpfland vs BORE-only | scx_loader trial | Yes -- sched_ext policy pick for ultrabook |
+| BBRv3 roam on CNVi | linux-rg-bench-wifi | Extends IMC mobile BBR to modern AX211 path |
+
+Negative results (no improvement vs stock) are **first-class outcomes** and should
+be recorded in =docs/candidates.org= decision gates.
+
 * Synthesis for rgx1gen11
 
 Machine-specific targets and vissue map: =docs/rgx1gen11-targets.org=.
@@ -288,58 +623,123 @@ Machine-specific targets and vissue map: =docs/rgx1gen11-targets.org=.
 | BORE + 0010-0013 scheduler weld | No published evaluation (D) | Highest-risk carried fair-class work |
 | detach_tasks fix | Upstream-reviewed (B) | Carried; runtime check on hybrid CPU |
 | cache-aware SCHED_CACHE | Motivation (B); patch (D) | Branch-ready; hold behind sched_ext |
-| re-swappiness, cpuidle TEO | Problem (A/B); patches (D) | Benchmark before carry; Arch has TEO built |
+| re-swappiness | Problem (A/B); patch (D) | Deprioritized vs mglru+ratios weld |
+| cpuidle TEO 0016 | Governor rationale (B); carry (D until bench) | Carried; validate on bench-idle |
+| zen 0014-0015 MM/cpufreq | Liquorix folklore (D) | Carried; low boot risk |
+| Rust fw_loader + binder | Safety (B/C); not perf | Config pins only |
 | i915 vs xe, SOF, TB4 dock | Platform docs (C) | Userspace/boot policy; see hardware targets |
 
-* Bibliography (BibTeX)
+* Bibliography (OokCite-validated BibTeX)
+
+Collection =linux-rg= via OokCite MCP (=export_collection=). Thirteen DOI-verified
+entries as of 2026-06-18 pass 2. URL-only sources remain in prose (Lebeck ATC 2020,
+Hock IMC 2019, Skarlatos TMO ASPLOS 2022, Li KBench ATC 2024).
 
 #+begin_src bibtex
-@article{cardwell2016bbr,
-  title={BBR: Congestion-Based Congestion Control},
-  author={Cardwell, Neal and Cheng, Yuchung and others},
-  journal={ACM Queue},
-  year={2016}
+@article{cardwellBbrCongestionbasedCongestion2016,
+  title = {BBR: Congestion-Based Congestion Control},
+  author = {Cardwell, Neal and Cheng, Yuchung and Gunn, C. S. and Yeganeh, Soheil Hassas and Jacobson, Van},
+  year = {2016},
+  journal = {Queue},
+  volume = {14},
+  number = {5},
+  pages = {20--53},
+  doi = {10.1145/3012426.3022184}
 }
-@inproceedings{hock2019bbr,
-  title={In the Fast Lane: A Measurement Study of TCP BBR on Mobile Networks},
-  author={Hock, Philipp and others},
-  booktitle={IMC},
-  year={2019}
+@inproceedings{loziLinuxScheduler2016,
+  title = {The Linux scheduler},
+  author = {Lozi, Jean-Pierre and Lepers, Baptiste and Funston, Justin and Gaud, Fabien and Qu{\'e}ma, Vivien and Fedorova, Alexandra},
+  year = {2016},
+  booktitle = {Proceedings of the Eleventh European Conference on Computer Systems},
+  pages = {1--16},
+  doi = {10.1145/2901318.2901326}
 }
-@inproceedings{scherrer2022bbr,
-  title={Model-Based Insights on the Performance of BBR},
-  author={Scherrer, Samuel and others},
-  booktitle={IMC},
-  year={2022}
+@inproceedings{valenteImprovingApplicationResponsiveness2012,
+  title = {Improving application responsiveness with the BFQ disk I/O scheduler},
+  author = {Valente, Paolo and Andreolini, Mauro},
+  year = {2012},
+  booktitle = {Proceedings of the 5th Annual International Systems and Storage Conference},
+  pages = {1--12},
+  doi = {10.1145/2367589.2367590}
 }
-@inproceedings{whitaker2023iosched,
-  title={Do we still need IO schedulers for low-latency disks?},
-  author={Whitaker, Caeden and others},
-  booktitle={HOTSTORAGE},
-  year={2023}
+@inproceedings{scherrerModelbasedInsightsPerformance2022,
+  title = {Model-based insights on the performance, fairness, and stability of BBR},
+  author = {Scherrer, Simon and Legner, Markus and Perrig, Adrian and Schmid, Stefan},
+  year = {2022},
+  booktitle = {Proceedings of the 22nd ACM Internet Measurement Conference},
+  pages = {519--537},
+  doi = {10.1145/3517745.3561420}
 }
-@article{valente2012bfq,
-  title={BFQ: Budget Fair Queueing I/O scheduler},
-  author={Valente, Paolo and Avanzini, Fabio},
-  journal={ACM Operating Systems Review},
-  year={2012}
+@techreport{wangMixtureofschedulersAdaptiveScheduling2025,
+  title = {Mixture-of-Schedulers: An Adaptive Scheduling Agent as a Learned Router for Expert Policies},
+  author = {Wang, Xinbo and Jia, Shi and Huang, Ziyang and Cao, Jing and Song, Mingli},
+  year = {2025},
+  doi = {10.48550/arxiv.2511.11628}
 }
-@inproceedings{lebeck2020swap,
-  title={End the Senseless Killing: Improving Memory Management for Mobile OSes},
-  author={Lebeck, Kelly and others},
-  booktitle={USENIX ATC},
-  year={2020}
+@techreport{limSwamRevisitingSwap2023,
+  title = {SWAM: Revisiting Swap and OOMK for Improving Application Responsiveness on Mobile Devices},
+  author = {Lim, Geunsik and Kang, Donghyun and Ham, MyungJoo and Eom, Young Ik},
+  year = {2023},
+  doi = {10.48550/arxiv.2306.08345}
 }
-@article{lim2023swam,
-  title={SWAM: Revisiting Swap and OOMK for Application Responsiveness},
-  author={Lim, Geunsik and others},
-  journal={arXiv:2306.08345},
-  year={2023}
+@inproceedings{whitakerWeStillNeed2023,
+  title = {Do we still need IO schedulers for low-latency disks?},
+  author = {Whitaker, Caeden and Sundar, Sidharth and Harris, Bryan and Altiparmak, Nihat},
+  year = {2023},
+  booktitle = {Proceedings of the 15th ACM Workshop on Hot Topics in Storage and File Systems},
+  pages = {44--50},
+  doi = {10.1145/3599691.3603400}
 }
-@inproceedings{skarlatos2022tmo,
-  title={TMO: Transparent Memory Offloading},
-  author={Skarlatos, Dimitrios and others},
-  booktitle={ASPLOS},
-  year={2022}
+@inproceedings{parkProfilingDynamic2019,
+  title = {Profiling Dynamic Data Access Patterns with Controlled Overhead and Quality},
+  author = {Park, SeongJae and Lee, Yunjae and Yeom, Heon Y.},
+  year = {2019},
+  booktitle = {Proceedings of the 20th International Middleware Conference Industrial Track},
+  pages = {1--7},
+  doi = {10.1145/3366626.3368125}
+}
+@inproceedings{liElasticzram2024,
+  title = {ElasticZRAM: Revisiting ZRAM for Swapping on Mobile Devices},
+  author = {Li, Wentong and Yu, Dingcui and Song, Yunpeng and Luo, Longfei and Shi, Liang},
+  year = {2024},
+  booktitle = {Proceedings of the 61st ACM/IEEE Design Automation Conference},
+  pages = {1--6},
+  doi = {10.1145/3649329.3655943}
+}
+@article{liIosr2023,
+  title = {IOSR: Improving I/O Efficiency for Memory Swapping on Mobile Devices Via Scheduling and Reshaping},
+  author = {Li, Shi and Shi, Liang and Li, Wentong and Li, Yunpeng and Sha, Edwin H.-M.},
+  year = {2023},
+  journal = {ACM Transactions on Embedded Computing Systems},
+  volume = {22},
+  number = {5s},
+  doi = {10.1145/3607923}
+}
+@techreport{prakashEfficientMemoryTiering2025,
+  title = {Efficient Memory Tiering in a Virtual Machine},
+  author = {Prakash, Chandra and Prasad, Aravinda and Kumar, Sandeep and Subramoney, Sreenivas},
+  year = {2025},
+  doi = {10.48550/arxiv.2506.06067}
+}
+@article{richardInLieuSwap2014,
+  title = {In lieu of swap: Analyzing compressed RAM in Mac OS X and Linux},
+  author = {Richard, Golden G. and Case, Andrew},
+  year = {2014},
+  journal = {Digital Investigation},
+  volume = {11},
+  doi = {10.1016/j.diin.2014.05.011}
 }
 #+end_src
+
+* Document index
+
+- =docs/literature-review.org= (this file) -- evidence grades, venue map, WTF section
+- =docs/candidates.org= -- patch decisions and ecosystem survey
+- =docs/rgx1gen11-targets.org= -- measurable acceptance thresholds
+- =docs/rgx1gen11-kernel.org= -- carried patch rationale
+
+Vissues: =linux-rg-g87u= (initial review), =linux-rg-lit2= (wide survey),
+=linux-rg-ook1= (OokCite validation pass), =linux-rg-e9fx= (live validation +
+literature pass 2).
+
+OokCite collection: =linux-rg= (fourteen DOI-verified entries as of 2026-06-18 pass 2).

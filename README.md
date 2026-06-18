@@ -54,7 +54,8 @@ Design, hardware targets, and patch rationale:
 - `docs/rgx1gen11-targets.org` -- verified hardware inventory, workload profiles,
   measurable targets, vissue map
 - `docs/rgx1gen11-kernel.org` -- machine profile and carried patches
-- `docs/literature-review.org` -- research bibliography and evidence grades
+- `docs/literature-review.org` -- evidence grades, venue map, why laptop kernel
+  tuning is under-published vs cloud/security kernel research
 - `docs/candidates.org` -- ADIOS, re-swappiness, cpuidle TEO, detach_tasks, and
   other candidate notes
 

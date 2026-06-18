@@ -4,7 +4,8 @@
 
 This file documents carried modules, pending patch candidates, and userspace
 policy options for the rgx1gen11 kernel profile. Literature grades refer to
-=docs/literature-review.org=.
+=docs/literature-review.org= (including "Why kernel research feels absent" and
+the venue map -- read that before trusting patch-stack marketing).
 
 Carry rules from =docs/rgx1gen11-kernel.org= still apply:
 
@@ -183,14 +184,15 @@ or SWAM paper result itself.
 Carry only if responsiveness improves measurably without increasing swap thrash
 or build time regression on repeated runs.
 
-* Candidate: cpuidle TEO over menu governor
+* Carried: cpuidle TEO over menu governor (0016)
 
 ** Status
 
 | Field | Value |
-| Decision | candidate (not carried) |
+| Decision | **carried** (=0016-cpuidle-teo-default.patch=) |
 | Evidence grade | B |
 | Source | sirlucjan =7.0/cpuidle-patches= (Christian Loehle upstream patch) |
+| vissue | =linux-rg-7m20= (runtime validation via bench-idle) |
 
 ** What it is
 
@@ -215,23 +217,18 @@ TEO (Timer Events Oriented governor) focuses on predictable timer-driven idle
 state selection. Menu's interactivity boost is less decisive on modern kernels;
 upstream merged TEO preference on that basis.
 
-** Risks
+** Live probe (2026-06-18)
 
-- Trivial rebase surface but touches Arch's default idle governor choice.
-- Check whether Arch =7.0.12= already prefers TEO before carrying redundantly:
-  inspect =drivers/cpuidle/Kconfig= in the build tree after =prepare()=.
+Stock Arch 7.0.12 on the bench selects **menu** at runtime
+(=/sys/devices/system/cpu/cpuidle/current_governor=), despite building TEO.
+Patch is not redundant.
 
-** Evaluation plan
+** Post-boot validation (=linux-rg-bench-idle=)
 
-1. Compare =/sys/devices/system/cpu/cpu0/cpuidle/= residency distributions
-   with menu vs TEO under idle, video playback, and suspend-resume cycles.
-2. Log s2idle resume latency and idle power (powertop or RAPL).
-3. Run several suspend cycles on Sway to confirm no regression.
-
-** Decision gate
-
-Carry if TEO shows equal or better idle power without s2idle regressions. Skip
-if mainline Arch config already selects TEO.
+1. Confirm governor reads =teo= after linux-rg boot.
+2. Compare C-state residency vs stock menu baseline (powertop / turbostat).
+3. Ten s2idle cycles: no resume regression.
+4. Gate promotion: equal or better idle power; no fan spin-up regression undocked.
 
 * rgx1gen11 hardware fit (21HM002GUS)
 
@@ -821,7 +818,7 @@ from the same author lineage and overlaps the fair.c region.
 | CONFIG_CACHY fair tweaks | Cachy 6.17 omnibus | kernel/sched/fair.c, sched.h | not carried; conflicts with BORE |
 | Compiler ISA (x86-64-v3, znver4) | cpu-cachyos-patches | arch/x86/Kconfig.cpu, Makefile | not carried; 1365U is Intel, not znver4 |
 | -O3 kernel build | kbuild-cachyos-patches | Makefile, init/Kconfig | candidate; Arch uses -O2 |
-| ThinLTO distributed backend | kbuild-dev-patches | Makefile, scripts/Makefile.thinlto, vmlinux_a | candidate for cosmolab dist builds only |
+| ThinLTO distributed backend | kbuild-dev-patches | Makefile, scripts/Makefile.thinlto, vmlinux_a | candidate for remote distribution builds only |
 | Rust KBUILD_RUSTFLAGS sync | omnibus + cpu patch | Makefile, arch/x86/Makefile | mirrors CFLAGS (-Copt-level, -Ctarget-cpu) |
 
 ** CONFIG_CACHY fair-class section (omnibus excerpt)
@@ -868,14 +865,41 @@ the reason upstream adopted Rust.
    =-march=*= (cpu-cachyos-patches).
 3. ThinLTO dist mode (kbuild-dev-patches): distributed LTO backend split.
 
-** Overlay hygiene warning**
+** rgx1gen11 Rust pins (carried in overlay)**
 
-=rgx1gen11.config= currently sets =CONFIG_ZEN_INTERACTIVE=y= and
-=CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y=. Neither symbol exists in mainline
-7.0.12 Kconfig without Cachy patches. =scripts/config= may append them to
-=.config=, but they are **inert** at compile time. Remove =ZEN_INTERACTIVE=
-(entirely bogus). For =O3=, either carry =0001-Cachy-Allow-O3.patch= or drop
-the overlay line and stay on Arch =-O2=.
+Arch 7.0.12 already enables Rust. =rgx1gen11.config= pins:
+
+| Symbol | Role on 21HM002GUS |
+| =CONFIG_RUST=y= | Build Rust support (binder, fw_loader abstractions) |
+| =CONFIG_ANDROID_BINDER_IPC_RUST=y= | Rust binder IPC (Waydroid / Android container path) |
+| =CONFIG_RUST_FW_LOADER_ABSTRACTIONS=y= | Safer firmware-loader API used by iwlwifi/SOF paths |
+
+These do **not** replace iwlwifi, i915, or nvme C drivers. Benefit is compile-time
+safety on firmware load and optional Android IPC; not a latency patch.
+
+** Rust drivers in Linux 7.0.12 (hardware relevance)
+
+| Driver / module | Kconfig | rgx1gen11 verdict |
+| Binder IPC (Rust) | =ANDROID_BINDER_IPC_RUST= | **Pinned** (Arch default; Waydroid-ready) |
+| Firmware loader abstractions | =RUST_FW_LOADER_ABSTRACTIONS= | **Pinned** (iwlwifi/SOF firmware) |
+| Nova / Tyr DRM | =DRM_NOVA=, =DRM_TYR= | **Skip** (NVIDIA discrete GPUs only) |
+| rnull block | =BLK_DEV_RUST_NULL= | **Skip** (test driver) |
+| cpufreq DT Rust | =CPUFREQ_DT_RUST= | **Skip** (ARM device-tree cpufreq) |
+| DRM panic QR | built with =DRM_PANIC= | **Optional** debug; no perf win |
+| HID Rust | none in production 7.0 | ELAN/SYNA use C =i2c_hid= |
+
+** What not to expect from Rust on this laptop**
+
+- No Rust rewrite of Iris Xe (=i915=), AX211 (=iwlwifi=), or KIOXIA (=nvme=) in 7.0.
+- =KBUILD_RUSTFLAGS -O3 / -Ctarget-cpu=x86-64-v3= only affects the small =*.rs=
+  object set (binder); measure compile time before carrying Cachy kbuild patches.
+- scx_rusty is a **sched_ext BPF scheduler name**, not kernel Rust code.
+
+** Overlay hygiene**
+
+Do not add =CONFIG_ZEN_INTERACTIVE= or =CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=
+without the matching Cachy Kconfig patches; symbols would be inert or fail
+=olddefconfig=.
 
 ** Decision gate (kbuild / rust / CONFIG_CACHY)
 
@@ -972,6 +996,69 @@ kernel patch. See =docs/literature-review.org=.
 Kernel has =CONFIG_SCHED_CLASS_EXT=y=. Literature and LPC 2024 materials support
 trying scx schedulers on hybrid CPUs before adding more fair-class patches.
 
+* Kernel patch ecosystem survey (wide)
+
+Survey of well-known third-party kernel traditions, evaluated against Arch 7.0.12
+and the BORE + sched_ext stack on 21HM002GUS. Live runtime probe 2026-06-18.
+
+** Scheduler replacement stacks (do not port wholesale)
+
+| Ecosystem | Core idea | vs linux-rg |
+| Liquorix / Zen | PDS replaces EEVDF; ZEN_INTERACTIVE | Omnibus cancelled; 0014-0015 cherry-picks only |
+| XanMod | MQ/deadline fair tweaks; PREEMPT variants | Conflicts with BORE; cherry-pick MM/driver only |
+| linux-ck / Kolivas MUQSS | Alternate fair class (skiplist EVD) | Dead since 5.12; use BORE + scx_* instead |
+| PREEMPT_RT / linux-rt | RT spinlock conversion | Cancelled for daily driver (boot risk) |
+| linux-tkg | Fsync (mainline now), zenify, optional PDS | High rebase; low laptop value |
+
+** Compatible tweak pools (linux-rg source mines)
+
+| Ecosystem | Taken from it | Status |
+| CachyOS / sirlucjan | BORE, 0010-0013, block 0007, ADIOS 0008, ratios/mglru candidates | Primary pool |
+| firelzrd | BORE, ADIOS, re-swappiness | BORE + ADIOS carried |
+| pf-kernel | BBRv3, v4l2loopback | 0003-0005 carried |
+| Liquorix zen | kswapd_waiters, schedutil limits, cpuidle TEO | 0014-0016 carried |
+| sched_ext userspace | scx_lavd, scx_bpfland, scx_rusty, ASA | Userspace eval track |
+
+** Build / ISA tuning (optional)
+
+| Ecosystem | Knobs | rgx1gen11 verdict |
+| Cachy kbuild | -O3, KBUILD_RUSTFLAGS, ThinLTO dist | Candidate for dist builds only |
+| Clear Linux | AutoFDO, aggressive -march | Project ended; skip |
+| x86-64-v3 / znver4 ISA | cpu-cachyos-patches | Intel 1365U: skip znver4; v3 optional bench |
+
+** Security / specialty trees (skip on this box)
+
+| Ecosystem | Why skip |
+| linux-hardened | Personal dev laptop threat model |
+| AUFS / UKSM | Unmaintained on 7.0 |
+| Handheld / Deck patches | Wrong form factor |
+| cgroup VRAM / rt-i915 | iGPU laptop; no RT |
+
+** Live hardware probe (2026-06-18) -- changes priority
+
+| Signal | Observed | Action |
+| cpuidle governor | **menu** (not TEO) | Carry 0016; gate with linux-rg-bench-idle |
+| intel_pstate | **performance** on all CPUs | userspace linux-rg-pwr (before more kernel patches) |
+| iwlwifi power_save | **Y** globally | per-profile tuning linux-rg-iwl |
+| zram | **~15.5 GiB** on 32 GiB RAM | resize policy linux-rg-zram (8-16 GiB target) |
+| NVMe scheduler | **bfq** active | ADIOS/none A/B linux-rg-rt1t |
+| Platform profile | balanced | linux-rg-pwr A/B vs low-power/performance |
+| Zen iwlwifi/i915 | .rej on Arch 7.0.12 | no driver zen patches needed |
+
+** Hardware-specific priority queue (post-survey)
+
+1. Boot safely (linux-rg-mxx8, linux-rg-boot)
+2. Userspace power: pstate governor, platform_profile, iwl power_save (linux-rg-pwr, linux-rg-iwl)
+3. Kernel carries: 0014-0016 applied; cpuidle TEO validated on bench-idle
+4. zram + oomd (linux-rg-zram, linux-rg-oomd)
+5. scx_loader + ASA (linux-rg-tjsl)
+6. NVMe scheduler A/B (linux-rg-rt1t)
+7. Memory vmscan weld if PSI tests fail (linux-rg-7zwz, linux-rg-5fxc)
+8. cachyos-fixes #16-17 if memory-pressure bench wins (linux-rg-mmhp)
+
+Vissues: =linux-rg-eco1= (this survey), =linux-rg-zen2= (0014-0015), =linux-rg-rust1= (Rust pins),
+=linux-rg-7m20= (0016 + bench-idle gate).
+
 * Candidate matrix (extended)
 
 | Area | Candidate | Source | Decision | Evidence | Notes |
@@ -988,11 +1075,370 @@ trying scx schedulers on hybrid CPUs before adding more fair-class patches.
 | Build | Cachy -O3 / rust opt-level 3 | kbuild-cachyos-patches | candidate | D | compile tuning only |
 | Build | ThinLTO dist / vmlinux_a | kbuild-dev-patches | candidate | D | dist builder infra |
 | Build | x86-64-v3 / CONFIG_CACHY fair | cpu-cachyos / omnibus | not carried | D | BORE replaces CACHY fair |
-| Power | cpuidle TEO | upstream via sirlucjan 7.0 | candidate | B | Check Arch default first |
+| MM | kswapd_waiters | Liquorix zen / 0014 | carried | D | Memory-pressure responsiveness |
+| CPUfreq | schedutil DL limits | Liquorix zen / 0015 | carried | D | Hybrid 1365U |
+| Power | cpuidle TEO default | sirlucjan 7.0 / 0016 | carried | B | Live probe: menu governor today |
+| Rust | binder + fw_loader pins | Arch 7.0.12 mainline | carried (config) | B/C | Not a driver rewrite |
 | Scheduler | newidle balance revert | cachyos-fixes-v27 #05 | not carried | D | Conflicts with BORE |
 | Memory | vmalloc/page bulk free #16-17 | cachyos-fixes-v27 | candidate | B/D | After memory-pressure bench |
 | Policy | systemd-oomd | Meta PSI/OOMD | userspace | B/C | Pairs with CONFIG_PSI |
 | Policy | scx_loader | sched_ext ecosystem | userspace | B | Hybrid CPU experiments |
+
+* Wide net appendix (userspace, platform, distro mines)
+
+Ongoing survey (=linux-rg-49gh=). Kernel patch rivers are in the ecosystem survey
+above; this section tracks **everything else** tweakable for 21HM002GUS: thermals,
+firmware, storage path, BPF tooling, distro hardware quirks, and chezmoi assets
+already on =rgx1gen11= but not yet tied to linux-rg measurement.
+
+** Survey method
+
+1. Web search + Arch/kernel/PipeWire/sched_ext docs.
+2. Grade A-D same as =docs/literature-review.org=.
+3. Add vissue child under =linux-rg-49gh= when a lane needs implementation.
+4. Promote to carried/config only after =linux-rg-59jn= bench matrix or boot smoke.
+
+** Thermals, fans, and power platform (=linux-rg-m00h=)
+
+| Candidate | Source | Layer | Grade | rgx1gen11 notes |
+| intel_dptf driver | https://docs.kernel.org/driver-api/thermal/intel_dptf.html | kernel (pinned) | B | =CONFIG_ACPI_DPTF=y= in overlay; policy/userspace thin |
+| ACPI platform_profile | mainline + ThinkPad ACPI | kernel + sysfs | B | Live =balanced=; =rg-x1gen11-profile= switches per workload |
+| TLP | chezmoi =run_onchange_linux_laptop_power= | userspace | B | Charge 75/80, USB autosuspend; **disables power-profiles-daemon** |
+| power-profiles-daemon | Fedora/Arch default | userspace | C | Conflicts with TLP; A/B only if TLP disabled on a test partition |
+| thermald | https://wiki.archlinux.org/title/Fan_speed_control | userspace | C | May overlap DPTF; test fan spin under build-heavy before enabling |
+| thinkfan | ibm/acpi fan | userspace | C | Only if =/proc/acpi/ibm/fan= present on 21HM002GUS |
+| intel_pstate HWP / EPP | kernel docs | sysfs | B | Live probe: =performance= on all CPUs; profile should use =schedutil= daily |
+| x86_energy_perf_bias | msr-tools / kernel | sysfs | C | Pair with travel vs build-heavy profiles |
+| intel_pmc_core / PMT | =CONFIG_INTEL_PMC_CORE=m=, PMT telem | kernel module | B | Telemetry for idle power forensics (=linux-rg-sf6i=) |
+| PCIe ASPM supersave | =CONFIG_PCIEASPM_POWER_SUPERSAVE=y= | kernel | B | Already pinned; validate idle with =linux-rg-bench-idle= |
+| rg-caffeine | chezmoi | userspace | C | TLP performance/AC mode for focused work; not a kernel governor |
+| Kernel cmdline cstates | =intel_idle.max_cstate=, etc. | boot param | C | Last resort after TEO + TLP bench |
+
+mjg59 DPTF/platform_profile write-up (2021): ACPI profile attribute on thermal
+zones -- useful context for why userspace must not fight firmware DTT.
+
+** Observability and BPF (=linux-rg-sf6i=)
+
+| Candidate | Source | Use on 1365U | Grade |
+| PSI =/proc/pressure/*= | kernel + Meta docs | oomd, =rg-psi-snapshot=, bench matrix | A |
+| bpftrace | https://opensource.com/article/19/8/introduction-bpftrace | PSI, sched wake, block latency scripts | B |
+| perf sched / stat | mainline | Hybrid migration, BORE vs scx A/B | B |
+| ftrace / function_graph | =CONFIG_FTRACE=y= pinned | Scheduler stall debug | B |
+| BTF / CO-RE BPF | =CONFIG_DEBUG_INFO_BTF=y= pinned | sched_ext, bpftrace portability | B |
+| intel_pmt / pmtctl | Intel PMT spec, Telegraf plugin | Package power, uncore readouts | C |
+| schedstats | =CONFIG_SCHEDSTATS=y= | /proc/schedstat post-boot analysis | C |
+| powertop | userspace | Idle benchmark (=linux-rg-bench-idle=) | B |
+
+Red Hat OpenShift PSI article (2026): production framing for memory pressure --
+same signal as Meta oomd and systemd-oomd on this box.
+
+** Storage path: LUKS, btrfs, NVMe, swap (=linux-rg-2r1r=)
+
+| Candidate | Source | Layer | Grade | Notes |
+| btrfs compress=zstd | btrfs.readthedocs.io | mount | B | Chezmoi host uses btrfs; profile-specific mount opts candidate |
+| btrfs noatime / autodefrag | btrfs docs | mount | C | Measure on XG8 before autodefrag on SSD |
+| LUKS overhead | Arch/dm-crypt guides | setup | B | Already in production layout; document sequential read impact |
+| btrbk + rg-space-sweep | chezmoi | userspace | B | Snapshot lifecycle; IO during balance affects build bench |
+| BFQ udev default | chezmoi laptop power | udev | B | Forces bfq on nvme*; pairs with ADIOS module eval |
+| ADIOS / none / mq-deadline | HOTSTORAGE 2023 + =linux-rg-rt1t= | kernel module | D | ADIOS carried; not default |
+| zram writeback | =CONFIG_ZRAM_WRITEBACK=y= | kernel + policy | C | Enabled in config; no writeback target policy yet |
+| zswap pool tuning | =rg-zswap-tune= stub | sysfs | C | Secondary to zram sizing (=linux-rg-zram=) |
+| zram vs zswap stack | chrisdown 2026, LF zram slides | policy | B | Literature framing; local sizing still unknown |
+
+** Network edge and Wi-Fi (=linux-rg-ervg=, =linux-rg-iwl=)
+
+| Candidate | Source | Grade | Notes |
+| BBR + fq default | carried 0003-0004 | A | Daily driver; Cubic fallback for captive portals |
+| Cubic / Reno modules | mainline | A | =modprobe tcp_cubic= for travel A/B |
+| CAKE qdisc | bufferbloat.net | C | Egress shaping on hotel Wi-Fi |
+| fq_codel | mainline | C | Alternative qdisc for bufferbloat |
+| TCP_NOTSENT_LOWAT | sysctl | C | Interactive feel on VPN |
+| iwlwifi power_save | module param + =iw= | B | =rg-x1gen11-profile=; travel vs docked |
+| iwlwifi bt_coex_active | =rgx1gen11-iwlwifi.conf= | modprobe | B | CNVi + USB BT; already shipped |
+| iwd roam | chezmoi (iwd not NM) | userspace | B | =linux-rg-bench-wifi= |
+
+** Audio and low-latency feel (=linux-rg-mvxn=)
+
+| Candidate | Source | Grade | Notes |
+| PipeWire module-rt | https://docs.pipewire.org/page_module_rt.html | B | Preferred over PREEMPT_RT daily driver |
+| @audio realtime group | Arch wiki | B | ulimits + PipeWire; pair with SOF stack |
+| SCHED_FIFO for pipewire | limits.conf | C | Watch =sched_rt_runtime_us= starvation |
+| SOF + HDA path | =linux-rg-sof= | kernel | B | Config pinned; resume testing =linux-rg-slp= |
+
+** Process-level scheduling (=linux-rg-db49=)
+
+| Candidate | Source | Grade | Notes |
+| ananicy-cpp | CachyOS forum + sched_ext threads | D | Per-app nice/IO; after scx ladder pick |
+| cgroup slices | chezmoi browser/build/rust-analyzer | B | Already deployed |
+| systemd CPUWeight/IOWeight | slice units | B | Profile-tuned via =rg-x1gen11-profile= |
+| scx_loader + sched ladder | chezmoi | B | 14 schedulers; bench =linux-rg-tjsl= |
+| auto-cpufreq | PyPI | D | Redundant with TLP + intel_pstate; skip unless TLP fails |
+
+** Firmware and platform (=linux-rg-wc69=)
+
+| Candidate | Source | Grade | Notes |
+| fwupd / LVFS | Lenovo | B | BIOS 1.39 baseline; sleep/Wi-Fi fixes often here first |
+| linux-firmware iwl/SOF | Arch package | A | Required for boot; version pin after linux-rg boot |
+| ThinkPad ACPI hotkeys | =CONFIG_THINKPAD_ACPI=m= | kernel | B | Fn lock, rfkill, charge control via TLP |
+
+** Distro / hardware reference mines (not ports)
+
+| Mine | Use | Port? |
+| Arch wiki X1 Carbon Gen 11 | Hardware quirks, suspend | Reference only |
+| NixOS nixos-hardware ThinkPad | Module param ideas | Cherry-pick ideas |
+| Gentoo power management guide | MSR, cpufreq trivia | Reference |
+| CachyOS wiki sched_ext | scx_loader UX | Align with =rg-sched-ladder= |
+| Framework/Meteor Lake power blogs | DTT/idle methodology | Transfer carefully to Raptor Lake-U |
+| sched-ext.com / LPC 2026 plans | Scheduler roadmap | Informs =linux-rg-tjsl= |
+
+** Chezmoi assets already on host (integrate with linux-rg)
+
+| Asset | Location | Linked vissue |
+| TLP + BFQ udev + nftables | =.chezmoiscripts/run_onchange_linux_laptop_power= | =linux-rg-m00h=, =linux-rg-chzm= |
+| Memory tuning sysctl/zram/oomd | =run_onchange_linux_memory_tuning= | =linux-rg-7f5e= |
+| Industry stack scripts | =dot_local/bin/rg-*= | =linux-rg-chzm= |
+| rg-space-sweep / btrfs | =dot_local/share/rg-space-sweep-src= | =linux-rg-2r1r= |
+| rg-caffeine | chezmoi systemd user units | =linux-rg-pwr= |
+| xe/i915 modprobe | laptop power script | =linux-rg-i915= |
+
+** Wide net pass 2 (2026-06-18 web search)
+
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| Intel HFI (Hardware Feedback Interface) | https://docs.kernel.org/arch/x86/intel-hfi.html | kernel sysfs | B | Check =/sys/devices/system/cpu/cpu*/cpu_capacity=; complements Thread Director on hybrid 1365U; no patch needed |
+| Thread Director visibility | Phoronix HFI enable/disable; intel_hfi | firmware+kernel | B | OS hint layer for P/E placement; bench with =detach_tasks= + scx ladder |
+| NVMe APST / autopm | Arch NVMe wiki; nvme-cli | sysfs/module | B | =nvme id-ctrl= / =nvme get-feature= on XG8; document latency vs battery for =linux-rg-2r1r= |
+| nvme noapic / I/O errata | linux-nvme list (Kioxia) | reference | C | Watch dmesg on linux-rg boot; no preemptive patch |
+| TB4 dock HDR/DDCCI gaps | Fedora discussion (TB3/TB4 onboard DP) | platform | C | Docked-office profile: test external brightness; kernel =CONFIG_DDCCI=m= carried (0006) |
+| ddcutil / ddcui | https://www.ddcutil.com/ | userspace | B | Pair with in-tree DDCCI; vissue =linux-rg-ddcci= |
+| thermald on modern Intel | Endeavour forum; intel/thermal_daemon | userspace | C | Often redundant with DPTF on Raptor Lake; enable only if fan/thermal gaps after =linux-rg-m00h= baseline |
+| TLP vs thermald | TLP docs (linrunner.de) | policy | B | TLP already primary; thermald is optional second daemon -- avoid both without measurement |
+| KIOXIA XG8 ULL class | Tom's Hardware review | hardware | C | Informs ADIOS question (=linux-rg-rt1t=); not a license to set ADIOS default without fio |
+
+** Live hardware validation log (=linux-rg-e9fx=, 2026-06-18)
+
+These probes ran on =rgx1gen11= (21HM002GUS) against the **stock** Arch kernel
+=7.0.12-arch1-1=. They validate *platform facts* and *userspace stack gaps*; they
+do **not** validate linux-rg patches (BORE, BBR, TEO default, sched_ext, ADIOS)
+until =linux-rg-mxx8= first boot.
+
+| Check | Command / path | Observed | Verdict |
+| Kernel identity | =uname -r= | =7.0.12-arch1-1= (stock) | Baseline only; linux-rg unbooted |
+| TCP CC | =sysctl net.ipv4.tcp_congestion_control= | =cubic= (not BBR) | Patch 0003 **not active** on running kernel |
+| Default qdisc | =sysctl net.core.default_qdisc= | =fq_codel= | BBR+fq carry **not active** |
+| cpuidle governor | =/sys/.../cpuidle/current_governor= | =menu= (TEO available) | 0016 TEO default **not active** |
+| Hybrid topology | =lscpu -e= MAXMHZ | CPUs 0-3: 5200 MHz; 4-11: 3900 MHz | P/E split **confirmed** |
+| HFI sysfs | =/sys/devices/system/cpu/intel_hfi= | absent; all =cpu_capacity=1024 | =CONFIG_INTEL_HFI_THERMAL=y= only; capacity hints **not exposed** |
+| sched_ext | =/sys/kernel/sched_ext/state= | =disabled= (stock has class, no BPF loaded) | sysfs **present** on 7.0.12; bench needs scx_loader attach |
+| ADIOS module | =modinfo adios= | not present | Carried patch **untested** |
+| NVMe model | =nvme list= | KIOXIA XG8AZNV1T02 LA, FW 5108APLA | Hardware ID **confirmed** |
+| NVMe scheduler | =/sys/block/nvme0n1/queue/scheduler= | =[bfq]= | Chezmoi udev policy **active** |
+| APST | =nvme get-feature -f 0x0c= | needs root; not captured | Lane =linux-rg-8s4g= blocked without sudo bench |
+| zram + swap | =/proc/swaps= | zram ~15.5 GiB + btrfs swapfile ~14.9 GiB | Chezmoi memory tuning **active** |
+| swappiness | =/proc/sys/vm/swappiness= | 100 | Matches chezmoi template |
+| MGLRU | =CONFIG_LRU_GEN=y=, =min_ttl_ms=0= | enabled | Mainline pin **confirmed** |
+| damon_reclaim | =/sys/module/damon_reclaim= | module not loaded | Config built-in (=y=) but **not exercised** until =rg-damon-reclaim= |
+| PSI memory | =/proc/pressure/memory= | some avg10 low at idle probe | PSI **readable** |
+| PSI CPU | =rg-psi-snapshot once= | cpu some avg10 ~44% during probe | High CPU pressure under background load; use **fixed-idle** bench |
+| systemd-oomd | =systemctl is-active= | active; ManagedOOMMemoryPressure=auto | Chezmoi layer **active** |
+| Meta oomd | =systemctl is-active oomd= | inactive | Optional layer not installed |
+| iwlwifi | =power_save=Y=, =bt_coex_active=Y= | both on | Modprobe defaults **active** |
+| irqbalance | =systemctl is-active irqbalance= | inactive | Already disabled; =linux-rg-kqlk= **pre-satisfied** |
+| thinkfan path | =/proc/acpi/ibm/fan= | =status:enabled speed:6325= | Manual fan control **possible** (=linux-rg-m00h=) |
+| TB4 | =/sys/bus/thunderbolt/devices/*= | domains present, authorized=1 | Dock path **reachable**; =boltctl= not installed |
+| Profile stack | =rg-x1gen11-profile doctor= | no active profile; governor =performance= | Industry scripts were **not on PATH** until symlink fix; apply profile before judging |
+| Bench matrix | =rg-bench-matrix run psi-baseline= | 30s CSV PASS | Collector pipeline **works** after PATH fix |
+
+Honest summary: previous wide-net rows graded *candidates from literature and folklore*.
+This table grades *what is true on the machine today*. Promotion gates still require
+linux-rg A/B per =docs/rgx1gen11-targets.org=.
+
+** Wide net pass 3 (2026-06-18 -- memory, network softirq, build-time)
+
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| Meta bpfland / BBRv2 sysctl folklore | Meta production kernel tuning posts | sysctl | C | BBR already default (0003); revisit =net.ipv4.tcp_pacing_ss_low_latency= only on measured VPN regressions |
+| Cachy swappiness 150 + zram | CachyOS wiki, udev 30-zram.rules | policy | C | Chezmoi uses swappiness 100 + zram ram/2; A/B vs 150 only under =linux-rg-zram= bench, not blind port |
+| memtierd | https://github.com/intel/memtierd | userspace daemon | C | Tiered DRAM/page-cache policy; overlaps DAMON reclaim (=CONFIG_DAMON_RECLAIM=y=); pick one primary reclaim actor (=linux-rg-71t0=) |
+| DAMON reclaim | https://docs.kernel.org/admin-guide/mm/damon/reclaim.html | kernel module | B | Already pinned; =rg-damon-reclaim= toggles per profile |
+| KSM + MADV_MERGEABLE | kernel docs, Proxmox KSM wiki | kernel + QEMU | C | =CONFIG_KSM=y= pinned; enable merge only for explicit VM guests via =madvise=; watch scan CPU on 2C/4T P-cores (=linux-rg-pwdv=) |
+| MGLRU min_ttl | https://docs.kernel.org/admin-guide/mm/multigen_lru.html | sysfs | C | =/sys/kernel/mm/lru_gen/min_ttl_ms=; tune only after vmscan weld bench (=linux-rg-5fxc=) |
+| RPS / RFS on wlan0 | kernel scaling guide | netdev sysfs | C | Spread softirq across P-cores for AX211; measure before irqbalance disable (=linux-rg-i7w4=) |
+| BBR + fq pacing | kernel ip-sysctl, Cloudflare BBR posts | sysctl + qdisc | B | Default stack; document =tcp_pacing_ss_low_latency= for interactive VPN |
+| AutoFDO / Propeller | kernel 6.13 docs, Phoronix 6.13 | build-time | D | Profile-guided -O3 on remote distribution builds only; no laptop runtime effect |
+| systemd ManagedOOM + BPF | systemd.io MEMORY_PRESSURE | cgroup v2 | B | Chezmoi enables ManagedOOM on user slices; pairs PSI with Meta oomd layer |
+| irqbalance on single-package laptop | Garuda/Reddit stutter threads | userspace | C | Often harmful on 1365U; document disable test (=linux-rg-kqlk=) |
+
+** Wide net pass 4 (graphics, suspend, TB4, platform ACPI)
+
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| s2idle / S0ix validation | Intel S0ixSelftestTool, Fedora s0ix thread | suspend | B | Run =s0ix-selftest-tool.sh= post-boot (=linux-rg-t47k=); pair =linux-rg-slp= |
+| Gen 11 standby drain | Reddit/NixOS Gen 11 threads, estada.ch fan-in-standby | firmware+kernel | C | BIOS 1.39 baseline; log =journalctl -b -1= after failed cycles |
+| i915 vs xe PSR resume | Arch wiki Gen 11, Lunar Lake freeze reports | graphics | B | Chezmoi ships i915 modprobe; xe path tracked in =linux-rg-i915=; test PSR-off if resume glitches |
+| boltctl authorize | Arch Thunderbolt wiki, kernel admin guide | userspace | B | TB4 dock: =boltctl list= / =boltctl enroll=; security policy for travel (=linux-rg-hzxn=) |
+| TB4 retimer / dock DP | kernel thunderbolt sysfs | platform | C | =cat /sys/bus/thunderbolt/devices/*=; DDCCI gaps on docked DP (=linux-rg-ddcci=) |
+| intel_vbtn + thinkpad_acpi | kernel thinkpad-acpi docs | kernel (pinned) | B | Fn keys, rfkill, charge thresholds via TLP |
+| lenovo-wmi / think-lmi | Phoronix Think-LMI, Lenovo WMI docs | kernel/userspace | C | BIOS setting automation; reference only unless scripting fleet |
+| btintel USB autosuspend | =CONFIG_BT_HCIBTUSB_AUTOSUSPEND=y= | kernel + USB | B | =linux-rg-bt= acceptance: pair/connect + one s2idle cycle |
+| S0ixSelftestTool | https://github.com/intel/S0ixSelftestTool | userspace | B | Capture blocking devices list before blaming linux-rg patches |
+
+** Wide net pass 5 (Wi-Fi, audio, hibernate, virt edge)
+
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| AX211 iwlwifi power_save | iwlwifi docs, Fedora AX211 driver thread | modprobe + profile | B | =rg-x1gen11-profile= travel vs docked; avoid stale driver mix |
+| iwlwifi bt_coex_active | =rgx1gen11-iwlwifi.conf= | modprobe | B | Already shipped for CNVi + USB BT |
+| iwd roam logging | chezmoi iwd stack | userspace | B | =linux-rg-bench-wifi= |
+| SOF Raptor Lake suspend | SOF intel_debug suggestions | kernel+firmware | B | =linux-rg-sof= + =linux-rg-slp=; watch dummy output after resume |
+| PipeWire module-rt | PipeWire docs | userspace | B | =linux-rg-mvxn=; preferred over PREEMPT_RT |
+| scx_lavd vs scx_flash | sched-ext.com, Cachy wiki | sched_ext | C | Profiles use lavd/rusty/asa; flash is burst tier only in ladder |
+| hibernate + btrfs + LUKS swapfile | Arch PM wiki, Cachy hibernate thread | setup | C | Optional travel mode; btrfs swapfile caveats (=linux-rg-2ih0=) |
+| MPTCP | mainline | network | D | Not part of the laptop kernel profile unless phone tether + Wi-Fi bench appears |
+| Waydroid binder | Arch Waydroid wiki | kernel config | D | Rust binder pins already carried; no daily-driver Waydroid plan |
+| Thread Director under KVM | not part of this profile | virt | D | Open only with a VM bench child |
+
+** Wide net pass 6 (distro mines, power measurement, process hints)
+
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| Arch wiki Gen 11 page | https://wiki.archlinux.org/title/Lenovo_ThinkPad_X1_Carbon_(Gen_11) | reference | A | Primary hardware quirk index; no wholesale port |
+| NixOS nixos-hardware x1/11th-gen | GitHub nixos-hardware | reference | B | Module param ideas (TPM, audio); Gen 11-specific nix sparse -- cherry-pick ideas only |
+| TLP vs PPD vs tuned | linrunner.de FAQ, Fedora tuned/ppd thread | policy | B | TLP primary (chezmoi disables PPD); tuned redundant |
+| power-profiles-daemon | GNOME/Fedora | userspace | C | Disabled intentionally; A/B only on test partition |
+| RAPL / powercap | kernel powercap docs, powerjoular | observability | B | Package power logging for idle/build A/B (=linux-rg-sf6i=) |
+| intel_pstate HWP EPP | kernel intel_pstate docs | sysfs | B | Profile should use =schedutil= + platform_profile; avoid global =performance= |
+| ananicy-cpp + Cachy rules | CachyOS ananicy-rules repo | userspace | D | After scx ladder pick (=linux-rg-db49=) |
+| v4l2loopback | carried 0005 patch context | kernel module | C | Virtual camera path; not daily driver |
+| Fedora kernel laptop QA | Fedora 6.13 test week, Lenovo Linux blog | reference | B | Watch Intel laptop fix churn on rebases -- not a patch port |
+| ddcutil / ddcui | ddcutil.com | userspace | B | Docked external brightness (=linux-rg-ddcci=) |
+| NVMe sanitize / wipefs | Arch SSD memory cell clearing wiki | maintenance | C | Pre-sale wipe only; not tuning -- document =nvme sanitize= vs =blkdiscard= |
+| Gentoo power management guide | wiki.gentoo.org Power_management | reference | B | MSR/cpufreq trivia; same class as Framework power blogs |
+
+** Wide net pass 7 (2026-06-18 -- validation gaps + literature-backed additions)
+
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| thinkfan on Gen 11 | =/proc/acpi/ibm/fan= live probe | userspace | B | **Validated present**; test curve only if DPTF/TLP insufficient (=linux-rg-m00h=) |
+| INTEL_HFI_THERMAL without HFI sysfs | stock =7.0.12= config | kernel | C | P/E split visible via cpufreq max; do not assume =cpu_capacity= differentiation |
+| ElasticZRAM | Li et al. DAC 2024 (OokCite) | policy | A framing / D local | Swappiness+zram folklore now has peer-reviewed mobile framing; A/B vs chezmoi 100/ram2 |
+| IOSR swap I/O scheduling | Li et al. ACM TECS 2023 (OokCite) | kernel research | B | Informs zram writeback IO scheduling; no port without measurement |
+| memtierd VM tiering | Prakash et al. arXiv 2025 (OokCite) | userspace | C | Literature for =linux-rg-71t0=; host-only laptop may not need tiering daemon |
+| DAMON profiling origin | Park et al. Middleware 2019 (OokCite) | kernel | B | Foundational DAMON paper; reclaim is downstream module |
+| Whitaker HOTSTORAGE DOI | OokCite 10.1145/3599691.3603400 | literature | A | Confirms ADIOS skepticism; =linux-rg-rt1t= protocol |
+| chezmoi PATH deployment | live doctor | ops | B | Symlink missing scripts to =~/.local/bin=; add chezmoi target or install script |
+| BORE scheduler | Phoronix/Cachy review; no DOI | patch | D | Still no peer review; highest-risk carry until bench-sched |
+
+** Wide net pass 8 (2026-06-18 -- missed subsystems, live probes)
+
+Areas absent from passes 1-7; each row includes a **live verdict** where probed.
+
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| Synaptics Prometheus fingerprint | =lsusb 06cb:00fc=; fprint docs | userspace | C | **Present**; =fprintd= inactive (=linux-rg-1j07=); kernel-agnostic |
+| UVC integrated camera | Chicony =04f2:b751=, =uvcvideo= | kernel+USB | C | **Loaded**; privacy/autosuspend policy (=linux-rg-al83=); thinkpad camera shutter via ACPI if exposed |
+| VAAPI / media stack | Arch Intel graphics wiki, Jellyfin VA-API | userspace | C | =vainfo= not installed; probe after =mesa=; GuC/HuC (=linux-rg-r8jz=) |
+| i915 GuC/HuC / FBC | i915 module params | modprobe | C | Params unread in probe (module built-in?); document for video call power |
+| btrfs =discard=async + LUKS | live =mount=, kernel cmdline | filesystem | B | **Active**: =discard=async= on LUKS mapper; =allow-discards= + =rd.luks.option=discard= in cmdline (=linux-rg-7pnt=) |
+| fstrim.timer | systemd | maintenance | C | **Disabled** on host; pair with discard policy -- avoid double-trim confusion |
+| =vm.dirty_* + writeback cadence | chezmoi =99-memory.conf= (not raw Arch) | sysctl | B | **Validated on disk**: ratio 10/5, =dirty_expire_centisecs=3000=, =dirty_writeback_centisecs=1500=; anti-spike rationale in template (=linux-rg-5x78=) |
+| =vm.watermark_scale_factor=50= | chezmoi + kernel sysctl docs | sysctl | C | **Validated**; earlier reclaim under pressure |
+| =vm.page-cluster=0= | Fedora/page-cluster threads | sysctl | C | **Validated**; pairs zram swap |
+| =vm.vfs_cache_pressure=100= | sysctl | sysctl | C | **Validated** |
+| NVMe multipath | =CONFIG_NVME_MULTIPATH=y= in overlay | kernel config | D | Single XG8 path; multipath **unnecessary** unless docked multi-path -- keep modular/off? |
+| NVMe HWmon | =CONFIG_NVME_HWMON=y= | kernel | B | Thermal telemetry for =linux-rg-sf6i=; verify =/sys/class/hwmon= after boot |
+| earlyoom vs systemd-oomd | HN comparisons | userspace | C | **earlyoom inactive**; oomd active -- do not stack without policy |
+| libinput palm detection | freedesktop libinput docs | compositor | C | Touchpad on =i2c_designware=; Sway/libinput quirks (=linux-rg-8mmb=) |
+| TPM 2.0 | =/dev/tpm0= | platform | C | **Present**; measured boot/PCR out of kernel-tuning scope unless LUKS tie-in wanted |
+| intel-ucode | dmesg microcode revision | firmware | B | **0x00006134** loaded; track with =linux-firmware= / BIOS (=linux-rg-wc69=) |
+| USB autosuspend | TLP + sysfs =power/control=auto= | USB PM | B | **auto** on probed devices; BT/fingerprint/camera candidates for stricter policy |
+| pcie_aspm.policy=powersave | kernel cmdline (live) | boot param | B | **Active** in cmdline; aligns with =CONFIG_PCIEASPM_*= pins |
+| resume_offset hibernate | cmdline =resume=/dev/mapper/luks resume_offset=533760= | boot | C | **Partial hibernate wiring**; full path =linux-rg-2ih0=; validate after =linux-rg-slp= |
+| tailscale / WireGuard | userspace VPN | network | C | **tailscaled active**; kernel =CONFIG_WIREGUARD= stock; BBR benefit on tailscale path =linux-rg-ervg= |
+| swayidle | compositor idle | userspace | B | **Installed**; pairs =linux-rg-slp= and display power |
+| journald persistent IO | systemd docs | userspace | C | Defaults not overridden; watch btrfs journal spam under build profile |
+| nftables firewall | chezmoi laptop power | userspace | B | Chezmoi ships rules; not kernel-tuned |
+| Type-C / UCSI charging | =CONFIG_UCSI_ACPI=, =CONFIG_TYPEC_*= pins | kernel | B | Live: UCSI source 5V/3A sensor in thermal probe; dock PD =linux-rg-tb4= |
+| SOF HDMI sink | =aplay -l= LEN L27i-28 | audio | B | **Dock monitor HDMI** enumerated on SOF card; hotplug =linux-rg-sof= + =linux-rg-tb4= |
+| Mitigations sysfs | =/sys/devices/system/cpu/vulnerabilities/*= | security | B | **Not affected** on all checked entries; no mitigations=off folklore |
+| IOMMU / VT-d | dmesg | virt prep | C | Not validated in probe; enable only if KVM passthrough bench opens |
+| NFC / WWAN | lspci | hardware | N/A | **Not present** on 21HM002GUS inventory |
+
+** Search pattern index (=linux-rg-49gh= -- CLOSED 2026-06-18; validation continues under =linux-rg-e9fx=)
+
+Status: **folklore mining exhausted** for rgx1gen11 daily-driver scope. **Live
+validation and literature binding** continue under =linux-rg-e9fx=. Reopen wide-net
+search on kernel major bump, new dock hardware, or failed =linux-rg-slp= /
+=linux-rg-bench-wifi=.
+
+| Pattern cluster | Queries run | Outcome |
+| Thermals DPTF/TLP/thermald/PPD | thermald vs DPTF, TLP FAQ ppd, tuned vs TLP, Framework RAPL | Pass 2-3, 6; lane =linux-rg-m00h= |
+| Memory zram/swap/reclaim | Cachy swappiness, memtierd vs DAMON, KSM madvise, MGLRU min_ttl, re-swappiness | Pass 3; lanes =linux-rg-zram=, =linux-rg-71t0=, =linux-rg-pwdv= |
+| Network BBR/RPS/MPTCP | BBR pacing, RPS scaling, MPTCP laptop | Pass 3, 5; lanes =linux-rg-ervg=, =linux-rg-i7w4= |
+| Storage NVMe/btrfs/hibernate | NVMe APST, KIOXIA XG8, btrfs hibernate LUKS | Pass 2, 5; lanes =linux-rg-2r1r=, =linux-rg-8s4g=, =linux-rg-2ih0= |
+| Wi-Fi AX211/CNVi | iwlwifi AX211, bt_coex, iwd roam | Pass 2, 5; lanes =linux-rg-iwl=, =linux-rg-wifi= |
+| Graphics/suspend | s2idle Gen 11, i915 PSR, S0ixSelftestTool, SOF Raptor Lake | Pass 4, 5; lanes =linux-rg-slp=, =linux-rg-i915=, =linux-rg-t47k= |
+| TB4/dock | boltctl, thunderbolt sysfs, DDCCI | Pass 2, 4; lanes =linux-rg-tb4=, =linux-rg-hzxn=, =linux-rg-ddcci= |
+| sched_ext/scx | scx_lavd vs flash, Cachy sched_ext wiki, ananicy | Pass 5, 6; lanes =linux-rg-tjsl=, =linux-rg-db49= |
+| Observability | bpftrace, RAPL, S0ix tool, PSI/ManagedOOM | Pass 2-3, 6; lane =linux-rg-sf6i= |
+| Platform ACPI/Lenovo | intel_vbtn, thinkpad_acpi, lenovo-wmi, btintel | Pass 4; lanes =linux-rg-bt=, =linux-rg-wc69= |
+| Build-time / virt | AutoFDO/Propeller, Thread Director KVM, Waydroid | Pass 3, 5; not selected for laptop runtime tuning |
+| Distro mines | Arch Gen 11, NixOS x1, Fedora kernel, Gentoo power guide | Pass 6; reference only |
+| NVMe maintenance | wipefs, nvme sanitize, secure erase | Pass 6 supplement | Not part of tuning; maintenance doc only |
+| Meta sysctl edge | tcp_notsent_lowat, pacing | Pass 3 supplement | Folded into =linux-rg-ervg= VPN notes |
+| Chezmoi integration | rg-bench-matrix, rg-wide-net-collect, rg-nvme-apst, rg-hfi-status | Helpers shipped; lane =linux-rg-chzm= |
+| Live validation | rg-x1gen11-profile doctor, rg-psi-snapshot, rg-bench-matrix | Pass 7-8 + =linux-rg-e9fx=; stock kernel baseline captured |
+| ZRAM/swap literature | ElasticZRAM DAC 2024, IOSR TECS 2023, SWAM | OokCite validated; see =docs/literature-review.org= |
+| Platform peripherals | fingerprint, UVC, TPM, touchpad, Type-C | Pass 8; lanes =linux-rg-1j07=, =linux-rg-al83=, =linux-rg-8mmb= |
+| Graphics/media | VAAPI, GuC/HuC, i915 params | Pass 8; lane =linux-rg-r8jz= |
+| Storage hygiene | discard async, fstrim, dirty_ratio, NVMe multipath | Pass 8; lanes =linux-rg-7pnt=, =linux-rg-5x78= |
+| Session/VPN | swayidle, tailscale, nftables | Pass 8; chezmoi + =linux-rg-ervg= |
+| Measured memory/IO | zram mm_stat, dirty sysctl, NVMe hwmon, zswap | Pass 9; =linux-rg-zram=, =linux-rg-5x78=, =linux-rg-7pnt= |
+| sched_ext correction | stock sysfs state=disabled | Pass 9; =linux-rg-tjsl= |
+| journald drop-in audit | persistent vs volatile conflict | Pass 9; =linux-rg-chzm= |
+
+** Wide net pass 9 (2026-06-18 -- measured evidence + corrections)
+
+Corrections to earlier probes and new quantified evidence.
+
+| Candidate | Evidence source | Measured value | Grade | Action |
+| sched_ext class on stock 7.0.12 | =CONFIG_SCHED_CLASS_EXT=y=, sysfs | =state=disabled=, =switch_all=0= | B | Earlier "sysfs missing" was **wrong**; linux-rg needs BPF scheduler load for A/B |
+| zram compression ratio | =/sys/block/zram0/mm_stat= | **~3.68x** (4.9 GiB orig → 1.33 GiB stored) | B | Baseline for =linux-rg-zram=; compare after policy changes |
+| zswap stack | module params | enabled=Y, compressor=**zstd** | B | Dual layer with zram; literature: Richard & Case 2014 (OokCite) |
+| NVMe composite temp | =nvme-pci-0400= hwmon | **49.9°C** idle-ish probe | B | Thermal headroom for =linux-rg-rt1t= / build bench |
+| TLP battery policy | =tlp-stat -s= | thresholds **75/80**, profile balanced/BAT, **s2idle** | B | Validated; pairs =linux-rg-m00h= |
+| Cgroup slices (chezmoi) | unit files on disk | browser **6G** high; build **12G** high / 20G max; rust-analyzer **10G/14G** | B | Documented caps; oomd is kill layer |
+| systemd-oomd timing | =/etc/systemd/oomd.conf.d/aggressive.conf= | **20s** pressure duration, **50%** user slice limit | B | Matches Meta PSI folklore tier |
+| iwlwifi firmware | =/lib/firmware/= | ma-b0-gf-a0 **-86/-89** + pnvm present | A | Record loaded rev at linux-rg boot (=linux-rg-wifi=) |
+| Hibernate wiring | cmdline + sysfs | =resume=253:0=, =resume_offset=533760=; =/sys/power/state= includes **disk** | C | Swapfile offset wired; full cycle unvalidated (=linux-rg-2ih0=) |
+| journald storage | drop-ins conflict | =99-persistent-storage.conf= vs =volatile-storage.conf=; runtime journal **8M** in =/run/log/journal= | C | **Conflict**: volatile may override; audit which wins (=linux-rg-chzm=) |
+| i915 module params | =modinfo i915= | GuC/PSR params exist; sysfs values empty without modprobe args | C | Document modprobe.d for =linux-rg-r8jz= / =linux-rg-i915= |
+| thinkpad thermal | =/proc/acpi/ibm/thermal= | temp **69** at probe | C | Supplement to sensors; fan speed 5665 RPM |
+| Camera shutter ACPI | thinkpad_acpi sysfs | **No** =camera_power_on= on Gen 11 | C | UVC software privacy only (=linux-rg-al83=) |
+| DDCCI in-tree | =lsmod= | **Not loaded**; =intel_backlight= only | C | Module carried (0006); load for dock DDC (=linux-rg-ddcci=) |
+| build.slice deployment | chezmoi vs home | Unit in chezmoi **12G/20G**; verify =systemctl --user= sees it | B | =rg-x1gen11-profile build-heavy= raises high water |
+
+** Chezmoi memory policy evidence (=99-memory.conf=, validated on disk 2026-06-18)
+
+The production memory stack is **not** Arch defaults. Documented rationale from
+=run_onchange_linux_memory_tuning.sh.tmpl=:
+
+| Sysctl | Value | Rationale (chezmoi) |
+| vm.swappiness | 100 | zram swap at RAM latency; prefer paging idle anon |
+| vm.page-cluster | 0 | Finer-grained swap chunks for zram |
+| vm.watermark_scale_factor | 50 | Earlier background reclaim |
+| vm.min_free_kbytes | 262144 | Reserve headroom on 32 GiB box |
+| vm.compaction_proactiveness | 0 | Reduce compaction stalls |
+| vm.dirty_ratio / background | 10 / 5 | Cap dirty cache before flush storms |
+| vm.dirty_expire_centisecs | 3000 | Shorter expire → smaller writeback bursts |
+| vm.dirty_writeback_centisecs | 1500 | More frequent writeback worker wakeups |
+
+Literature anchors: SWAM + ElasticZRAM + IOSR (OokCite) for mobile swap framing;
+Richard & Case 2014 (OokCite 10.1016/j.diin.2014.05.011) for compressed swap
+forensics. Local **3.68x** zram ratio is the empirical anchor until bench matrix
+runs under =memory-pressure= profile.
+
+Collectors (chezmoi, post-boot):
+
+#+begin_src sh
+rg-wide-net-collect              # snapshot for bench run dir or stdout
+rg-nvme-apst /dev/nvme0          # APST + autopm sysfs
+rg-hfi-status                    # cpu_capacity + intel_hfi
+rg-bench-matrix run collect      # writes wide-net.txt into run dir
+#+end_src
 
 * Document index
 
@@ -1005,3 +1451,12 @@ Issue tracking: vissues project =linux-rg=, epic =linux-rg-ln3w=.
 Hardware: =linux-rg-wpdr= and children in =docs/rgx1gen11-targets.org=.
 Memory weld: =linux-rg-7zwz=, =linux-rg-5fxc=, =linux-rg-phgx=.
 Scheduler: =linux-rg-kr7t= (cache-aware), =linux-rg-tjsl= (scx_loader).
+Wide net: =linux-rg-49gh= (**CLOSED** 2026-06-18; search index exhausted); lanes
+=linux-rg-m00h= thermals, =linux-rg-sf6i= observability, =linux-rg-2r1r= storage,
+=linux-rg-ervg= network, =linux-rg-mvxn= PipeWire RT, =linux-rg-db49= ananicy,
+=linux-rg-wc69= firmware, =linux-rg-59jn= bench matrix, =linux-rg-i7w4= RPS,
+=linux-rg-71t0= memtierd, =linux-rg-pwdv= KSM, =linux-rg-2ih0= hibernate,
+=linux-rg-hzxn= TB4 boltctl, =linux-rg-kqlk= irqbalance, =linux-rg-8s4g= NVMe APST,
+=linux-rg-t47k= S0ix selftest, =linux-rg-1j07= fingerprint, =linux-rg-al83= UVC,
+=linux-rg-r8jz= VAAPI, =linux-rg-7pnt= discard/fstrim, =linux-rg-5x78= dirty_ratio,
+=linux-rg-8mmb= libinput.

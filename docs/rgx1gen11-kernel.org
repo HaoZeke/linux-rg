@@ -7,7 +7,8 @@
 - =docs/rgx1gen11-drivers.org= -- Wi-Fi/BT/GPU/audio/NVMe driver stacks
 - =docs/rgx1gen11-targets.org= -- verified hardware inventory, workload profiles,
   measurable targets, vissue map
-- =docs/literature-review.org= -- research bibliography and evidence grades
+- =docs/literature-review.org= -- evidence grades, venue map, why downstream
+  patch stacks lack citations (read before carrying more cuts)
 - =docs/candidates.org= -- ADIOS, re-swappiness, cpuidle TEO, detach_tasks,
   and other candidate or policy notes
 
@@ -172,7 +173,7 @@ cost without porting MUQSS or CONFIG_CACHY fair.
 | 0012 | sched_ext idle SMT sibling preference |
 | 0013 | =sysctl_sched_migration_cost= 300000 ns default |
 
-** Zen omnibus cherry-picks (0014-0015)
+** Zen omnibus cherry-picks (0014-0016)
 
 Source: Liquorix =zen/v7.0.12-lqx1.patch= (damentz/liquorix-package 7.0-13),
 **not** the full omnibus or PDS scheduler.
@@ -184,6 +185,7 @@ BORE stack without =CONFIG_ZEN_INTERACTIVE= or =CONFIG_SCHED_ALT=.
 | Patch | Role |
 | 0014 | =kswapd_waiters=: keep kswapd awake while page allocators wait |
 | 0015 | schedutil DL path uses =limits_changed= for bandwidth spikes |
+| 0016 | cpuidle TEO default over menu (live bench had menu governor) |
 
 Skipped from zen: PDS/BMQ alt scheduler, fair.c ZEN_INTERACTIVE sysctl (0013
 covers migration_cost), duplicate 0010 inlines, CONFIG_ZEN_INTERACTIVE elevator
@@ -323,6 +325,8 @@ and `docs/literature-review.org`.
 | Scheduler | migration_cost 0013 | Cachy sysctl extract | carried | D | Desktop latency knob with BORE |
 | MM | kswapd_waiters 0014 | Liquorix zen omnibus | carried | D | Memory-pressure responsiveness; boot-safe |
 | CPUfreq | schedutil limits 0015 | Liquorix zen omnibus | carried | D | Hybrid DL bandwidth on 1365U |
+| Power | cpuidle TEO 0016 | sirlucjan / upstream Loehle | carried | B | Live probe: menu was default |
+| Rust | binder + fw_loader | Arch 7.0.12 mainline | carried (config) | B/C | iwlwifi/SOF firmware path |
 | Scheduler | ASA router 0009 | arXiv:2511.11628 | carried (prototype) | D | sched_ext layer; needs scx_loader |
 | Scheduler | newidle balance revert | cachyos-fixes-v27 #05 | not carried | D | Conflicts with BORE. |
 | Network | BBRv3 | CachyOS | carried | A | Roaming paths; fairness caveats documented. |

@@ -1,0 +1,26 @@
+From 1a0b8ab87e781911e97f1ecb7d939dc2c8f83e8f Mon Sep 17 00:00:00 2001
+From: linux-rg maintainers <linux-rg@localhost>
+Date: Thu, 18 Jun 2026 11:04:00 -0500
+Subject: [PATCH] tcp: declare tcp_set_tx_in_flight for BBRv3
+
+BBRv3 uses tcp_set_tx_in_flight from tcp_output.c. Keep the helper declaration
+in tcp.h so normal builds compile with a visible prototype.
+---
+ include/net/tcp.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/net/tcp.h b/include/net/tcp.h
+index d236569ce0f8..f3a2bfc9e4e1 100644
+--- a/include/net/tcp.h
++++ b/include/net/tcp.h
+@@ -1451,6 +1451,7 @@ static inline void tcp_ca_event(struct sock *sk, const enum tcp_ca_event event)
+ 
+ /* From tcp_cong.c */
+ void tcp_set_ca_state(struct sock *sk, const u8 ca_state);
++void tcp_set_tx_in_flight(struct sock *sk, struct sk_buff *skb);
+ 
+ 
+ static inline bool tcp_skb_sent_after(u64 t1, u64 t2, u32 seq1, u32 seq2)
+-- 
+2.53.0
+
