@@ -128,7 +128,7 @@ want_module() {
       -print -quit
   )
   if [[ -n $found ]]; then
-    pass "module $module: ${found#$modules_dir/}"
+    pass "module $module: ${found#"$modules_dir"/}"
   else
     fail "module $module is missing from $modules_dir"
   fi
@@ -157,7 +157,7 @@ want_firmware() {
 
   found=$(find "$firmware_dir" -maxdepth 1 \( -type f -o -type l \) -name "$firmware_name" -print -quit)
   if [[ -n $found ]]; then
-    pass "firmware ${found#$firmware_root/}"
+    pass "firmware ${found#"$firmware_root"/}"
   else
     fail "firmware pattern missing: $firmware_root/$pattern"
   fi
