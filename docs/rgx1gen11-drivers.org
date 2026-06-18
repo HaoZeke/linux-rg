@@ -45,7 +45,7 @@ Record the loaded microcode revision from =dmesg | rg iwlwifi= after each
 
 - =linux-firmware= (required)
 - =wireless-regdb= (recommended)
-- NetworkManager or iwd
+- iwd with iwctl
 
 ** Mechanical check
 

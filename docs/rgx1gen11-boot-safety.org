@@ -36,6 +36,7 @@ Vissue: =linux-rg-boot=. Parent: =linux-rg-mxx8=.
 5. mkinitcpio preset run for linux-rg with *minimal* MODULES (see below).
 6. rEFInd entry points at linux-rg *after* stock entry (stock stays default until
    verified).
+7. =rgx1gen11-boot-check --installed= passes after package install.
 
 * mkinitcpio: minimal MODULES (mandatory)
 
@@ -77,9 +78,10 @@ Run in order; stop and rollback if any step fails.
 2. =uname -r= shows linux-rg localversion.
 3. =lsmod | rg 'nvme|i915|iwlmvm|btusb|snd_sof'= all load on demand.
 4. =dmesg | rg -i 'iwlwifi.*loaded|firmware.*ma-b0|Bluetooth'= no firmware -ENOENT.
-5. =ping -c1 127.0.0.1= only; then Wi-Fi via NetworkManager (linux-rg-wifi).
-6. One =systemctl suspend= + resume (linux-rg-slp).
-7. Only then set rEFInd default to linux-rg.
+5. =ping -c1 127.0.0.1= only; then Wi-Fi via iwd/iwctl (linux-rg-wifi).
+6. =rgx1gen11-boot-check --live --require-boot-log= passes.
+7. One =systemctl suspend= + resume (linux-rg-slp).
+8. Only then set rEFInd default to linux-rg.
 
 * Package modprobe drop-ins
 

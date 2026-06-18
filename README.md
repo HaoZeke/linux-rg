@@ -109,6 +109,21 @@ after it. It copies `/usr/lib/modules/*-rg/vmlinuz` to `/boot/vmlinuz-linux-rg`
 and writes `/boot/initramfs-linux-rg.img` from a separate mkinitcpio config with
 `MODULES=(nvme i915)`.
 
+For the current built package, copy the source checker before running the root
+installer so the install can verify the rEFInd and mkinitcpio state:
+
+```sh
+cp rgx1gen11-boot-check /tmp/rgx1gen11-boot-check
+sudo LINUX_RG_BOOT_CHECK=/tmp/rgx1gen11-boot-check \
+  bash scripts/rgx1gen11-install-refind-root
+```
+
+After selecting `Arch Linux linux-rg` in rEFInd:
+
+```sh
+rgx1gen11-boot-check --live --require-boot-log
+```
+
 ## Notes
 
 Design, hardware targets, and patch rationale:

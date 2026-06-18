@@ -10,6 +10,7 @@ mkinitcpio_preset=${MKINITCPIO_PRESET:-/etc/mkinitcpio.d/linux-rg.preset}
 boot_kernel=${BOOT_KERNEL:-/boot/vmlinuz-linux-rg}
 boot_initramfs=${BOOT_INITRAMFS:-/boot/initramfs-linux-rg.img}
 module_list=${LINUX_RG_INITRAMFS_MODULES:-"nvme i915"}
+boot_check=${LINUX_RG_BOOT_CHECK:-/tmp/rgx1gen11-boot-check}
 stamp=$(date +%Y%m%d-%H%M%S)
 
 require_root() {
@@ -222,6 +223,16 @@ print_state() {
   echo
   echo "== disk =="
   df -h / /boot
+
+  echo
+  echo "== linux-rg boot check =="
+  if command -v rgx1gen11-boot-check >/dev/null 2>&1; then
+    rgx1gen11-boot-check --installed
+  elif [[ -f $boot_check ]]; then
+    bash "$boot_check" --installed
+  else
+    echo "skipped: rgx1gen11-boot-check unavailable"
+  fi
 }
 
 print_plan() {
@@ -237,6 +248,7 @@ print_plan() {
   echo "boot initramfs:  $boot_initramfs"
   echo "mkinitcpio conf: $mkinitcpio_config"
   echo "mkinitcpio preset: $mkinitcpio_preset"
+  echo "boot check:      $boot_check"
   echo "initramfs modules: $(module_array_literal)"
   echo "refind config:   $refind_conf"
   echo "refind options:  $options"

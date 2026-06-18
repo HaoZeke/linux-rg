@@ -64,6 +64,7 @@ source=(
   rgx1gen11-gpu-check
   rgx1gen11-sof-check
   rgx1gen11-nvme-check
+  rgx1gen11-boot-check
   rgx1gen11-iwlwifi.conf
   rgx1gen11-btusb.conf
 )
@@ -101,6 +102,7 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             '06f79e13e5e15b5a53f5c37b265ca1b839da6c5b6bb6b220063e058f34e9d10a'
             '2a030a9c647229a201885bdfd4c3e4b76f06226d9b8647796588dbc976ccd135'
             'd5b0e7aa7196e80f26dd0723a8ce5717c60f16f332798f0b015809fcbcfbb1e2'
+            '31551f9477b504e78b2429f190402ad4631868090c2fd7cffd8f3df73b0b8bc6'
             '134551c9ab2a33011cd2cdf366e66da4cc9297011146a8abe8840f5b7a3f7408'
             '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74')
 sha256sums_x86_64=('0ed8c43b4ad6c3c3f3affe1317581992ba0eac6697d421a5c6d8210bf1e29ad7')
@@ -132,6 +134,7 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         '340148376a3f337c0f2bd58b755c561c0f2683561b291a6add2318fba28a27747077d1cc2bad13bf00bc5edff6d4388676a1ee05f9bf7e67f59957287f257caf'
         'f499db3da04f1b9c6b608ed2d65014791ef9afe84cda9084ccb5c39d63afc080200c3d1683b9da46e5903983725ce96255e9e160f30db0c8090be22586400af7'
         'e6c5d1421d8a5e42788498de730050d3cbe70a24511adde2886a84c49cc0601e028fb2360ce91d4739c35a320cc3f94dfbae25447e39eee19dcbae2e56eaab4b'
+        'd567ff1e56584c00ecb97f507713b9434ba18890f3939197c580721fc511eee8b75b9bdc62f6e492742bb4393721eb92568c4ff94fbeec20f7f6d8860ca335a3'
         '9baa113f8982af04ffafd26096c48c0a099e7aebeafc635c97e79fd5c70da2c348d7b40e05110d01a5f2e2c2ebf5750bab37ebe6b080b5e6c27520aec6dffc82'
         '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
@@ -276,6 +279,7 @@ _package() {
   install -Dm755 "$srcdir/rgx1gen11-gpu-check" "$pkgdir/usr/bin/rgx1gen11-gpu-check"
   install -Dm755 "$srcdir/rgx1gen11-sof-check" "$pkgdir/usr/bin/rgx1gen11-sof-check"
   install -Dm755 "$srcdir/rgx1gen11-nvme-check" "$pkgdir/usr/bin/rgx1gen11-nvme-check"
+  install -Dm755 "$srcdir/rgx1gen11-boot-check" "$pkgdir/usr/bin/rgx1gen11-boot-check"
   install -Dm644 "$srcdir/rgx1gen11-iwlwifi.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf"
   install -Dm644 "$srcdir/rgx1gen11-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-btusb.conf"
 

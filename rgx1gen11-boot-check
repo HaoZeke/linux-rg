@@ -1,0 +1,344 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+refind_conf=/boot/EFI/refind/refind.conf
+mkinitcpio_config=/etc/mkinitcpio-linux-rg.conf
+boot_kernel=/boot/vmlinuz-linux-rg
+boot_initramfs=/boot/initramfs-linux-rg.img
+modules_root=/usr/lib/modules
+firmware_root=/lib/firmware
+installed=0
+live=0
+require_boot_log=0
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-boot-check [options]
+
+Validate the rgx1gen11 linux-rg install, rEFInd entry, initramfs policy, and
+first-boot hardware contract.
+
+Options:
+  --installed             Check installed packages, boot files, initramfs, rEFInd
+  --live                  Check the running linux-rg boot and hardware stack
+  --require-boot-log      With --live, require GPU and SOF boot-log signatures
+  --refind-conf PATH      rEFInd config (default: /boot/EFI/refind/refind.conf)
+  --mkinitcpio-conf PATH  linux-rg mkinitcpio config (default: /etc/mkinitcpio-linux-rg.conf)
+  --boot-kernel PATH      linux-rg boot kernel (default: /boot/vmlinuz-linux-rg)
+  --boot-initramfs PATH   linux-rg initramfs (default: /boot/initramfs-linux-rg.img)
+  --modules-root PATH     Modules root (default: /usr/lib/modules)
+  --firmware-root PATH    Firmware root (default: /lib/firmware)
+  -h, --help              Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --installed)
+      installed=1
+      shift
+      ;;
+    --live)
+      live=1
+      shift
+      ;;
+    --require-boot-log)
+      require_boot_log=1
+      shift
+      ;;
+    --refind-conf)
+      refind_conf=$2
+      shift 2
+      ;;
+    --mkinitcpio-conf)
+      mkinitcpio_config=$2
+      shift 2
+      ;;
+    --boot-kernel)
+      boot_kernel=$2
+      shift 2
+      ;;
+    --boot-initramfs)
+      boot_initramfs=$2
+      shift 2
+      ;;
+    --modules-root)
+      modules_root=$2
+      shift 2
+      ;;
+    --firmware-root)
+      firmware_root=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if (( ! installed && ! live )); then
+  installed=1
+fi
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+want_command() {
+  local command_name=$1
+  if command -v "$command_name" >/dev/null 2>&1; then
+    pass "command $command_name"
+  else
+    fail "command unavailable: $command_name"
+  fi
+}
+
+want_file() {
+  local path=$1
+  local description=$2
+  if [[ -f $path ]]; then
+    pass "$description: $path"
+  else
+    fail "$description missing: $path"
+  fi
+}
+
+want_package() {
+  local package=$1
+  local output
+  if ! command -v pacman >/dev/null 2>&1; then
+    fail "pacman is unavailable"
+    return
+  fi
+  if output=$(pacman -Q "$package" 2>&1); then
+    pass "$output"
+  else
+    fail "package missing: $package ($output)"
+  fi
+}
+
+detect_rg_kver() {
+  local dir latest=
+  shopt -s nullglob
+  for dir in "$modules_root"/*-rg; do
+    latest=${dir##*/}
+  done
+  shopt -u nullglob
+  printf '%s' "$latest"
+}
+
+want_rg_modules_tree() {
+  local kver=$1
+  if [[ -n $kver && -d $modules_root/$kver ]]; then
+    pass "modules tree $modules_root/$kver"
+  else
+    fail "linux-rg modules tree missing under $modules_root"
+  fi
+}
+
+want_mkinitcpio_modules() {
+  local line
+  local forbidden
+
+  if [[ ! -r $mkinitcpio_config ]]; then
+    fail "mkinitcpio config is not readable: $mkinitcpio_config"
+    return
+  fi
+
+  line=$(grep -E '^[[:space:]]*MODULES=' "$mkinitcpio_config" | tail -n 1 || true)
+  if [[ -z $line ]]; then
+    fail "mkinitcpio MODULES line missing from $mkinitcpio_config"
+    return
+  fi
+
+  if [[ " $line " == *"nvme"* ]]; then
+    pass "mkinitcpio includes nvme"
+  else
+    fail "mkinitcpio MODULES lacks nvme: $line"
+  fi
+
+  for forbidden in iwlwifi iwlmvm btusb thunderbolt snd_sof snd_sof_pci_intel_tgl; do
+    if [[ " $line " == *"$forbidden"* ]]; then
+      fail "mkinitcpio includes post-root module $forbidden: $line"
+    fi
+  done
+
+  if [[ " $line " == *"i915"* ]]; then
+    pass "mkinitcpio includes optional early KMS module i915"
+  fi
+}
+
+want_refind_entry() {
+  local stock_line rg_line
+
+  if [[ ! -r $refind_conf ]]; then
+    fail "rEFInd config is not readable: $refind_conf"
+    return
+  fi
+
+  stock_line=$(grep -n '^menuentry "Arch Linux" {' "$refind_conf" | head -n 1 | cut -d: -f1 || true)
+  rg_line=$(grep -n '^menuentry "Arch Linux linux-rg" {' "$refind_conf" | head -n 1 | cut -d: -f1 || true)
+  if [[ -n $stock_line && -n $rg_line && $stock_line -lt $rg_line ]]; then
+    pass "rEFInd stock entry precedes linux-rg"
+  else
+    fail "rEFInd stock entry does not precede linux-rg"
+  fi
+
+  if grep -Eq '^[[:space:]]*loader[[:space:]]+/vmlinuz-linux-rg$' "$refind_conf"; then
+    pass "rEFInd loader /vmlinuz-linux-rg"
+  else
+    fail "rEFInd linux-rg loader missing"
+  fi
+
+  if grep -Eq '^[[:space:]]*initrd[[:space:]]+/initramfs-linux-rg\.img$' "$refind_conf"; then
+    pass "rEFInd initrd /initramfs-linux-rg.img"
+  else
+    fail "rEFInd linux-rg initrd missing"
+  fi
+}
+
+checker_path() {
+  local checker=$1
+  if command -v "$checker" >/dev/null 2>&1; then
+    command -v "$checker"
+  elif [[ -x ./$checker ]]; then
+    printf './%s\n' "$checker"
+  else
+    return 1
+  fi
+}
+
+want_checker() {
+  local checker=$1
+  shift
+  local path output
+
+  if ! path=$(checker_path "$checker"); then
+    fail "$checker unavailable"
+    return
+  fi
+
+  if output=$("$path" "$@" 2>&1); then
+    pass "$checker $*"
+  else
+    fail "$checker $*"
+    printf '%s\n' "$output" >&2
+  fi
+}
+
+want_uname_rg() {
+  local release
+  release=$(uname -r)
+  if [[ $release == *-rg ]]; then
+    pass "running kernel $release"
+  else
+    fail "running kernel is not linux-rg: $release"
+  fi
+}
+
+want_cmdline_token() {
+  local token=$1
+  local cmdline
+
+  if [[ ! -r /proc/cmdline ]]; then
+    fail "/proc/cmdline is not readable"
+    return
+  fi
+
+  cmdline=$(</proc/cmdline)
+  if [[ " $cmdline " == *" $token "* ]]; then
+    pass "cmdline token $token"
+  else
+    fail "cmdline token missing: $token"
+  fi
+}
+
+want_local_ping() {
+  local output
+  if ! command -v ping >/dev/null 2>&1; then
+    fail "ping is unavailable"
+    return
+  fi
+  if output=$(ping -c1 -W1 127.0.0.1 2>&1); then
+    pass "local ping 127.0.0.1"
+  else
+    fail "local ping failed: $output"
+  fi
+}
+
+check_installed() {
+  local kver config_path modules_dir
+
+  echo "== installed boot state =="
+  want_package linux
+  want_package linux-firmware
+  want_package mkinitcpio
+  want_package refind
+  want_package linux-rg
+  want_package linux-rg-headers
+  want_file "$boot_kernel" "boot kernel"
+  want_file "$boot_initramfs" "boot initramfs"
+  want_mkinitcpio_modules
+  want_refind_entry
+
+  kver=$(detect_rg_kver)
+  want_rg_modules_tree "$kver"
+  if [[ -n $kver ]]; then
+    config_path="$modules_root/$kver/build/.config"
+    modules_dir="$modules_root/$kver"
+    want_file "$config_path" "kernel config"
+    want_checker rgx1gen11-ax211-check --config "$config_path" --modules-dir "$modules_dir" \
+      --modprobe-file /usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf --firmware-root "$firmware_root" --require-firmware
+    want_checker rgx1gen11-memory-check --config "$config_path"
+    want_checker rgx1gen11-gpu-check --config "$config_path" --modules-dir "$modules_dir" \
+      --firmware-root "$firmware_root" --require-firmware
+    want_checker rgx1gen11-sof-check --config "$config_path" --modules-dir "$modules_dir" \
+      --firmware-root "$firmware_root" --require-firmware
+    want_checker rgx1gen11-nvme-check --config "$config_path"
+  fi
+}
+
+check_live() {
+  local boot_log_args=()
+
+  echo "== live boot state =="
+  want_uname_rg
+  want_cmdline_token pcie_aspm.policy=powersave
+  want_cmdline_token i915
+  want_local_ping
+
+  if (( require_boot_log )); then
+    boot_log_args=(--require-boot-log)
+  fi
+
+  want_checker rgx1gen11-ax211-check --live
+  want_checker rgx1gen11-memory-check --live
+  want_checker rgx1gen11-gpu-check --live "${boot_log_args[@]}"
+  want_checker rgx1gen11-sof-check --live "${boot_log_args[@]}"
+  want_checker rgx1gen11-nvme-check --live
+}
+
+if (( installed )); then
+  check_installed
+fi
+
+if (( live )); then
+  check_live
+fi
+
+if (( failures > 0 )); then
+  exit 1
+fi
