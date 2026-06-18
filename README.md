@@ -26,6 +26,8 @@ then applies a small machine overlay in `rgx1gen11.config`.
 - CachyOS working-set protection ratio extract (0018): `vm.anon_min_ratio`,
   `vm.clean_low_ratio`, `vm.clean_min_ratio`, and `vm.workingset_protection`
   wired into classic reclaim and MGLRU without carrying `CONFIG_CACHY`.
+- MGLRU dev-tree vmscan weld (0019): writeback handling helper, evictable-size
+  scan budgeting, and batch eviction flow adapted to keep the 0018 ratio gates.
 - Intel AX211 Wi-Fi/BT: `IWLMLD`, `bt_coex_active` modprobe drop-in; `linux-firmware`
   in package depends; `rgx1gen11-ax211-check` validates the config, module tree,
   modprobe policy, and firmware inventory.

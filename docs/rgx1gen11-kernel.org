@@ -339,8 +339,8 @@ and `docs/literature-review.org`.
 | Network | BBRv3 | CachyOS | carried | A | Roaming paths; fairness caveats documented. |
 | Block | BFQ/mq-deadline contention | CachyOS 6.17 | carried | A/D | BFQ literature strong; patch and ULL NVMe benefit uncertain. |
 | Block | ADIOS | CachyOS 6.17 omnibus | carried (module) | D | Non-default; NVMe A/B testing. |
-| Memory | Cachy anon/clean ratios | Cachy 6.17 extract | carried =0018= | B/D | Extracted without =CONFIG_CACHY=; MGLRU weld remains on candidates.org |
-| Memory | mglru-patches-v2 | sirlucjan 7.0 | candidate | D | vmscan dev-tree; weld with ratios not re-swappiness |
+| Memory | Cachy anon/clean ratios | Cachy 6.17 extract | carried =0018= | B/D | Extracted without =CONFIG_CACHY=; welded with =0019= |
+| Memory | mglru-patches-v2 | sirlucjan 7.0 | carried =0019= | D | vmscan dev-tree adapted after ratios; not stacked with re-swappiness |
 | Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D | Deprioritized vs mglru+ratios; conflicts mglru on vmscan |
 | Scheduler | cache-aware SCHED_CACHE | sirlucjan 7.0 | candidate | D | Applies on BORE stack; hold behind scx_loader |
 | Memory | DAMON reclaim/LRU sort/stat | mainline Linux | config | B | Policy in systemd units. |

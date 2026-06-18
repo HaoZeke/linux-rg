@@ -405,7 +405,8 @@ Recommended evaluation order for memory (issue =linux-rg-7f5e=):
 
 1. Userspace only: PSI, oomd, zram/zswap policy (no vmscan conflict).
 2. Extracted Cachy ratio knobs (anon/clean protection) without =CONFIG_CACHY=.
-3. mglru-patches-v2 welded onto (2) if =mm/vmscan.c= merges cleanly.
+3. mglru-patches-v2 welded onto (2), carried as
+   =0019-mglru-devtree-adapt.patch=.
 4. re-swappiness only if (3) is rejected and as a single vmscan experiment.
 5. cache-aware is a separate scheduler track (issue =linux-rg-kr7t=), not part
    of the memory weld.
@@ -480,17 +481,17 @@ unless re-swappiness alone wins a benchmark.
 =mm/vmscan.c=, so the implementation keeps the four sysctls local to vmscan.
 
 Compile check: =make -C /tmp/rg-linux-rg-mmcheck/linux-7.0.12 -j9 mm/vmscan.o=
-after applying Arch 7.0.12 plus =0001= through =0018=.
+after applying Arch 7.0.12 plus =0001= through =0019=.
 
-Live pressure validation remains tracked by =linux-rg-7zwz= and the MGLRU weld
-track =linux-rg-5fxc=.
+Live pressure validation remains tracked by =linux-rg-7zwz= and
+=linux-rg-5fxc=.
 
 * Candidate: MGLRU dev-tree vmscan patch (mglru-patches-v2)
 
 ** Status
 
 | Field | Value |
-| Decision | candidate (not carried) |
+| Decision | carried as =0019-mglru-devtree-adapt.patch= |
 | Evidence grade | B for MGLRU mainline; D for this dev-tree extract |
 | Source | sirlucjan =7.0/mglru-patches-v2= |
 | vissue | =linux-rg-5fxc= |
@@ -517,16 +518,21 @@ laptop's normal mode with browsers, builds, and NVMe cache.
 ** Weld matrix
 
 | Partner | Verdict |
-| Cachy memory ratios | Recommended weld target; complementary policy vs mechanics |
+| Cachy memory ratios | Carried together in =0018= and =0019=; ratio gates preserved in =get_type_to_scan= |
 | re-swappiness v1.2 | Do not stack; both rewrite the same vmscan functions |
 | cache-aware | Independent (scheduler); no mm interaction |
-| Mainline 7.0.12 only | Check whether dev-tree hunks are already present before carrying |
+| Mainline 7.0.12 only | Baseline retained through stock Arch kernel rollback |
 
-** Decision gate
+** Carried implementation
 
-Carry (alone or welded with ratios) only if vmscan patch applies cleanly to
-Arch 7.0.12 and improves reclaim responsiveness in a benchmark against mainline
-MGLRU with the same zram/zswap userspace policy.
+=0019-mglru-devtree-adapt.patch= carries the dev-tree flow on top of =0018=.
+One hunk is adapted because =0018= adds the =scan_control= argument to
+=get_type_to_scan()= for anon/clean protection gates.
+
+Compile check: =make -C /home/rgoswami/.local/share/chezmoi/.kernel-build/linux-rg-prepare-0018/linux-rg/src/linux-7.0.12 -j9 mm/vmscan.o=.
+
+Live validation compares =0018= plus =0019= against stock Arch MGLRU with the
+same zram/zswap userspace policy.
 
 * Candidate: re-swappiness v1.2
 
@@ -1066,8 +1072,8 @@ Vissues: =linux-rg-eco1= (this survey), =linux-rg-zen2= (0014-0015), =linux-rg-r
 
 | Area | Candidate | Source | Decision | Evidence | Notes |
 | Block | ADIOS | CachyOS 6.17 omnibus | carried (module) | D | Non-default; see ADIOS section above |
-| Memory | Cachy anon/clean ratios | Cachy 6.17 omnibus extract | carried =0018= | B/D | Extracted without =CONFIG_CACHY=; weld with mglru-patches-v2 remains open |
-| Memory | mglru-patches-v2 | sirlucjan 7.0 | candidate | D | Best welded with ratio extract; not with re-swappiness |
+| Memory | Cachy anon/clean ratios | Cachy 6.17 omnibus extract | carried =0018= | B/D | Extracted without =CONFIG_CACHY=; welded with mglru-patches-v2 in =0019= |
+| Memory | mglru-patches-v2 | sirlucjan 7.0 | carried =0019= | D | Adapted after ratio extract; not stacked with re-swappiness |
 | Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D / A framing | Deprioritized vs mglru+ratios weld |
 | Scheduler | hot-path inlines | cachyos-fixes #06-08 / 0010 | carried | B/D | Hybrid laptop context-switch path |
 | Scheduler | detach_tasks fix | cachyos-fixes #09 / 0011 | carried | B | 1365U load balance |
