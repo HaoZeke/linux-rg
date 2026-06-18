@@ -129,6 +129,8 @@ want_modprobe() {
 
 want_firmware() {
   local pattern=$1
+  local firmware_dir=$firmware_root
+  local firmware_name=$pattern
   local found
 
   [[ $require_firmware -eq 1 ]] || return 0
@@ -137,7 +139,16 @@ want_firmware() {
     return
   fi
 
-  found=$(find "$firmware_root" -maxdepth 1 \( -type f -o -type l \) -name "$pattern" -print -quit)
+  if [[ $pattern == */* ]]; then
+    firmware_dir="$firmware_root/${pattern%/*}"
+    firmware_name=${pattern##*/}
+  fi
+  if [[ ! -d $firmware_dir ]]; then
+    fail "firmware directory is not readable: $firmware_dir"
+    return
+  fi
+
+  found=$(find "$firmware_dir" -maxdepth 1 \( -type f -o -type l \) -name "$firmware_name" -print -quit)
   if [[ -n $found ]]; then
     pass "firmware ${found#$firmware_root/}"
   else
@@ -159,6 +170,9 @@ want_config CONFIG_BT_INTEL 'CONFIG_BT_INTEL=m'
 want_config CONFIG_BT_HCIBTUSB 'CONFIG_BT_HCIBTUSB=m'
 want_config CONFIG_BT_HCIBTUSB_AUTOSUSPEND 'CONFIG_BT_HCIBTUSB_AUTOSUSPEND=y'
 want_config CONFIG_BT_HCIBTUSB_POLL_SYNC 'CONFIG_BT_HCIBTUSB_POLL_SYNC=y'
+want_config CONFIG_BT_HCIUART 'CONFIG_BT_HCIUART=m'
+want_config CONFIG_BT_HCIUART_INTEL 'CONFIG_BT_HCIUART_INTEL=y'
+want_config CONFIG_BT_INTEL_PCIE '# CONFIG_BT_INTEL_PCIE is not set'
 
 want_modprobe
 
@@ -172,6 +186,8 @@ want_module btintel
 
 want_firmware 'iwlwifi-ma-b0-gf-a0-*.ucode*'
 want_firmware 'iwlwifi-ma-b0-gf-a0.pnvm*'
+want_firmware 'intel/ibt-0040-0041.sfi*'
+want_firmware 'intel/ibt-0040-0041.ddc*'
 
 if [[ $failures -gt 0 ]]; then
   exit 1

@@ -86,6 +86,7 @@ Vissues: =linux-rg-wifi=, =linux-rg-bench-wifi=.
 - =CONFIG_BT_HCIBTUSB_AUTOSUSPEND=y=, =CONFIG_BT_HCIBTUSB_POLL_SYNC=y=
 - =CONFIG_BT_HCIUART=m= + =CONFIG_BT_HCIUART_INTEL=y= (Arch default; not the
   active path on this box, but kept for ACPI UART fallback variants).
+- =CONFIG_BT_INTEL_PCIE= disabled; the target adapter is USB =8087:0033=.
 
 This machine uses *USB* BT, not =CONFIG_BT_INTEL_PCIE=. Do not disable =btusb=.
 
@@ -95,6 +96,27 @@ File: =/usr/lib/modprobe.d/rgx1gen11-btusb.conf=
 
 - Autosuspend enabled via Kconfig; document =hciconfig= / =bluetoothctl= after
   resume if devices disappear (linux-rg-slp).
+
+** Firmware versions on bench (2026-06-18)
+
+Stock =7.0.12-arch1-1= loaded:
+
+- =intel/ibt-0040-0041.sfi= (firmware version 202-5.26)
+- =intel/ibt-0040-0041.ddc=
+
+The helper requires both files when run with =--require-firmware= or =--live=.
+
+** Postboot acceptance
+
+#+begin_example
+bluetoothctl show
+bluetoothctl devices Connected
+journalctl -k -b --no-pager -g 'Bluetooth: hci0|btusb|8087'
+#+end_example
+
+The linux-rg boot passes the static BT gate when =btusb= and =btintel= are
+loaded from the linux-rg module tree, the Intel firmware load has no =-ENOENT=,
+and one paired device reconnects after one =systemctl suspend= cycle.
 
 Vissue: =linux-rg-bt=.
 
