@@ -17,6 +17,8 @@ then applies a small machine overlay in `rgx1gen11.config`.
 - CachyOS block-layer contention patch for BFQ and mq-deadline.
 - Scheduler weld for hybrid i7-1365U: hot-path inlines (0010), detach_tasks fix
   (0011), sched_ext SMT idle (0012), migration_cost sysctl (0013).
+- Cache-aware fair-class placement experiment (0020), enabled as
+  `CONFIG_SCHED_CACHE=y` for LLC locality testing on the hybrid CPU.
 - Liquorix zen cherry-picks (no PDS): kswapd_waiters MM fix (0014), schedutil
   DL limits_changed (0015). iwlwifi/i915 zen hunks skipped -- already in Arch 7.0.12.
 - ADIOS block scheduler module (non-default) and ASA sched_ext router prototype

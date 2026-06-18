@@ -255,7 +255,7 @@ Full inventory and measurable targets: =docs/rgx1gen11-targets.org=.
 | znver4 / x86-64-v3 ISA | Intel CPU |
 | cgroup VRAM, rt-i915 | iGPU laptop; patch or config mismatch |
 | handheld, aufs, acpi_call | Wrong platform class |
-| cache-aware SCHED_CACHE | Hold behind 0012 + scx_loader; applies on BORE if needed |
+| cache-aware SCHED_CACHE | Carried as =0020=; benchmark against sched_ext userspace |
 
 ** Wi-Fi / BT on this box (verified PCI)
 
@@ -578,7 +578,7 @@ mglru+ratios because of four files vs two.
 ** Status
 
 | Field | Value |
-| Decision | candidate (not carried; branch-ready) |
+| Decision | carried as =0020-cache-aware-sched.patch= |
 | Evidence grade | D (downstream); B (hybrid CPU motivation) |
 | Source | sirlucjan =7.0/cache-aware-patches= (=kernel-patches= repo) |
 | vissue | =linux-rg-kr7t= |
@@ -602,20 +602,21 @@ LPC 2022 documents Linux hybrid scheduling gaps. cache-aware is a downstream
 attempt to reduce cross-LLC migration; it is not the same as mainline Intel EAS
 work.
 
-** Why it is not auto-carried
+** Carry constraints
 
-- Rebase note (2026-06-18): omnibus applies on BORE stack with offsets; =fair.o=
-  builds. Conflict is maintenance risk, not a hard apply failure.
-- Prefer sched_ext SMT idle (0012) and scx_loader trials on 1365U first.
+- The patch applies on the BORE stack with offsets.
+- It is enabled in =rgx1gen11.config= as =CONFIG_SCHED_CACHE=y=.
 - Independent from the memory weld track; do not bundle with mglru or ratios.
 - No peer-reviewed evaluation found (evidence grade D).
+- Runtime value remains benchmark-gated against sched_ext userspace policies on
+  1365U.
 
 ** Relationship to other scheduler candidates
 
 | Candidate | Interaction |
-| BORE | Conflict on fair.c -- pick one fair-class stack |
+| BORE | Same fair.c surface; compile-tested as a welded stack |
 | sched_ext | Alternative path; literature grade B; already enabled in config |
-| detach_tasks fix | Orthogonal small fair.c fix; may apply with BORE, not with cache-aware |
+| detach_tasks fix | Orthogonal small fair.c fix; compile-tested with =0020= |
 | newidle revert | Also conflicts with BORE; not carried |
 
 ** Decision gate
@@ -1079,7 +1080,7 @@ Vissues: =linux-rg-eco1= (this survey), =linux-rg-zen2= (0014-0015), =linux-rg-r
 | Scheduler | detach_tasks fix | cachyos-fixes #09 / 0011 | carried | B | 1365U load balance |
 | Scheduler | sched_ext SMT idle | cachyos-fixes #18 / 0012 | carried | B | 2-way SMT wake |
 | Scheduler | migration_cost 300us | Cachy extract / 0013 | carried | D | Kolivas-adjacent sysctl |
-| Scheduler | cache-aware (SCHED_CACHE) | sirlucjan 7.0 | candidate | D | Branch-ready; hold behind scx_loader |
+| Scheduler | cache-aware (SCHED_CACHE) | sirlucjan 7.0 | carried =0020= | D | Enabled for LLC locality A/B against sched_ext |
 | Scheduler | ASA router (MoS) | arXiv:2511.11628 / 0009 | carried (prototype) | D | sched_ext layer; needs scx_loader |
 | Build | Cachy -O3 / rust opt-level 3 | kbuild-cachyos-patches | candidate | D | compile tuning only |
 | Build | ThinLTO dist / vmlinux_a | kbuild-dev-patches | candidate | D | dist builder infra |

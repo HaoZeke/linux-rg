@@ -430,7 +430,8 @@ implementations until locally benchmarked.
   on =mm/vmscan.c=; carried as =0019-mglru-devtree-adapt.patch= and not
   stacked with re-swappiness.
 - cache-aware (=CONFIG_SCHED_CACHE=): grade D; hybrid LLC motivation per
-  Brown-Neri LPC 2022 but scheduler-only and conflicts with BORE.
+  Brown-Neri LPC 2022. Carried as =0020-cache-aware-sched.patch= and
+  benchmarked against sched_ext userspace policy.
 
 Welding map: =docs/candidates.org=.
 
@@ -623,7 +624,7 @@ Machine-specific targets and vissue map: =docs/rgx1gen11-targets.org=.
 | ADIOS module | No published evaluation (D) | Module only; never default without bench win |
 | BORE + 0010-0013 scheduler weld | No published evaluation (D) | Highest-risk carried fair-class work |
 | detach_tasks fix | Upstream-reviewed (B) | Carried; runtime check on hybrid CPU |
-| cache-aware SCHED_CACHE | Motivation (B); patch (D) | Branch-ready; hold behind sched_ext |
+| cache-aware SCHED_CACHE | Motivation (B); patch (D) | Carried as =0020=; compare with sched_ext |
 | re-swappiness | Problem (A/B); patch (D) | Deprioritized vs mglru+ratios weld |
 | cpuidle TEO 0016 | Governor rationale (B); carry (D until bench) | Carried; validate on bench-idle |
 | zen 0014-0015 MM/cpufreq | Liquorix folklore (D) | Carried; low boot risk |

@@ -342,7 +342,7 @@ and `docs/literature-review.org`.
 | Memory | Cachy anon/clean ratios | Cachy 6.17 extract | carried =0018= | B/D | Extracted without =CONFIG_CACHY=; welded with =0019= |
 | Memory | mglru-patches-v2 | sirlucjan 7.0 | carried =0019= | D | vmscan dev-tree adapted after ratios; not stacked with re-swappiness |
 | Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D | Deprioritized vs mglru+ratios; conflicts mglru on vmscan |
-| Scheduler | cache-aware SCHED_CACHE | sirlucjan 7.0 | candidate | D | Applies on BORE stack; hold behind scx_loader |
+| Scheduler | cache-aware SCHED_CACHE | sirlucjan 7.0 | carried =0020= | D | Applies on BORE stack; A/B against scx_loader |
 | Memory | DAMON reclaim/LRU sort/stat | mainline Linux | config | B | Policy in systemd units. |
 | Memory | UKSM | CachyOS KSM-era | not carried | D | No maintained 7.0 patch. |
 | Power | cpuidle TEO over menu | sirlucjan 7.0 | candidate | B | Intel laptop idle; check Arch default first. |

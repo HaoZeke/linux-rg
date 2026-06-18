@@ -94,7 +94,7 @@ Targets are scored per profile. Default daily driver: =undocked-mixed=.
 | sched_ext policy without fair rewrite | Literature grade B; reversible | CONFIG_SCHED_CLASS_EXT, scx_loader, ASA heuristic | =linux-rg-tjsl=, =linux-rg-asa1= |
 | SMT sibling locality on wake | 2-way SMT per core; not a 64-thread server | sched_ext SMT idle (0012) | =linux-rg-9k2m= |
 | Context-switch hot path | Kolivas-adjacent, upstream-reviewed inlines | 0010 hot-path bundle | =linux-rg-q3np= |
-| cache-aware SCHED_CACHE | LLC placement experiment | Hold until scx_loader A/B fails | =linux-rg-kr7t= |
+| cache-aware SCHED_CACHE | LLC placement experiment | Carried as =0020=; A/B against scx_loader | =linux-rg-kr7t= |
 
 Acceptance (post-boot, =linux-rg-bench-sched=):
 
@@ -224,7 +224,7 @@ Ordered by expected impact on daily =undocked-mixed= profile:
 5. zram + oomd policy for 32 GiB (=linux-rg-zram=, =linux-rg-oomd=)
 6. Idle power / cpuidle (=linux-rg-7m20=, =linux-rg-pwr=)
 7. Memory vmscan weld if pressure tests fail (=linux-rg-7zwz=, =linux-rg-5fxc=)
-8. cache-aware branch only if sched_ext insufficient (=linux-rg-kr7t=)
+8. cache-aware A/B against sched_ext (=linux-rg-kr7t=)
 
 * Measurement checklist (linux-rg-61pb children)
 
