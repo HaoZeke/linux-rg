@@ -308,7 +308,7 @@ _package-headers() {
     localversion.* version vmlinux tools/bpf/bpftool/vmlinux.h
   install -Dt "$builddir/kernel" -m644 kernel/Makefile
   install -Dt "$builddir/arch/$karch" -m644 arch/$karch/Makefile
-  cp -t "$builddir" -a scripts
+  cp -t "$builddir" -a --no-preserve=ownership scripts
   ln -srt "$builddir" "$builddir/scripts/gdb/vmlinux-gdb.py"
 
   if [[ $(scripts/config -s CONFIG_HAVE_STACK_VALIDATION) = y ]]; then
@@ -320,8 +320,8 @@ _package-headers() {
   fi
 
   echo "Installing headers..."
-  cp -t "$builddir" -a include
-  cp -t "$builddir/arch/$karch" -a arch/$karch/include
+  cp -t "$builddir" -a --no-preserve=ownership include
+  cp -t "$builddir/arch/$karch" -a --no-preserve=ownership arch/$karch/include
   install -Dt "$builddir/arch/$karch/kernel" -m644 arch/$karch/kernel/asm-offsets.s
 
   install -Dt "$builddir/drivers/md" -m644 drivers/md/*.h
