@@ -67,6 +67,13 @@ Validate an installed linux-rg boot:
 rgx1gen11-ax211-check --live
 ```
 
+Validate the PSI/MGLRU/DAMON/zram memory-pressure contract:
+
+```sh
+./rgx1gen11-memory-check
+rgx1gen11-memory-check --live --require-oomd
+```
+
 ## Notes
 
 Design, hardware targets, and patch rationale:

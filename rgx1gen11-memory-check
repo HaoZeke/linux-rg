@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
+live=0
+require_oomd=0
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-memory-check [options]
+
+Validate the rgx1gen11 memory-pressure kernel contract.
+
+Options:
+  --config PATH      Kconfig file to inspect (default: rgx1gen11.config)
+  --live             Also inspect the running kernel memory-pressure interfaces
+  --require-oomd     With --live, require systemd-oomd to be active
+  -h, --help         Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      config_path=$2
+      shift 2
+      ;;
+    --live)
+      live=1
+      shift
+      ;;
+    --require-oomd)
+      require_oomd=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+want_config() {
+  local symbol=$1
+  local want=$2
+  local got
+
+  if [[ ! -r $config_path ]]; then
+    fail "config is not readable: $config_path"
+    return
+  fi
+
+  got=$(grep -E "^(# )?${symbol}(=| is not set)" "$config_path" || true)
+  if [[ $got == "$want" ]]; then
+    pass "$want"
+  elif [[ -n $got ]]; then
+    fail "$symbol is '$got', expected '$want'"
+  else
+    fail "$symbol is missing, expected '$want'"
+  fi
+}
+
+want_readable() {
+  local path=$1
+
+  if [[ -r $path ]]; then
+    pass "readable $path"
+  else
+    fail "not readable: $path"
+  fi
+}
+
+want_sysfs_value() {
+  local path=$1
+  local pattern=$2
+  local got
+
+  if [[ ! -r $path ]]; then
+    fail "not readable: $path"
+    return
+  fi
+
+  got=$(<"$path")
+  if [[ $got =~ $pattern ]]; then
+    pass "$path = $got"
+  else
+    fail "$path is '$got', expected /$pattern/"
+  fi
+}
+
+want_oomd() {
+  local systemctl_output
+
+  [[ $require_oomd -eq 1 ]] || return 0
+
+  if ! command -v systemctl >/dev/null 2>&1; then
+    fail "systemctl is unavailable"
+    return
+  fi
+
+  if systemctl_output=$(systemctl is-active systemd-oomd.service 2>&1); then
+    pass "systemd-oomd active"
+  else
+    fail "systemd-oomd is not active: $systemctl_output"
+  fi
+}
+
+want_config CONFIG_PSI 'CONFIG_PSI=y'
+want_config CONFIG_PSI_DEFAULT_DISABLED '# CONFIG_PSI_DEFAULT_DISABLED is not set'
+want_config CONFIG_CGROUPS 'CONFIG_CGROUPS=y'
+want_config CONFIG_MEMCG 'CONFIG_MEMCG=y'
+want_config CONFIG_MEMCG_SWAP 'CONFIG_MEMCG_SWAP=y'
+want_config CONFIG_CGROUP_BPF 'CONFIG_CGROUP_BPF=y'
+want_config CONFIG_LRU_GEN 'CONFIG_LRU_GEN=y'
+want_config CONFIG_LRU_GEN_ENABLED 'CONFIG_LRU_GEN_ENABLED=y'
+want_config CONFIG_KSM 'CONFIG_KSM=y'
+want_config CONFIG_ZSWAP 'CONFIG_ZSWAP=y'
+want_config CONFIG_ZSWAP_DEFAULT_ON 'CONFIG_ZSWAP_DEFAULT_ON=y'
+want_config CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD 'CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD=y'
+want_config CONFIG_ZRAM 'CONFIG_ZRAM=m'
+want_config CONFIG_ZSMALLOC 'CONFIG_ZSMALLOC=y'
+want_config CONFIG_ZRAM_WRITEBACK 'CONFIG_ZRAM_WRITEBACK=y'
+want_config CONFIG_ZRAM_MEMORY_TRACKING 'CONFIG_ZRAM_MEMORY_TRACKING=y'
+want_config CONFIG_DAMON 'CONFIG_DAMON=y'
+want_config CONFIG_DAMON_VADDR 'CONFIG_DAMON_VADDR=y'
+want_config CONFIG_DAMON_PADDR 'CONFIG_DAMON_PADDR=y'
+want_config CONFIG_DAMON_SYSFS 'CONFIG_DAMON_SYSFS=y'
+want_config CONFIG_DAMON_RECLAIM 'CONFIG_DAMON_RECLAIM=y'
+want_config CONFIG_DAMON_LRU_SORT 'CONFIG_DAMON_LRU_SORT=y'
+want_config CONFIG_DAMON_STAT 'CONFIG_DAMON_STAT=y'
+want_config CONFIG_DAMON_STAT_ENABLED_DEFAULT '# CONFIG_DAMON_STAT_ENABLED_DEFAULT is not set'
+
+if [[ $live -eq 1 ]]; then
+  want_readable /proc/pressure/memory
+  want_readable /proc/pressure/cpu
+  want_readable /proc/pressure/io
+  want_sysfs_value /sys/kernel/mm/lru_gen/enabled '^(0x)?[0-9a-fA-F]+$'
+  want_sysfs_value /sys/module/zswap/parameters/enabled '^(Y|1)$'
+  want_readable /sys/kernel/mm/ksm/run
+  want_readable /sys/block/zram0/mm_stat
+  want_oomd
+fi
+
+if [[ $failures -gt 0 ]]; then
+  exit 1
+fi

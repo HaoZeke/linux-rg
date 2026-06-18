@@ -215,6 +215,13 @@ Fit:
 - `CONFIG_MEMCG_SWAP=y`
 - `CONFIG_CGROUP_BPF=y`
 
+Mechanical check:
+
+#+begin_example
+./rgx1gen11-memory-check
+rgx1gen11-memory-check --live --require-oomd
+#+end_example
+
 ** DAMON
 
 Source: mainline Linux configuration.

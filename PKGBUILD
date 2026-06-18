@@ -60,6 +60,7 @@ source=(
   rgx1gen11.config
   asa-router
   rgx1gen11-ax211-check
+  rgx1gen11-memory-check
   rgx1gen11-iwlwifi.conf
   rgx1gen11-btusb.conf
 )
@@ -93,6 +94,7 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'ebd77c712bc74de4f636ef782b9610b69927e0af00ef976a0876d667ee53899a'
             'fa9059e8274b60d3caf1d5e78a1fe21b92d937fe21562df5920b9c66d0013923'
             '0a2faea5d6118bec34339e2595b9befe283aaa269e04ee92757406e840f1f3a8'
+            'c45d5fe6759eab07d355dbbd937443fa7273fb1eea059a657a05e42948571b6f'
             '134551c9ab2a33011cd2cdf366e66da4cc9297011146a8abe8840f5b7a3f7408'
             '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74')
 sha256sums_x86_64=('0ed8c43b4ad6c3c3f3affe1317581992ba0eac6697d421a5c6d8210bf1e29ad7')
@@ -120,6 +122,7 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         'ce9cb36d0a3b3a81ffb41a4c9550ce1f1f78f6862a619274f25e7948a58d20dc3cff7b1f1344cc358d91ebead52f57be8fa2358eb28bacd9ba31f2f4543e75de'
         '4f290c4b5aeed7d8a2e048410f304c891955129c1641b5a1145302e61f1e9f76593448d9c765fc13e1717159245c9d304948087f79e04d69e53fdfea4a5e5f13'
         '568166a385f5173852bd3683ad3dfffbbe7a0d2c0853d90ff5caa8149313ef6ff1a018e066e730f33fae127ea8bca7df59875b86e96b2fa0fb0f8fa462acd077'
+        'eb99720ad7c462de5f2231e6d7602d17f40a1959ed12fd39268abd9189410ae1871243c415d3b16c93a79f6f3524a235dad59d3b3aa39cad53076b50355f76cd'
         '9baa113f8982af04ffafd26096c48c0a099e7aebeafc635c97e79fd5c70da2c348d7b40e05110d01a5f2e2c2ebf5750bab37ebe6b080b5e6c27520aec6dffc82'
         '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
@@ -260,6 +263,7 @@ _package() {
 
   install -Dm755 ../asa-router "$pkgdir/usr/bin/asa-router"
   install -Dm755 ../rgx1gen11-ax211-check "$pkgdir/usr/bin/rgx1gen11-ax211-check"
+  install -Dm755 ../rgx1gen11-memory-check "$pkgdir/usr/bin/rgx1gen11-memory-check"
   install -Dm644 ../rgx1gen11-iwlwifi.conf "$pkgdir/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf"
   install -Dm644 ../rgx1gen11-btusb.conf "$pkgdir/usr/lib/modprobe.d/rgx1gen11-btusb.conf"
 
