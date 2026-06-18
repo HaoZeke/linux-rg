@@ -91,20 +91,28 @@ the DDCCI module out of tree for this kernel.
 Fit: `CONFIG_DDCCI=m` and `CONFIG_BACKLIGHT_DDCCI=m` keep support modular.
 `ddcutil` remains userspace opt-in.
 
-** Block layer
+** Block layer and ADIOS
 
-Source: CachyOS block patch from the 6.17 patch series.
+Source: CachyOS block patch from the 6.17 patch series and selected ADIOS files
+from the CachyOS 6.17 omnibus patch.
 
 Why: this patch reduces lock contention in BFQ and mq-deadline merge paths by
 using try-lock behavior for expensive merge checks and by avoiding concurrent
 BFQ dispatch. That matches the laptop's workload: browser caches, source trees,
 package builds, VMs, and sync tools all share one NVMe device.
 
-Fit: the patch applies cleanly to the Arch 7.0 source with offsets. BFQ is
-enabled in the machine overlay:
+ADIOS is carried as an optional multi-queue scheduler module. It is not selected
+as the default because BFQ is the lower-risk laptop default for mixed
+interactive I/O. ADIOS remains available for direct testing through the block
+queue scheduler interface.
+
+Fit: the patches apply cleanly to the Arch 7.0 source with offsets. BFQ is
+enabled in the machine overlay, and ADIOS is built as a module:
 
 - `CONFIG_IOSCHED_BFQ=y`
 - `CONFIG_BFQ_GROUP_IOSCHED=y`
+- `CONFIG_MQ_IOSCHED_ADIOS=m`
+- `# CONFIG_MQ_IOSCHED_DEFAULT_ADIOS is not set`
 
 Tradeoff: the merge-path behavior can skip an occasional non-obvious merge
 under contention. The patch comments state that the block plug remains the
@@ -230,7 +238,7 @@ and pf-kernel are source pools, not wholesale dependencies.
 | Scheduler | sched_ext schedulers | mainline plus scx userspace | userspace | Kernel support is enabled; scheduler choice should switch through `scx_loader`. |
 | Network | BBRv3 | CachyOS | carried | Useful on roaming Wi-Fi/Tailscale/SSH workloads; adapted and compiled against Arch 7.0. |
 | Block | BFQ/mq-deadline contention patch | CachyOS 6.17 | carried | Applies to 7.0 and targets local NVMe mixed I/O responsiveness. |
-| Block | ADIOS scheduler | CachyOS 6.17 omnibus patch | candidate | Selected files apply to 7.0; needs extraction without unrelated omnibus changes and object compilation. |
+| Block | ADIOS scheduler | CachyOS 6.17 omnibus patch | carried | Selected files apply to 7.0; carried as a non-default module for block scheduler testing. |
 | GPU memory | cgroup VRAM | CachyOS 7.0 | not carried | Does not apply cleanly to this 7.0 tree; more relevant to constrained dGPU/VRAM cgroups than this iGPU laptop. |
 | Graphics RT | rt-i915 | CachyOS 7.0 | not carried | Applies, but it is for PREEMPT_RT. This package does not enable PREEMPT_RT. |
 | Media | v4l2loopback | pf-kernel 7.0 | carried | Avoids external DKMS drift for virtual camera workflows. |

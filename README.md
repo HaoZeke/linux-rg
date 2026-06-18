@@ -21,13 +21,14 @@ then applies a small machine overlay in `rgx1gen11.config`.
 
 ## Build
 
-Use a home-backed build directory; `/tmp` is too small for a full kernel build
+Use home-backed build and compiler temporary directories; `/tmp` is too small for a full kernel build
 on this machine.
 
 ```sh
 cd ~/Git/Github/Tools/linux-rg
 env GNUPGHOME=${GNUPGHOME:-/tmp/linux-rg/.gnupg} \
   MAKEFLAGS=-j9 \
+  TMPDIR=/home/rgoswami/.local/share/chezmoi/.kernel-build/tmp \
   BUILDDIR=/home/rgoswami/.local/share/chezmoi/.kernel-build/linux-rg-build \
   PKGDEST=/home/rgoswami/.local/share/chezmoi/.kernel-build/pkgdest \
   makepkg --nodeps --cleanbuild --clean --log

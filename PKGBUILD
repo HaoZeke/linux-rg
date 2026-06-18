@@ -47,6 +47,7 @@ source=(
   0005-v4l2loopback-pf.patch
   0006-ddcci-driver.patch
   0007-block-cachy.patch
+  0008-adios-cachy.patch
   rgx1gen11.config
 )
 source_x86_64=(config.x86_64)
@@ -66,6 +67,7 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         'SKIP'
         'SKIP'
         'SKIP'
+        'de2717075b6af543f888d2a6604180f0d256fa3abe0109efeaf876939ad186195d57b667dc5a757d97c4fdc77a1fca4f4499c144a82793d9cb7bc00db0ef5412'
         'SKIP')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
 
@@ -81,6 +83,7 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'SKIP'
             'SKIP'
             'SKIP'
+            '0fb154e8401fa57055e184b6fe922a6a81c3d5ae41e19d31548e548339839327'
             'SKIP')
 
 export KBUILD_BUILD_HOST=archlinux
