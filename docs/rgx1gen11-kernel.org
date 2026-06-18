@@ -127,6 +127,33 @@ Fit:
 - `CONFIG_MEMCG_SWAP=y`
 - `CONFIG_CGROUP_BPF=y`
 
+** DAMON
+
+Source: mainline Linux configuration.
+
+Why: DAMON is upstream kernel work for low-overhead memory access monitoring
+and access-aware operations. It fits the X1 profile because the machine runs
+browsers, containers, local builds, VMs, and scientific tools where pressure
+can come from stale anonymous memory and large file-backed working sets.
+
+Fit:
+
+- `CONFIG_DAMON=y`
+- `CONFIG_DAMON_VADDR=y`
+- `CONFIG_DAMON_PADDR=y`
+- `CONFIG_DAMON_SYSFS=y`
+- `CONFIG_DAMON_RECLAIM=y`
+- `CONFIG_DAMON_LRU_SORT=y`
+- `CONFIG_DAMON_STAT=y`
+- `# CONFIG_DAMON_STAT_ENABLED_DEFAULT is not set`
+
+The policy is intentionally not enabled by default. The kernel exports the
+monitoring and action mechanisms, while systemd units can turn on bounded
+reclaim or LRU sorting only for the laptop modes where that is useful. The
+kernel documentation describes DAMON as efficient data-access monitoring with
+access-aware operations, including reclaim and LRU-list sorting:
+https://docs.kernel.org/admin-guide/mm/damon/index.html
+
 ** MGLRU, KSM, zswap, and zram
 
 Source: mainline Linux configuration.
@@ -208,6 +235,7 @@ and pf-kernel are source pools, not wholesale dependencies.
 | Graphics RT | rt-i915 | CachyOS 7.0 | not carried | Applies, but it is for PREEMPT_RT. This package does not enable PREEMPT_RT. |
 | Media | v4l2loopback | pf-kernel 7.0 | carried | Avoids external DKMS drift for virtual camera workflows. |
 | Display controls | DDCCI | ddcci-driver-linux | carried | Avoids external module drift for DDC/CI monitor controls. |
+| Memory | DAMON reclaim/LRU sort/stat | mainline Linux | config | Upstream pressure-management machinery; policy stays in systemd units. |
 | Memory | UKSM | old CachyOS KSM-era patches | not carried | No maintained 7.0 UKSM patch in selected sources; mainline KSM advisor, PSI, MGLRU, zswap, and zram are enabled. |
 | KSM policy | KSM service/settings | CachyOS userspace | userspace | Kernel support is enabled; activation belongs in systemd policy. |
 | Power profiles | scx_loader profile switching | CachyOS PPD patch | userspace | Scheduler mode switching belongs in power-profile policy, not this kernel package. |
