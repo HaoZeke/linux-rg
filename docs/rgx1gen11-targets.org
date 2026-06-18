@@ -122,7 +122,8 @@ Acceptance (=linux-rg-rt1t=):
 | Reclaim quality | MGLRU mainline | CONFIG_LRU_GEN_ENABLED | =linux-rg-7f5e= |
 | Compressed swap | Already using large zram | zram size policy for 32 GiB | =linux-rg-zram= |
 | OOM avoidance before hard kill | PSI-driven kill | systemd-oomd | =linux-rg-oomd= |
-| Optional vmscan weld | If mainline insufficient | Cachy ratios + mglru-patches-v2 | =linux-rg-7zwz=, =linux-rg-5fxc= |
+| Reclaim floors | Avoid zram/file-cache thrash | Cachy anon/clean ratios (=0018=) | =linux-rg-7zwz= |
+| Optional MGLRU weld | If mainline insufficient | mglru-patches-v2 | =linux-rg-5fxc= |
 | Access-aware reclaim | Stale browser mappings | DAMON units (bounded) | =linux-rg-tm76= |
 
 ** Measured memory policy baseline (2026-06-18, stock kernel)

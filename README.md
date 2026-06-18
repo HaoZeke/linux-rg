@@ -23,6 +23,9 @@ then applies a small machine overlay in `rgx1gen11.config`.
   (arXiv:2511.11628) with `asa-router` userspace helper.
 - PSI, memcg, DAMON, MGLRU, KSM, zswap, zram, BFQ, sched_ext, and
   ThinkPad/Intel laptop support pinned in the machine config overlay.
+- CachyOS working-set protection ratio extract (0018): `vm.anon_min_ratio`,
+  `vm.clean_low_ratio`, `vm.clean_min_ratio`, and `vm.workingset_protection`
+  wired into classic reclaim and MGLRU without carrying `CONFIG_CACHY`.
 - Intel AX211 Wi-Fi/BT: `IWLMLD`, `bt_coex_active` modprobe drop-in; `linux-firmware`
   in package depends; `rgx1gen11-ax211-check` validates the config, module tree,
   modprobe policy, and firmware inventory.

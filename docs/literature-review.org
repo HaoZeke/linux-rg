@@ -421,11 +421,12 @@ Evidence grade: B/C.
 Evidence grade: A for the problem framing; D for specific downstream patch
 implementations until locally benchmarked.
 
-** Cachy memory ratios, mglru-patches-v2, cache-aware (candidates)
+** Cachy memory ratios, mglru-patches-v2, cache-aware
 
 - Cachy =vm.anon_min_ratio= and clean ratio knobs: grade B concept / D patch.
-  Kconfig help cites zram thrash; aligns with SWAM/ATC framing. Extract without
-  =CONFIG_CACHY=; preferred weld partner for mglru-patches-v2.
+  Kconfig help cites zram thrash; aligns with SWAM/ATC framing. Carried as
+  =0018-cachy-mm-ratios.patch= without =CONFIG_CACHY=; preferred weld partner
+  for mglru-patches-v2.
 - mglru-patches-v2: grade D as downstream dev-tree port; complements ratio knobs
   on =mm/vmscan.c=; do not stack with re-swappiness without manual merge.
 - cache-aware (=CONFIG_SCHED_CACHE=): grade D; hybrid LLC motivation per

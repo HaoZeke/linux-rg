@@ -129,6 +129,9 @@ want_config CONFIG_MEMCG_SWAP 'CONFIG_MEMCG_SWAP=y'
 want_config CONFIG_CGROUP_BPF 'CONFIG_CGROUP_BPF=y'
 want_config CONFIG_LRU_GEN 'CONFIG_LRU_GEN=y'
 want_config CONFIG_LRU_GEN_ENABLED 'CONFIG_LRU_GEN_ENABLED=y'
+want_config CONFIG_ANON_MIN_RATIO 'CONFIG_ANON_MIN_RATIO=1'
+want_config CONFIG_CLEAN_LOW_RATIO 'CONFIG_CLEAN_LOW_RATIO=15'
+want_config CONFIG_CLEAN_MIN_RATIO 'CONFIG_CLEAN_MIN_RATIO=4'
 want_config CONFIG_KSM 'CONFIG_KSM=y'
 want_config CONFIG_ZSWAP 'CONFIG_ZSWAP=y'
 want_config CONFIG_ZSWAP_DEFAULT_ON 'CONFIG_ZSWAP_DEFAULT_ON=y'
@@ -150,6 +153,10 @@ if [[ $live -eq 1 ]]; then
   want_readable /proc/pressure/memory
   want_readable /proc/pressure/cpu
   want_readable /proc/pressure/io
+  want_sysfs_value /proc/sys/vm/workingset_protection '^1$'
+  want_sysfs_value /proc/sys/vm/anon_min_ratio '^1$'
+  want_sysfs_value /proc/sys/vm/clean_low_ratio '^15$'
+  want_sysfs_value /proc/sys/vm/clean_min_ratio '^4$'
   want_sysfs_value /sys/kernel/mm/lru_gen/enabled '^(0x)?[0-9a-fA-F]+$'
   want_sysfs_value /sys/module/zswap/parameters/enabled '^(Y|1)$'
   want_readable /sys/kernel/mm/ksm/run

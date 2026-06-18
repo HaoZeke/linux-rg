@@ -396,7 +396,7 @@ DAMON. Three downstream memory directions overlap on =mm/vmscan.c=; a fourth
 (cache-aware) is scheduler-side and independent of reclaim.
 
 | Patch set | Primary files | Touch vmscan? | Weld partner |
-| Cachy memory ratios | mm/Kconfig, mm/vmscan.c, kernel/sysctl.c, mm.h | yes | mglru-patches-v2 (best) |
+| Cachy memory ratios | mm/Kconfig, mm/vmscan.c, Documentation/admin-guide/sysctl/vm.rst | yes | mglru-patches-v2 (best) |
 | mglru-patches-v2 | mm/vmscan.c | yes | Cachy ratios (best) |
 | re-swappiness v1.2 | mm_inline.h, mmzone.h, mm/vmscan.c, workingset.c | yes | conflicts with mglru-patches-v2 |
 | cache-aware | fair.c, topology.c, sched.h, fork.c, init/Kconfig | no | none in mm; conflicts with BORE |
@@ -418,7 +418,7 @@ both rewrite MGLRU reclaim control flow in =mm/vmscan.c=.
 ** Status
 
 | Field | Value |
-| Decision | candidate (not carried) |
+| Decision | carried as =0018-cachy-mm-ratios.patch= |
 | Evidence grade | B (concept); D (downstream extract) |
 | Source | CachyOS =6.17/0004-cachy.patch= (extract; do not carry full omnibus) |
 | vissue | =linux-rg-7zwz= |
@@ -437,9 +437,7 @@ Extraction scope (ratio-only, no =CONFIG_CACHY=):
 
 | File | Role |
 | mm/Kconfig | =ANON_MIN_RATIO=, =CLEAN_LOW_RATIO=, =CLEAN_MIN_RATIO= defaults |
-| include/linux/mm.h | =sysctl_*= externs |
-| kernel/sysctl.c | proc handlers for the three ratios |
-| mm/vmscan.c | skip reclaim when node ratios would be violated |
+| mm/vmscan.c | vmscan-local sysctl table and reclaim/MGLRU gates |
 | Documentation/admin-guide/sysctl/vm.rst | knob documentation |
 
 Not required for ratios: Arch =CONFIG_CACHY=, Cachy fair.c tweaks, page-writeback
@@ -474,13 +472,18 @@ reclaim). re-swappiness also changes =lrugen.max_seq[type]= per anon/file in
 in 7.0.12. Prefer mglru-patches-v2 plus ratios over re-swappiness plus ratios
 unless re-swappiness alone wins a benchmark.
 
-** Decision gate
+** Carried implementation
 
-Carry extracted ratio patch only if:
+=0018-cachy-mm-ratios.patch= extracts the ratio mechanism without
+=CONFIG_CACHY=, page-writeback defaults, swap-cluster defaults, or global
+=sysctl.c= / =mm.h= extern wiring. Linux 7.0's VM sysctl table lives in
+=mm/vmscan.c=, so the implementation keeps the four sysctls local to vmscan.
 
-- Applies without =CONFIG_CACHY= and compiles on Arch 7.0.12.
-- With zram active, reduces swap thrash under fixed browser/build load.
-- Does not increase OOM frequency versus baseline in a repeated pressure test.
+Compile check: =make -C /tmp/rg-linux-rg-mmcheck/linux-7.0.12 -j9 mm/vmscan.o=
+after applying Arch 7.0.12 plus =0001= through =0018=.
+
+Live pressure validation remains tracked by =linux-rg-7zwz= and the MGLRU weld
+track =linux-rg-5fxc=.
 
 * Candidate: MGLRU dev-tree vmscan patch (mglru-patches-v2)
 
@@ -1063,7 +1066,7 @@ Vissues: =linux-rg-eco1= (this survey), =linux-rg-zen2= (0014-0015), =linux-rg-r
 
 | Area | Candidate | Source | Decision | Evidence | Notes |
 | Block | ADIOS | CachyOS 6.17 omnibus | carried (module) | D | Non-default; see ADIOS section above |
-| Memory | Cachy anon/clean ratios | Cachy 6.17 omnibus extract | candidate | B/D | Weld with mglru-patches-v2; see welding map |
+| Memory | Cachy anon/clean ratios | Cachy 6.17 omnibus extract | carried =0018= | B/D | Extracted without =CONFIG_CACHY=; weld with mglru-patches-v2 remains open |
 | Memory | mglru-patches-v2 | sirlucjan 7.0 | candidate | D | Best welded with ratio extract; not with re-swappiness |
 | Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D / A framing | Deprioritized vs mglru+ratios weld |
 | Scheduler | hot-path inlines | cachyos-fixes #06-08 / 0010 | carried | B/D | Hybrid laptop context-switch path |
