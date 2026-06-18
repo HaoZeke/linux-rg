@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
+modules_dir=
+firmware_root=/lib/firmware
+modprobe_file=rgx1gen11-iwlwifi.conf
+require_firmware=0
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-ax211-check [options]
+
+Validate the AX211 Wi-Fi and Bluetooth kernel contract for rgx1gen11.
+
+Options:
+  --config PATH          Kconfig file to inspect (default: rgx1gen11.config)
+  --modules-dir PATH     Installed module tree, for example /usr/lib/modules/7.0.12-1-rg
+  --modprobe-file PATH   iwlwifi modprobe drop-in (default: rgx1gen11-iwlwifi.conf)
+  --firmware-root PATH   Firmware directory (default: /lib/firmware)
+  --require-firmware     Require AX211 firmware files under --firmware-root
+  --live                 Check the running kernel module tree and system drop-in
+  -h, --help             Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      config_path=$2
+      shift 2
+      ;;
+    --modules-dir)
+      modules_dir=$2
+      shift 2
+      ;;
+    --modprobe-file)
+      modprobe_file=$2
+      shift 2
+      ;;
+    --firmware-root)
+      firmware_root=$2
+      shift 2
+      ;;
+    --require-firmware)
+      require_firmware=1
+      shift
+      ;;
+    --live)
+      config_path="/usr/lib/modules/$(uname -r)/build/.config"
+      modules_dir="/usr/lib/modules/$(uname -r)"
+      modprobe_file=/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf
+      require_firmware=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+want_config() {
+  local symbol=$1
+  local want=$2
+  local got
+
+  if [[ ! -r $config_path ]]; then
+    fail "config is not readable: $config_path"
+    return
+  fi
+
+  got=$(grep -E "^(# )?${symbol}(=| is not set)" "$config_path" || true)
+  if [[ $got == "$want" ]]; then
+    pass "$want"
+  elif [[ -n $got ]]; then
+    fail "$symbol is '$got', expected '$want'"
+  else
+    fail "$symbol is missing, expected '$want'"
+  fi
+}
+
+want_module() {
+  local module=$1
+  local found
+
+  [[ -n $modules_dir ]] || return 0
+  if [[ ! -d $modules_dir ]]; then
+    fail "modules directory is not readable: $modules_dir"
+    return
+  fi
+
+  found=$(find "$modules_dir" -type f \( -name "$module.ko" -o -name "$module.ko.*" \) -print -quit)
+  if [[ -n $found ]]; then
+    pass "module $module: ${found#$modules_dir/}"
+  else
+    fail "module $module is missing from $modules_dir"
+  fi
+}
+
+want_modprobe() {
+  if [[ ! -r $modprobe_file ]]; then
+    fail "modprobe file is not readable: $modprobe_file"
+    return
+  fi
+
+  if grep -Eq '^[[:space:]]*options[[:space:]]+iwlwifi([[:space:]].*)?bt_coex_active=1([[:space:]]|$)' "$modprobe_file"; then
+    pass "iwlwifi bt_coex_active=1"
+  else
+    fail "iwlwifi bt_coex_active=1 is missing from $modprobe_file"
+  fi
+}
+
+want_firmware() {
+  local pattern=$1
+  local found
+
+  [[ $require_firmware -eq 1 ]] || return 0
+  if [[ ! -d $firmware_root ]]; then
+    fail "firmware directory is not readable: $firmware_root"
+    return
+  fi
+
+  found=$(find "$firmware_root" -maxdepth 1 \( -type f -o -type l \) -name "$pattern" -print -quit)
+  if [[ -n $found ]]; then
+    pass "firmware ${found#$firmware_root/}"
+  else
+    fail "firmware pattern missing: $firmware_root/$pattern"
+  fi
+}
+
+want_config CONFIG_FW_LOADER 'CONFIG_FW_LOADER=y'
+want_config CONFIG_EXTRA_FIRMWARE 'CONFIG_EXTRA_FIRMWARE=""'
+want_config CONFIG_CFG80211 'CONFIG_CFG80211=m'
+want_config CONFIG_MAC80211 'CONFIG_MAC80211=m'
+want_config CONFIG_WLAN_VENDOR_INTEL 'CONFIG_WLAN_VENDOR_INTEL=y'
+want_config CONFIG_IWLWIFI 'CONFIG_IWLWIFI=m'
+want_config CONFIG_IWLMVM 'CONFIG_IWLMVM=m'
+want_config CONFIG_IWLMLD 'CONFIG_IWLMLD=m'
+want_config CONFIG_IWLWIFI_LEDS 'CONFIG_IWLWIFI_LEDS=y'
+want_config CONFIG_BT 'CONFIG_BT=m'
+want_config CONFIG_BT_INTEL 'CONFIG_BT_INTEL=m'
+want_config CONFIG_BT_HCIBTUSB 'CONFIG_BT_HCIBTUSB=m'
+want_config CONFIG_BT_HCIBTUSB_AUTOSUSPEND 'CONFIG_BT_HCIBTUSB_AUTOSUSPEND=y'
+want_config CONFIG_BT_HCIBTUSB_POLL_SYNC 'CONFIG_BT_HCIBTUSB_POLL_SYNC=y'
+
+want_modprobe
+
+want_module cfg80211
+want_module mac80211
+want_module iwlwifi
+want_module iwlmvm
+want_module iwlmld
+want_module btusb
+want_module btintel
+
+want_firmware 'iwlwifi-ma-b0-gf-a0-*.ucode*'
+want_firmware 'iwlwifi-ma-b0-gf-a0.pnvm*'
+
+if [[ $failures -gt 0 ]]; then
+  exit 1
+fi

@@ -47,6 +47,18 @@ Record the loaded microcode revision from =dmesg | rg iwlwifi= after each
 - =wireless-regdb= (recommended)
 - NetworkManager or iwd
 
+** Mechanical check
+
+=rgx1gen11-ax211-check= validates the AX211 contract from either
+=rgx1gen11.config=, a prepared kernel =.config=, an installed module tree, or
+the running linux-rg boot:
+
+#+begin_example
+./rgx1gen11-ax211-check
+./rgx1gen11-ax211-check --config /path/to/linux-7.0.12/.config
+rgx1gen11-ax211-check --live
+#+end_example
+
 ** Rust firmware loader
 
 Arch 7.0.12 builds =CONFIG_RUST_FW_LOADER_ABSTRACTIONS=y= (pinned in

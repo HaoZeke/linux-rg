@@ -24,7 +24,8 @@ then applies a small machine overlay in `rgx1gen11.config`.
 - PSI, memcg, DAMON, MGLRU, KSM, zswap, zram, BFQ, sched_ext, and
   ThinkPad/Intel laptop support pinned in the machine config overlay.
 - Intel AX211 Wi-Fi/BT: `IWLMLD`, `bt_coex_active` modprobe drop-in; `linux-firmware`
-  in package depends.
+  in package depends; `rgx1gen11-ax211-check` validates the config, module tree,
+  modprobe policy, and firmware inventory.
 - BBR and fq selected as the default TCP congestion control and qdisc.
 
 ## Build
@@ -44,6 +45,27 @@ env GNUPGHOME=${GNUPGHOME:-/home/rgoswami/.local/share/chezmoi/.kernel-build/gnu
 
 `-j9` keeps the local build under the configured 80% CPU cap for this 12-thread
 machine.
+
+## Hardware Checks
+
+Validate the AX211 policy from the repo config:
+
+```sh
+./rgx1gen11-ax211-check
+```
+
+Validate a prepared build tree before packaging:
+
+```sh
+./rgx1gen11-ax211-check \
+  --config /path/to/linux-7.0.12/.config
+```
+
+Validate an installed linux-rg boot:
+
+```sh
+rgx1gen11-ax211-check --live
+```
 
 ## Notes
 
