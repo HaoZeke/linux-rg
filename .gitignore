@@ -484,3 +484,10 @@ __marimo__/
 /linux-v*.patch.zst
 /linux-v*.patch.zst.sig
 /.gnupg/
+/src/
+/pkg/
+/pkgdest/
+/srcdest/
+/artifacts/
+/*.log
+/*.pkg.tar.*
