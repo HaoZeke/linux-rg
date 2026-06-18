@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+kernel_pkg=${LINUX_RG_KERNEL_PKG:-/home/rgoswami/.local/share/chezmoi/.kernel-build/pkgdest/linux-rg-7.0.12.arch1-1-x86_64.pkg.tar.zst}
+headers_pkg=${LINUX_RG_HEADERS_PKG:-/home/rgoswami/.local/share/chezmoi/.kernel-build/pkgdest/linux-rg-headers-7.0.12.arch1-1-x86_64.pkg.tar.zst}
+refind_conf=${REFIND_CONF:-/boot/EFI/refind/refind.conf}
+mkinitcpio_base=${MKINITCPIO_BASE:-/etc/mkinitcpio.conf}
+mkinitcpio_config=${MKINITCPIO_CONFIG:-/etc/mkinitcpio-linux-rg.conf}
+mkinitcpio_preset=${MKINITCPIO_PRESET:-/etc/mkinitcpio.d/linux-rg.preset}
+boot_kernel=${BOOT_KERNEL:-/boot/vmlinuz-linux-rg}
+boot_initramfs=${BOOT_INITRAMFS:-/boot/initramfs-linux-rg.img}
+module_list=${LINUX_RG_INITRAMFS_MODULES:-"nvme i915"}
+stamp=$(date +%Y%m%d-%H%M%S)
+
+require_root() {
+  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+    echo "error: run as root" >&2
+    exit 1
+  fi
+}
+
+need_file() {
+  local path=$1
+  if [[ ! -f $path ]]; then
+    echo "error: missing file: $path" >&2
+    exit 1
+  fi
+}
+
+backup_file() {
+  local path=$1
+  if [[ -e $path ]]; then
+    local backup="${path}.rg-linux-rg-${stamp}.bak"
+    cp -a "$path" "$backup"
+    echo "backup: $backup"
+  fi
+}
+
+package_kver() {
+  bsdtar -tf "$kernel_pkg" |
+    sed -n 's#^usr/lib/modules/\([^/]*-rg\)/vmlinuz$#\1#p' |
+    head -n 1
+}
+
+module_array_literal() {
+  local first=1 module out="MODULES=("
+  for module in $module_list; do
+    if (( first )); then
+      out+="$module"
+      first=0
+    else
+      out+=" $module"
+    fi
+  done
+  printf '%s)\n' "$out"
+}
+
+write_mkinitcpio_config() {
+  local tmp modules_line
+  tmp=$(mktemp)
+  modules_line=$(module_array_literal)
+  awk -v modules_line="$modules_line" '
+    BEGIN { replaced = 0 }
+    /^MODULES=/ {
+      print modules_line
+      replaced = 1
+      next
+    }
+    { print }
+    END {
+      if (!replaced) {
+        print modules_line
+      }
+    }
+  ' "$mkinitcpio_base" > "$tmp"
+
+  if [[ ! -e $mkinitcpio_config ]] || ! cmp -s "$tmp" "$mkinitcpio_config"; then
+    backup_file "$mkinitcpio_config"
+    install -m 0644 "$tmp" "$mkinitcpio_config"
+    echo "wrote: $mkinitcpio_config"
+  else
+    echo "unchanged: $mkinitcpio_config"
+  fi
+  rm -f "$tmp"
+}
+
+write_mkinitcpio_preset() {
+  local tmp
+  tmp=$(mktemp)
+  cat > "$tmp" <<EOF
+# mkinitcpio preset file for linux-rg
+
+ALL_config="$mkinitcpio_config"
+ALL_kver="$boot_kernel"
+ALL_microcode=(/boot/*-ucode.img)
+
+PRESETS=('default')
+
+default_image="$boot_initramfs"
+EOF
+
+  if [[ ! -e $mkinitcpio_preset ]] || ! cmp -s "$tmp" "$mkinitcpio_preset"; then
+    backup_file "$mkinitcpio_preset"
+    install -m 0644 "$tmp" "$mkinitcpio_preset"
+    echo "wrote: $mkinitcpio_preset"
+  else
+    echo "unchanged: $mkinitcpio_preset"
+  fi
+  rm -f "$tmp"
+}
+
+stock_options() {
+  sed -n '/^menuentry "Arch Linux" {/,/^}/p' "$refind_conf" |
+    sed -nE 's/^[[:space:]]*options[[:space:]]+"(.*)"[[:space:]]*$/\1/p' |
+    head -n 1
+}
+
+write_refind_entry() {
+  local options block tmp
+  options=$(stock_options)
+  if [[ -z $options ]]; then
+    echo "error: could not extract stock Arch Linux options from $refind_conf" >&2
+    exit 1
+  fi
+
+  block=$(mktemp)
+  cat > "$block" <<EOF
+# linux-rg BEGIN
+menuentry "Arch Linux linux-rg" {
+    icon     /EFI/refind/icons/os_arch.png
+    loader   /vmlinuz-linux-rg
+    initrd   /initramfs-linux-rg.img
+    options  "$options"
+    submenuentry "Boot to terminal" {
+        add_options "systemd.unit=multi-user.target"
+    }
+}
+# linux-rg END
+EOF
+
+  tmp=$(mktemp)
+  if rg -q '^# linux-rg BEGIN$' "$refind_conf"; then
+    awk -v block_file="$block" '
+      BEGIN {
+        while ((getline line < block_file) > 0) {
+          block = block line ORS
+        }
+        close(block_file)
+      }
+      /^# linux-rg BEGIN$/ {
+        if (!done) {
+          printf "%s", block
+          done = 1
+        }
+        skip = 1
+        next
+      }
+      /^# linux-rg END$/ {
+        skip = 0
+        next
+      }
+      !skip { print }
+    ' "$refind_conf" > "$tmp"
+  else
+    awk -v block_file="$block" '
+      BEGIN {
+        while ((getline line < block_file) > 0) {
+          block = block line ORS
+        }
+        close(block_file)
+      }
+      {
+        print
+        if (!inserted && $0 ~ /^menuentry "Arch Linux" \{[[:space:]]*$/) {
+          in_arch = 1
+          depth = 1
+          next
+        }
+        if (in_arch) {
+          line = $0
+          opens = gsub(/\{/, "{", line)
+          line = $0
+          closes = gsub(/\}/, "}", line)
+          depth += opens - closes
+          if (depth == 0) {
+            print ""
+            printf "%s", block
+            inserted = 1
+            in_arch = 0
+          }
+        }
+      }
+      END {
+        if (!inserted) {
+          print ""
+          printf "%s", block
+        }
+      }
+    ' "$refind_conf" > "$tmp"
+  fi
+
+  if ! cmp -s "$tmp" "$refind_conf"; then
+    backup_file "$refind_conf"
+    install -m 0644 "$tmp" "$refind_conf"
+    echo "wrote: $refind_conf"
+  else
+    echo "unchanged: $refind_conf"
+  fi
+  rm -f "$block" "$tmp"
+}
+
+print_state() {
+  echo
+  echo "== packages =="
+  pacman -Q linux linux-headers linux-firmware mkinitcpio refind linux-rg linux-rg-headers
+  echo
+  echo "== boot files =="
+  ls -lh "$boot_kernel" "$boot_initramfs"
+  echo
+  echo "== rEFInd linux-rg stanza =="
+  rg -n 'linux-rg|vmlinuz-linux-rg|initramfs-linux-rg' "$refind_conf"
+  echo
+  echo "== disk =="
+  df -h / /boot
+}
+
+print_plan() {
+  local kver options
+  kver=$1
+  options=$2
+
+  echo "== dry run =="
+  echo "kernel package:  $kernel_pkg"
+  echo "headers package: $headers_pkg"
+  echo "kernel release:  $kver"
+  echo "boot kernel:     $boot_kernel"
+  echo "boot initramfs:  $boot_initramfs"
+  echo "mkinitcpio conf: $mkinitcpio_config"
+  echo "mkinitcpio preset: $mkinitcpio_preset"
+  echo "initramfs modules: $(module_array_literal)"
+  echo "refind config:   $refind_conf"
+  echo "refind options:  $options"
+  echo
+  df -h / /boot
+}
+
+main() {
+  local dry_run=0
+  if [[ ${1:-} == "--dry-run" ]]; then
+    dry_run=1
+    shift
+  fi
+  if [[ $# -ne 0 ]]; then
+    echo "usage: $0 [--dry-run]" >&2
+    exit 2
+  fi
+
+  if (( ! dry_run )); then
+    require_root
+  fi
+  need_file "$kernel_pkg"
+  need_file "$headers_pkg"
+  need_file "$mkinitcpio_base"
+  need_file "$refind_conf"
+
+  local kver options
+  kver=$(package_kver)
+  if [[ -z $kver ]]; then
+    echo "error: could not read linux-rg kernel version from $kernel_pkg" >&2
+    exit 1
+  fi
+  options=$(stock_options)
+  if [[ -z $options ]]; then
+    echo "error: could not extract stock Arch Linux options from $refind_conf" >&2
+    exit 1
+  fi
+  if (( dry_run )); then
+    print_plan "$kver" "$options"
+    exit 0
+  fi
+
+  echo "== preflight =="
+  pacman -Q linux linux-headers linux-firmware mkinitcpio refind
+  df -h / /boot
+
+  echo
+  echo "== install packages =="
+  pacman -U --needed --noconfirm "$kernel_pkg" "$headers_pkg"
+
+  need_file "/usr/lib/modules/$kver/vmlinuz"
+  install -m 0644 "/usr/lib/modules/$kver/vmlinuz" "$boot_kernel"
+  depmod "$kver"
+
+  echo
+  echo "== mkinitcpio =="
+  write_mkinitcpio_config
+  write_mkinitcpio_preset
+  mkinitcpio -p linux-rg
+
+  echo
+  echo "== rEFInd =="
+  write_refind_entry
+
+  print_state
+}
+
+main "$@"

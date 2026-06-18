@@ -95,6 +95,20 @@ Validate the KIOXIA XG8 NVMe/APST contract:
 rgx1gen11-nvme-check --live
 ```
 
+## Install for rEFInd
+
+After a successful build, install the generated packages, create the linux-rg
+mkinitcpio preset, and add a non-default rEFInd stanza:
+
+```sh
+sudo bash scripts/rgx1gen11-install-refind-root
+```
+
+The script keeps the stock Arch entry intact and inserts `Arch Linux linux-rg`
+after it. It copies `/usr/lib/modules/*-rg/vmlinuz` to `/boot/vmlinuz-linux-rg`
+and writes `/boot/initramfs-linux-rg.img` from a separate mkinitcpio config with
+`MODULES=(nvme i915)`.
+
 ## Notes
 
 Design, hardware targets, and patch rationale:
