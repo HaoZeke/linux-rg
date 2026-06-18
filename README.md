@@ -14,6 +14,7 @@ then applies a small machine overlay in `rgx1gen11.config`.
 - BBRv3 from the CachyOS patch set, adapted for the Arch 7.0 TCP layout.
 - v4l2loopback from pf-kernel, built in-tree as `CONFIG_V4L2_LOOPBACK=m`.
 - DDCCI and DDCCI backlight support from `ddcci-driver-linux`, built in-tree.
+- CachyOS block-layer contention patch for BFQ and mq-deadline.
 - PSI, memcg, MGLRU, KSM, zswap, zram, BFQ, sched_ext, and ThinkPad/Intel
   laptop support pinned in the machine config overlay.
 - BBR and fq selected as the default TCP congestion control and qdisc.
