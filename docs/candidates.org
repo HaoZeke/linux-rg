@@ -1,0 +1,574 @@
+#+title: linux-rg patch and policy candidates (rgx1gen11)
+
+* Overview
+
+This file documents carried modules, pending patch candidates, and userspace
+policy options for the rgx1gen11 kernel profile. Literature grades refer to
+=docs/literature-review.org=.
+
+Carry rules from =docs/rgx1gen11-kernel.org= still apply:
+
+- Public, reviewable source.
+- Reproducible application from the PKGBUILD.
+- Clean compile against Arch =7.0.12.arch1=.
+- Behavior matches this ThinkPad profile.
+- Disable or modularize when practical.
+
+* Carried: ADIOS I/O scheduler
+
+** Status
+
+| Field | Value |
+| Decision | carried (module, non-default) |
+| Evidence grade | D (no peer-reviewed evaluation) |
+| Patch | =0008-adios-cachy.patch= (extracted from CachyOS 6.17 omnibus) |
+| Config | =CONFIG_MQ_IOSCHED_ADIOS=m=, =# CONFIG_MQ_IOSCHED_DEFAULT_ADIOS is not set= |
+
+** What it is
+
+ADIOS (Adaptive Deadline I/O Scheduler) is a multi-queue block scheduler for
+=blk-mq= devices. It combines deadline scheduling with adaptive latency
+control: it learns completion latency by operation type and size, predicts
+completion time for new requests, and adjusts deadlines and batching within a
+configurable global latency window.
+
+Primary reference: https://github.com/firelzrd/adios
+
+Version carried in the 7.0 extraction: 3.1.7 (CachyOS omnibus). Upstream ADIOS
+3.2.0 exists for newer kernels via firelzrd stable patches; revisit on kernel
+bumps.
+
+** Why it is on this profile
+
+The laptop uses a KIOXIA XG8 NVMe device under mixed interactive and build
+load: browser caches, source trees, package builds, VMs, and sync tools share
+one storage device.
+
+BFQ remains the default because it has decades of published scheduler research
+and is a conservative laptop default. ADIOS is carried as a module so block
+scheduler choice can be tested without another DKMS or out-of-tree drift path.
+
+** Literature context
+
+- BFQ: Valente and Avanzini (ACM OSR 2012); evolution paper (Unimore).
+- HOTSTORAGE 2023 (Whitaker et al.): on ultra-low-latency NVMe, mq schedulers
+  often do not improve performance or energy efficiency and can increase
+  latency. See =docs/literature-review.org=.
+
+ADIOS has no peer-reviewed evaluation. Carrying it is an engineering option for
+local measurement, not a literature-mandated addition.
+
+** Relationship to other block choices
+
+| Component | Role |
+| BFQ (default) | cgroup-aware fairness; literature-backed for mixed workloads |
+| Block contention patch | Reduces merge and dispatch lock contention in BFQ and mq-deadline |
+| ADIOS (module) | Optional adaptive-deadline scheduler for A/B testing |
+
+Do not assume ADIOS plus BFQ contention patch plus BFQ default is optimal.
+HOTSTORAGE 2023 motivates comparing against =none= on this NVMe.
+
+** How to test on the laptop
+
+Switch scheduler on the NVMe queue (replace =nvme0n1= if needed):
+
+#+begin_src sh
+# show current scheduler
+cat /sys/block/nvme0n1/queue/scheduler
+
+# try ADIOS (module must be loaded)
+sudo modprobe adios
+echo adios | sudo tee /sys/block/nvme0n1/queue/scheduler
+
+# revert to BFQ
+echo bfq | sudo tee /sys/block/nvme0n1/queue/scheduler
+
+# literature-motivated baseline from HOTSTORAGE 2023
+echo none | sudo tee /sys/block/nvme0n1/queue/scheduler
+#+end_src
+
+Suggested measurement set:
+
+1. Desktop feel: Sway, browser, editor, background =makepkg= or kernel build.
+2. Storage latency: =fio= random read/write mixed workload on =/home=.
+3. Energy: =powertop= or RAPL-backed logging during idle and mixed load.
+
+Record: scheduler name, latency percentiles, interactive stutter subjectively,
+and whether writeback flusher behavior changes under memory pressure.
+
+** Sysfs tunables
+
+Under =/sys/block/<dev>/queue/iosched/= when ADIOS is active:
+
+- =adios_version= (read-only)
+- =global_latency_window= (nanoseconds; lower tends to reduce latency)
+- =bq_refill_below_ratio= (percentage of global window)
+- =batch_actual_max= (read-only per operation type)
+
+Start with defaults; tune only after baseline captures.
+
+** Carry tradeoffs
+
+- Adds =block/adios.c= (~2000 lines) and Kconfig integration.
+- Conflicts possible with future Arch block-layer changes on rebases.
+- Making ADIOS the default (=CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y=) is not
+  literature-supported; keep BFQ default until local NVMe study completes.
+
+** Decision gate for promoting to default
+
+Promote ADIOS to default only if, on this machine:
+
+- Interactive latency is consistently better than BFQ and =none= across repeated
+  trials, and
+- No regression in package build throughput or suspend/resume stability, and
+- Energy is not worse than =none= at idle (HOTSTORAGE 2023 criterion).
+
+* Candidate: re-swappiness v1.2
+
+** Status
+
+| Field | Value |
+| Decision | candidate (not carried) |
+| Evidence grade | D (patch); A (problem framing via ATC 2020 and SWAM) |
+| Source | sirlucjan =7.0/re-swappiness-patches= |
+| Upstream project | https://github.com/firelzrd/re-swappiness |
+
+** What it is
+
+re-swappiness replaces global swappiness semantics with MGLRU-aware reclaim
+behavior. It adjusts how aggressively anonymous and file-backed pages are
+scanned under pressure, using per-type generation tracking in the multi-gen LRU.
+
+Touched files (typical 7.0 patch):
+
+- =include/linux/mm_inline.h=
+- =include/linux/mmzone.h=
+- =mm/vmscan.c=
+- =mm/workingset.c=
+
+** Why it might help rgx1gen11
+
+The profile enables MGLRU, zswap, zram, KSM, PSI, and DAMON. Under browser plus
+build plus container load, reclaim policy strongly affects responsiveness.
+
+Literature motivation:
+
+- Lebeck et al., USENIX ATC 2020: default mobile memory management
+  (swappiness and OOM killing) is often misaligned with responsiveness goals.
+- Lim et al., SWAM (arXiv:2306.08345): revisiting swap and OOM killer policy
+  for application responsiveness.
+
+re-swappiness is a downstream implementation in that lineage, not an ATC 2020
+or SWAM paper result itself.
+
+** Risks and interactions
+
+- Overlaps =mm/vmscan.c= with MGLRU mainline code and with =mglru-patches-v2=
+  (another candidate). Do not stack without diff review.
+- May interact with zram writeback and zswap pool pressure; test with the same
+  userspace memory policy intended for production.
+- No Lenovo or ThinkPad-specific validation found.
+
+** Evaluation plan before carry
+
+1. Baseline: current linux-rg with production zram/zswap systemd units.
+2. Measure under fixed workload: browser tabs, =make -j9= kernel build, optional
+   VM or container.
+3. Capture: =/proc/pressure/memory=, swap in/out rates, OOM or near-OOM events,
+   time-to-complete build, desktop latency subjectively.
+4. Compare against mainline swappiness and =vm.*= tunables only (no patch).
+
+** Decision gate
+
+Carry only if responsiveness improves measurably without increasing swap thrash
+or build time regression on repeated runs.
+
+* Candidate: cpuidle TEO over menu governor
+
+** Status
+
+| Field | Value |
+| Decision | candidate (not carried) |
+| Evidence grade | B |
+| Source | sirlucjan =7.0/cpuidle-patches= (Christian Loehle upstream patch) |
+
+** What it is
+
+Small Kconfig and governor rating change:
+
+- Prefer =CPU_IDLE_GOV_TEO= over =CPU_IDLE_GOV_MENU= when =NO_HZ= or
+  =NO_HZ_IDLE= is enabled.
+- Lowers menu governor rating below TEO so TEO wins selection.
+
+Files:
+
+- =drivers/cpuidle/Kconfig=
+- =drivers/cpuidle/governors/menu.c=
+- =drivers/cpuidle/governors/teo.c=
+
+** Why it might help rgx1gen11
+
+The profile uses =intel_idle=, =intel_pstate=, and =schedutil= on a Raptor Lake
+U-series laptop where s2idle and NO_HZ idle are active paths.
+
+TEO (Timer Events Oriented governor) focuses on predictable timer-driven idle
+state selection. Menu's interactivity boost is less decisive on modern kernels;
+upstream merged TEO preference on that basis.
+
+** Risks
+
+- Trivial rebase surface but touches Arch's default idle governor choice.
+- Check whether Arch =7.0.12= already prefers TEO before carrying redundantly:
+  inspect =drivers/cpuidle/Kconfig= in the build tree after =prepare()=.
+
+** Evaluation plan
+
+1. Compare =/sys/devices/system/cpu/cpu0/cpuidle/= residency distributions
+   with menu vs TEO under idle, video playback, and suspend-resume cycles.
+2. Log s2idle resume latency and idle power (powertop or RAPL).
+3. Run several suspend cycles on Sway to confirm no regression.
+
+** Decision gate
+
+Carry if TEO shows equal or better idle power without s2idle regressions. Skip
+if mainline Arch config already selects TEO.
+
+* Candidate: sched/fair detach_tasks loop_max fix
+
+** Status
+
+| Field | Value |
+| Decision | candidate (not carried) |
+| Evidence grade | B (upstream-reviewed fix); D as downstream extract until rebased |
+| Source | cachyos-fixes-v27 patch 09/46; sirlucjan =7.0/cachyos-fixes-patches-v27= |
+
+** What it is
+
+Fixes a fair-scheduler load-balance bug: =env.loop_max= in =detach_tasks()= was
+set before acquiring the busiest runqueue lock, so the loop limit could disagree
+with the actual =cfs.h_nr_queued= count under concurrent modification.
+
+Patch behavior:
+
+- Defer =env.loop_max= assignment until after =rq_lock_irqsave(busiest)=.
+- Use =busiest->cfs.h_nr_queued= instead of =busiest->nr_running=.
+
+Reviewed-by lines in the patch include Vincent Guittot and Valentin Schneider.
+
+** Why it might help rgx1gen11
+
+The i7-1365U is a hybrid 12-thread CPU. Load balancing across P-cores and
+E-cores is frequent under mixed desktop and build workloads. Redundant
+=detach_tasks()= scans waste CPU and can add latency jitter.
+
+** Interaction with BORE
+
+BORE also modifies =kernel/sched/fair.c=. This fix targets =sched_balance_rq()=
+/ =detach_tasks()=, a different region from BORE's burst scoring. Likely
+compatible, but an Arch-line-offset adaptation patch may be required (same
+pattern as =0002-bore-fair-arch-adapt.patch=).
+
+** Evaluation plan
+
+1. Apply patch to a test build with BORE enabled.
+2. Under =make -j9= plus desktop load, sample scheduler stats if
+   =CONFIG_SCHEDSTATS=y= (enabled in overlay).
+3. Optional: SpecJBB or similar load-balance stress if available; original
+   report cited redundant scans in long runs.
+
+** Decision gate
+
+Carry if the patch applies cleanly with BORE and does not break the fair.c
+build. Low functional risk; main cost is rebase and adaptation maintenance.
+
+* Candidate: proportional newidle balance revert (cachyos-fixes 05/46)
+
+** Status
+
+| Field | Value |
+| Decision | not carried |
+| Evidence grade | D (downstream policy choice) |
+
+** What it is
+
+Reverts mainline commit 33cf66d88306 ("sched/fair: Proportional newidle
+balance"). Touches =kernel/sched/fair.c=, =topology.c=, =features.h=, and
+related scheduler files.
+
+** Why it is not carried
+
+Large scheduler diff; conflicts with BORE in the same subsystem. CachyOS carries
+it for desktop latency on hybrid CPUs, but linux-rg already commits to BORE plus
+sched_ext. Prefer sched_ext experiments or this revert, not both plus BORE.
+
+Revisit only if BORE is dropped.
+
+* Memory patch welding map
+
+The rgx1gen11 profile already enables mainline MGLRU, zswap, zram, PSI, and
+DAMON. Three downstream memory directions overlap on =mm/vmscan.c=; a fourth
+(cache-aware) is scheduler-side and independent of reclaim.
+
+| Patch set | Primary files | Touch vmscan? | Weld partner |
+| Cachy memory ratios | mm/Kconfig, mm/vmscan.c, kernel/sysctl.c, mm.h | yes | mglru-patches-v2 (best) |
+| mglru-patches-v2 | mm/vmscan.c | yes | Cachy ratios (best) |
+| re-swappiness v1.2 | mm_inline.h, mmzone.h, mm/vmscan.c, workingset.c | yes | conflicts with mglru-patches-v2 |
+| cache-aware | fair.c, topology.c, sched.h, fork.c, init/Kconfig | no | none in mm; conflicts with BORE |
+
+Recommended evaluation order for memory (issue =linux-rg-7f5e=):
+
+1. Userspace only: PSI, oomd, zram/zswap policy (no vmscan conflict).
+2. Extracted Cachy ratio knobs (anon/clean protection) without =CONFIG_CACHY=.
+3. mglru-patches-v2 welded onto (2) if =mm/vmscan.c= merges cleanly.
+4. re-swappiness only if (3) is rejected and as a single vmscan experiment.
+5. cache-aware is a separate scheduler track (issue =linux-rg-kr7t=), not part
+   of the memory weld.
+
+Do not stack re-swappiness and mglru-patches-v2 without a manual unified patch;
+both rewrite MGLRU reclaim control flow in =mm/vmscan.c=.
+
+* Candidate: Cachy memory protection ratios (anon/clean min)
+
+** Status
+
+| Field | Value |
+| Decision | candidate (not carried) |
+| Evidence grade | B (concept); D (downstream extract) |
+| Source | CachyOS =6.17/0004-cachy.patch= (extract; do not carry full omnibus) |
+| vissue | =linux-rg-7zwz= |
+
+** What it is
+
+Three sysctl knobs for reclaim protection on each NUMA node (this laptop is
+effectively one node):
+
+- =vm.anon_min_ratio= -- hard floor for anonymous pages (default 1%). Kconfig
+  help explicitly mentions zram overfill thrash.
+- =vm.clean_low_ratio= -- best-effort floor for clean file pages (default 15%).
+- =vm.clean_min_ratio= -- hard floor for clean file pages (default 4%).
+
+Extraction scope (ratio-only, no =CONFIG_CACHY=):
+
+| File | Role |
+| mm/Kconfig | =ANON_MIN_RATIO=, =CLEAN_LOW_RATIO=, =CLEAN_MIN_RATIO= defaults |
+| include/linux/mm.h | =sysctl_*= externs |
+| kernel/sysctl.c | proc handlers for the three ratios |
+| mm/vmscan.c | skip reclaim when node ratios would be violated |
+| Documentation/admin-guide/sysctl/vm.rst | knob documentation |
+
+Not required for ratios: Arch =CONFIG_CACHY=, Cachy fair.c tweaks, page-writeback
+Cachy defaults, or swap cluster =#ifdef CONFIG_CACHY= blocks. Those stay out of
+the extract.
+
+** Why it fits rgx1gen11
+
+The overlay enables zswap, zram, MGLRU, and PSI. Under browser plus build load,
+anonymous reclaim into zram can thrash before PSI-driven userspace reacts. Ratio
+knobs give a kernel-side floor aligned with SWAM and USENIX ATC 2020 framing
+(see =docs/literature-review.org=).
+
+** Weld with mglru-patches-v2
+
+Complementary layers:
+
+- Ratios: policy gates ("do not reclaim below X% on this node").
+- mglru-patches-v2: MGLRU scan mechanics (evictable size, writeback handling,
+  =try_to_inc_min_seq= refactor, batch eviction).
+
+Both touch =mm/vmscan.c= but at different functions. A welded series should
+apply mglru-patches-v2 first, then ratio hunks, then resolve any offset
+conflicts in =shrink_lruvec= / =evict_folios= paths. Expect one Arch adapt
+patch, not a blind stack.
+
+** Weld with re-swappiness
+
+Partial overlap on =mm/vmscan.c= and conceptually related (both tune MGLRU
+reclaim). re-swappiness also changes =lrugen.max_seq[type]= per anon/file in
+=mmzone.h= and =mm_inline.h= -- a direction mainline MGLRU may already mirror
+in 7.0.12. Prefer mglru-patches-v2 plus ratios over re-swappiness plus ratios
+unless re-swappiness alone wins a benchmark.
+
+** Decision gate
+
+Carry extracted ratio patch only if:
+
+- Applies without =CONFIG_CACHY= and compiles on Arch 7.0.12.
+- With zram active, reduces swap thrash under fixed browser/build load.
+- Does not increase OOM frequency versus baseline in a repeated pressure test.
+
+* Candidate: MGLRU dev-tree vmscan patch (mglru-patches-v2)
+
+** Status
+
+| Field | Value |
+| Decision | candidate (not carried) |
+| Evidence grade | B for MGLRU mainline; D for this dev-tree extract |
+| Source | sirlucjan =7.0/mglru-patches-v2= |
+| vissue | =linux-rg-5fxc= |
+
+** What it is
+
+Single-file =mm/vmscan.c= diff (~150 lines changed) merging MGLRU dev-tree
+reclaim improvements. Notable changes:
+
+- =handle_reclaim_writeback()= helper for flusher wakeup under memcg pressure.
+- =lruvec_evictable_size()= for proportional protection sizing.
+- =try_to_inc_min_seq()= signature and call-site refactor.
+- =get_nr_to_scan()= / =evict_folios()= flow simplified with batch eviction and
+  aging checks.
+
+Upstream lineage: Yu Zhao MGLRU work (LPC 2024, kernel docs). This patch is a
+downstream forward-port, not a separate published algorithm.
+
+** Why it might help rgx1gen11
+
+Improves MGLRU reclaim behavior under mixed file and anonymous pressure -- the
+laptop's normal mode with browsers, builds, and NVMe cache.
+
+** Weld matrix
+
+| Partner | Verdict |
+| Cachy memory ratios | Recommended weld target; complementary policy vs mechanics |
+| re-swappiness v1.2 | Do not stack; both rewrite the same vmscan functions |
+| cache-aware | Independent (scheduler); no mm interaction |
+| Mainline 7.0.12 only | Check whether dev-tree hunks are already present before carrying |
+
+** Decision gate
+
+Carry (alone or welded with ratios) only if vmscan patch applies cleanly to
+Arch 7.0.12 and improves reclaim responsiveness in a benchmark against mainline
+MGLRU with the same zram/zswap userspace policy.
+
+* Candidate: re-swappiness v1.2
+
+** Status
+
+| Field | Value |
+| Decision | candidate (not carried); deprioritized vs mglru+ratios weld |
+| Evidence grade | D (patch); A (problem framing) |
+| Source | firelzrd / sirlucjan =7.0/re-swappiness-patches= |
+| vissue | =linux-rg-phgx= |
+
+** What it is
+
+Re-swappiness v1.2 makes MGLRU anon and file generations age independently
+(=lrugen.max_seq[type]=, per-type =lru_gen_is_active()=). Touches:
+
+- =include/linux/mm_inline.h=
+- =include/linux/mmzone.h=
+- =mm/vmscan.c=
+- =mm/workingset.c=
+
+** Conflict with mglru-patches-v2
+
+Both patches heavily modify =mm/vmscan.c= MGLRU eviction and aging. Git will
+reject a naive sequential apply. Welding requires a manual unified patch
+rebasing re-swappiness onto the mglru dev-tree layout -- high maintenance cost.
+
+** Conflict with Cachy ratios
+
+Ratios add reclaim gates in vmscan; re-swappiness changes scan sizing and
+per-type seq logic in the same file. Weld is possible but harder than
+mglru+ratios because of four files vs two.
+
+** When to prefer re-swappiness
+
+- mglru-patches-v2 does not apply to Arch 7.0.12.
+- Benchmark shows per-type anon/file aging is the bottleneck and ratios alone
+  are insufficient.
+- Willing to maintain a custom four-file mm patch.
+
+* Candidate: cache-aware scheduler (CONFIG_SCHED_CACHE)
+
+** Status
+
+| Field | Value |
+| Decision | candidate (not carried) |
+| Evidence grade | D (downstream); B (hybrid CPU motivation) |
+| Source | sirlucjan =7.0/cache-aware-patches= |
+| vissue | =linux-rg-kr7t= |
+
+** What it is
+
+Not a memory patch. Adds =CONFIG_SCHED_CACHE= and scheduler logic to track a
+task's preferred last-level cache (LLC) and align placement with cache topology:
+
+| File | Role |
+| include/linux/cacheinfo.h | cache hierarchy helpers |
+| include/linux/sched.h | =sched_cache_time=, =preferred_llc=, =cache_work= |
+| kernel/sched/fair.c | placement and migration consult preferred LLC |
+| kernel/sched/topology.c | LLC-aware load balance hooks |
+| kernel/fork.c | per-mm sched cache init |
+
+** Why it might matter on i7-1365U
+
+Raptor Lake U-series is hybrid with shared LLC across P and E clusters. Brown-Neri
+LPC 2022 documents Linux hybrid scheduling gaps. cache-aware is a downstream
+attempt to reduce cross-LLC migration; it is not the same as mainline Intel EAS
+work.
+
+** Why it is not auto-carried
+
+- Conflicts with BORE in =kernel/sched/fair.c=, =sched.h=, and =topology.c=.
+- Independent from the memory weld track; do not bundle with mglru or ratios.
+- No peer-reviewed evaluation found (evidence grade D).
+
+** Relationship to other scheduler candidates
+
+| Candidate | Interaction |
+| BORE | Conflict on fair.c -- pick one fair-class stack |
+| sched_ext | Alternative path; literature grade B; already enabled in config |
+| detach_tasks fix | Orthogonal small fair.c fix; may apply with BORE, not with cache-aware |
+| newidle revert | Also conflicts with BORE; not carried |
+
+** Decision gate
+
+Evaluate only on a branch without BORE, or after sched_ext experiments fail to
+improve hybrid placement. Compare wakeup latency and build throughput against
+BORE default and a sched_ext scheduler on the 1365U.
+
+* Userspace policy candidates (not kernel patches)
+
+** systemd-oomd plus PSI
+
+| Field | Value |
+| Decision | userspace candidate |
+| Evidence grade | B/C |
+
+PSI is enabled in the kernel. Meta's OOMD work and systemd memory pressure
+documentation support userspace reaction to =/proc/pressure/memory= without a
+kernel patch. See =docs/literature-review.org=.
+
+** sched_ext scheduler selection (scx_loader)
+
+| Field | Value |
+| Decision | userspace |
+| Evidence grade | B |
+
+Kernel has =CONFIG_SCHED_CLASS_EXT=y=. Literature and LPC 2024 materials support
+trying scx schedulers on hybrid CPUs before adding more fair-class patches.
+
+* Candidate matrix (extended)
+
+| Area | Candidate | Source | Decision | Evidence | Notes |
+| Block | ADIOS | CachyOS 6.17 omnibus | carried (module) | D | Non-default; see ADIOS section above |
+| Memory | Cachy anon/clean ratios | Cachy 6.17 omnibus extract | candidate | B/D | Weld with mglru-patches-v2; see welding map |
+| Memory | mglru-patches-v2 | sirlucjan 7.0 | candidate | D | Best welded with ratio extract; not with re-swappiness |
+| Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D / A framing | Deprioritized vs mglru+ratios weld |
+| Scheduler | cache-aware (SCHED_CACHE) | sirlucjan 7.0 | candidate | D | Conflicts with BORE; separate from mm weld |
+| Power | cpuidle TEO | upstream via sirlucjan 7.0 | candidate | B | Check Arch default first |
+| Scheduler | detach_tasks fix | cachyos-fixes-v27 #09 | candidate | B | Likely BORE-compatible |
+| Scheduler | newidle balance revert | cachyos-fixes-v27 #05 | not carried | D | Conflicts with BORE |
+| Policy | systemd-oomd | Meta PSI/OOMD | userspace | B/C | Pairs with CONFIG_PSI |
+| Policy | scx_loader | sched_ext ecosystem | userspace | B | Hybrid CPU experiments |
+
+* Document index
+
+- =docs/rgx1gen11-kernel.org= -- machine profile and carried patch rationale
+- =docs/literature-review.org= -- research bibliography and evidence grades
+- =docs/candidates.org= -- this file
+
+Issue tracking: vissues project =linux-rg=, epic =linux-rg-ln3w=. Memory weld
+track: =linux-rg-7zwz= (ratios extract), =linux-rg-5fxc= (mglru weld,
+blocked by 7zwz), =linux-rg-phgx= (re-swappiness, deprioritized). Scheduler:
+=linux-rg-kr7t= (cache-aware).

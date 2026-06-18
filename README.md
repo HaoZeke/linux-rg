@@ -26,7 +26,7 @@ on this machine.
 
 ```sh
 cd ~/Git/Github/Tools/linux-rg
-env GNUPGHOME=${GNUPGHOME:-/tmp/linux-rg/.gnupg} \
+env GNUPGHOME=${GNUPGHOME:-/home/rgoswami/.local/share/chezmoi/.kernel-build/gnupg} \
   MAKEFLAGS=-j9 \
   TMPDIR=/home/rgoswami/.local/share/chezmoi/.kernel-build/tmp \
   BUILDDIR=/home/rgoswami/.local/share/chezmoi/.kernel-build/linux-rg-build \
@@ -39,6 +39,22 @@ machine.
 
 ## Notes
 
-The design rationale is in `docs/rgx1gen11-kernel.org`. Patch carry decisions
-are intentionally narrow: selected patches must apply reproducibly, compile
-against the Arch kernel base, and match this laptop's use cases.
+Design and patch rationale:
+
+- `docs/rgx1gen11-kernel.org` -- machine profile and carried patches
+- `docs/literature-review.org` -- research bibliography and evidence grades
+- `docs/candidates.org` -- ADIOS, re-swappiness, cpuidle TEO, detach_tasks, and
+  other candidate notes
+
+Issue tracking (vissues):
+
+```sh
+vissue ready --root ~/Git/Gitlab/obsidian-notes --project linux-rg
+vissue tree --root ~/Git/Gitlab/obsidian-notes linux-rg-ln3w
+```
+
+Vault file: `~/Git/Gitlab/obsidian-notes/Software/linux-rg/issues.org`
+
+Patch carry decisions are intentionally narrow: selected patches must apply
+reproducibly, compile against the Arch kernel base, and match this laptop's use
+cases.

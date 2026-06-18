@@ -1,0 +1,323 @@
+#+title: linux-rg literature review (rgx1gen11)
+
+* Scope
+
+This document records research-grade sources used to evaluate kernel choices for
+the ThinkPad X1 Carbon Gen 11 profile. It complements the patch rationale in
+=docs/rgx1gen11-kernel.org= and candidate notes in =docs/candidates.org=.
+
+Hardware context:
+
+- Intel Core i7-1365U, Raptor Lake-P/U hybrid (P-cores and E-cores).
+- KIOXIA XG8 NVMe (ultra-low-latency class storage).
+- Intel Iris Xe integrated graphics (display version below Lunar Lake).
+- Intel CNVi Wi-Fi, Thunderbolt 4 docking.
+
+Sources are limited to peer-reviewed venues, IETF drafts, kernel.org and LWN
+primary coverage, USENIX/LPC proceedings, and vendor technical documentation.
+Downstream patch aggregators are not treated as evidence on their own.
+
+* Evidence grading
+
+| Grade | Meaning | Examples |
+| A | Peer-reviewed or standards-track | USENIX, ACM, IMC, PAM, HOTSTORAGE, IETF drafts |
+| B | Primary kernel engineering literature | kernel.org docs, LWN, LPC slides with published materials |
+| C | Vendor or production engineering reports | Intel, Lenovo, Meta/Facebook engineering notes |
+| D | Downstream implementation without independent study | Single-author patch stacks without published evaluation |
+
+* CPU scheduling
+
+** Mainline fair class and sched_ext
+
+- EEVDF kernel documentation:
+  https://docs.kernel.org/scheduler/sched-eevdf.html
+- LWN: Replacing CFS with EEVDF
+  https://lwn.net/Articles/925371/
+- sched_ext kernel documentation:
+  https://docs.kernel.org/scheduler/sched-ext.html
+- LWN: The extensible scheduler class
+  https://lwn.net/Articles/922405/
+- LWN: Sched_ext at LPC 2024
+  https://lwn.net/Articles/991205/
+
+Evidence grade for sched_ext as infrastructure: B.
+
+** Intel hybrid topology (directly relevant to i7-1365U)
+
+- Brown and Neri, LPC 2022: Linux Intel-Hybrid Scheduling
+  https://lpc.events/event/16/contributions/1275/attachments/995/2000/Brown-Neri%20LPC%202022.09.13%20Linux%20Intel-Hybrid%20Scheduling.pdf
+- Saez et al., APSys 2022: PMC profiling on hybrid processors
+  https://pmctrack-linux.github.io/assets/papers/apsys22-saez.pdf
+- LWN: Intel hybrid scheduling issues
+  https://lwn.net/Articles/909611/
+
+Evidence grade: B.
+
+** BORE (carried in linux-rg)
+
+- Design notes: https://hackmd.io/@foxhoundsk/bore
+- Implementation: https://github.com/firelzrd/bore-scheduler
+
+No peer-reviewed publication was found. Evidence grade: D.
+
+Research implication: literature on hybrid Intel scheduling supports mainline
+topology work and sched_ext experimentation more than downstream fair-class
+patches without published evaluation.
+
+** Mixture-of-Schedulers (not carried; research only)
+
+- Wang et al., arXiv:2511.11628
+  https://arxiv.org/abs/2511.11628
+
+Learned routing across expert scheduling policies. Research-stage only.
+
+* TCP congestion control
+
+** BBR foundation
+
+- Cardwell et al., ACM Queue: BBR: Congestion-Based Congestion Control
+  https://queue.acm.org/detail.cfm?id=3022184
+
+Evidence grade: A.
+
+** BBR fairness and coexistence
+
+- Hock et al., IMC 2019: In the Fast Lane: A Measurement Study of TCP BBR on
+  Mobile Networks
+  https://www3.cs.stonybrook.edu/~anshul/imc19_bbr.pdf
+- Scherrer et al., IMC 2022 / arXiv:2208.10103: Model-Based Insights on the
+  Performance of BBR
+  https://arxiv.org/abs/2208.10103
+- TUM Computer Communications survey on TCP BBR coexistence
+  https://www.net.in.tum.de/fileadmin/bibtex/publications/papers/ComCom-2019-TCP-BBR.pdf
+
+Evidence grade: A.
+
+** BBRv3 (carried in linux-rg)
+
+- IETF draft: https://datatracker.ietf.org/doc/draft-ietf-ccwg-bbr/
+- PAM 2024: Promises and Potential of BBRv3
+  https://research.vu.nl/en/publications/promises-andpotential-ofbbrv3/
+- MPI BBRv3 evaluation portal
+  https://inet-bbrv3eval.mpi-inf.mpg.de/
+
+Evidence grade: A/B.
+
+Research implication: BBRv3 is literature-supported for variable-RTT paths
+(Wi-Fi, VPN, roaming SSH). Fairness risk remains documented; keep Cubic as an
+explicit fallback on shared-buffer networks.
+
+* Block I/O and NVMe
+
+** BFQ (carried in linux-rg)
+
+- Valente and Avanzini, ACM OSR 2012
+  https://dl.acm.org/doi/10.1145/2367589.2367590
+- Valente et al.: Evolution of the BFQ Storage I/O Scheduler
+  https://iris.unimore.it/bitstream/11380/1108855/2/ValenteEvolution.pdf
+- Kernel documentation: https://docs.kernel.org/block/bfq-iosched.html
+
+Evidence grade: A for BFQ on shared and rotational workloads.
+
+** Ultra-low-latency NVMe (critical for KIOXIA XG8)
+
+- Whitaker et al., HOTSTORAGE 2023: Do we still need IO schedulers for
+  low-latency disks?
+  https://www.hotstorage.org/2023/papers/hotstorage23-final1.pdf
+
+Evidence grade: A.
+
+Key finding: on ULL storage, mq schedulers often fail to improve performance
+or energy efficiency and can increase latency. Schedulers may still matter for
+fairness and QoS, but default scheduler use on ULL NVMe is an empirical
+question, not an assumption.
+
+** IO scheduler landscape
+
+- Survey: IO Schedulers: Past, Present, Future (2024)
+  https://atlarge-research.com/pdfs/2024-io-schedulers.pdf
+
+Evidence grade: B.
+
+** ADIOS (carried as module; see =docs/candidates.org=)
+
+- Project: https://github.com/firelzrd/adios
+
+No peer-reviewed evaluation was found. Evidence grade: D.
+
+** Block contention patch (carried in linux-rg)
+
+Engineering patch reducing BFQ and mq-deadline merge lock contention. No
+published study. Evidence grade: D.
+
+* Memory management
+
+** MGLRU (enabled in linux-rg)
+
+- Kernel documentation:
+  https://docs.kernel.org/admin-guide/mm/multigen_lru.html
+- LWN: Multigenerational LRU
+  https://lwn.net/Articles/856931/
+- LWN: MGLRU updates
+  https://lwn.net/Articles/1060967/
+- LPC 2024: MGLRU updates (Yu Zhao)
+  https://lpc.events/event/18/contributions/1781/attachments/1592/3304/mglru-updates-lpc2024.pdf
+
+Evidence grade: B (strong upstream engineering record).
+
+** PSI and pressure-aware userspace (enabled in linux-rg)
+
+- Kernel documentation: https://docs.kernel.org/accounting/psi.html
+- LWN: Pressure Stall Information
+  https://lwn.net/Articles/759658/
+- Meta production: OOMD engineering blog
+  https://engineering.fb.com/2018/07/19/production-engineering/oomd/
+- PSI overview: https://facebookmicrosites.github.io/psi/docs/overview
+- systemd memory pressure: https://systemd.io/MEMORY_PRESSURE/
+
+Evidence grade: B/C.
+
+** Swap and responsiveness research (frames re-swappiness evaluation)
+
+- Lebeck et al., USENIX ATC 2020: End the Senseless Killing: Improving Memory
+  Management for Mobile Operating Systems
+  https://www.usenix.org/conference/atc20/presentation/lebeck
+- Lim et al., arXiv:2306.08345: SWAM: Revisiting Swap and OOMK for Improving
+  Application Responsiveness on Mobile Devices
+  https://arxiv.org/abs/2306.08345
+- Skarlatos et al., ASPLOS 2022: TMO (Transparent Memory Offloading)
+  https://www.cs.cmu.edu/~dskarlat/publications/tmo_asplos22.pdf
+
+Evidence grade: A for the problem framing; D for specific downstream patch
+implementations until locally benchmarked.
+
+** Cachy memory ratios, mglru-patches-v2, cache-aware (candidates)
+
+- Cachy =vm.anon_min_ratio= and clean ratio knobs: grade B concept / D patch.
+  Kconfig help cites zram thrash; aligns with SWAM/ATC framing. Extract without
+  =CONFIG_CACHY=; preferred weld partner for mglru-patches-v2.
+- mglru-patches-v2: grade D as downstream dev-tree port; complements ratio knobs
+  on =mm/vmscan.c=; do not stack with re-swappiness without manual merge.
+- cache-aware (=CONFIG_SCHED_CACHE=): grade D; hybrid LLC motivation per
+  Brown-Neri LPC 2022 but scheduler-only and conflicts with BORE.
+
+Welding map: =docs/candidates.org=.
+
+** zswap and zram (enabled in linux-rg)
+
+- Linux Foundation zram presentation
+  http://events17.linuxfoundation.org/sites/events/files/slides/zram.pdf
+- Intel ZSWAP with IAA whitepaper (framework reference; 1365U has no IAA)
+  https://cdrdv2-public.intel.com/846438/ZSWAPwithIAA_1.0.pdf
+- LWN: zswap writeback discussion
+  https://lwn.net/Articles/1064478/
+
+Evidence grade: B/C.
+
+** DAMON (enabled in linux-rg)
+
+- Kernel documentation:
+  https://docs.kernel.org/admin-guide/mm/damon/index.html
+
+Evidence grade: B.
+
+* Power, idle, and graphics
+
+** intel_pstate and schedutil (enabled in linux-rg)
+
+- Kernel documentation:
+  https://docs.kernel.org/admin-guide/pm/intel_pstate.html
+
+Evidence grade: B.
+
+** cpuidle TEO vs menu (candidate; see =docs/candidates.org=)
+
+- Upstream rationale: Christian Loehle patch merging TEO preference when menu
+  interactivity boost is no longer decisive.
+
+Evidence grade: B for governor choice on NO_HZ Intel laptops.
+
+** Panel Self Refresh and laptop display power
+
+- FOSDEM 2018: Improving Linux laptop battery life
+  https://archive.fosdem.org/2018/schedule/event/hwenablement_improving_linux_laptop_battery_life/attachments/slides/2334/export/events/attachments/hwenablement_improving_linux_laptop_battery_life/slides/2334/improve_linux_laptop_battery_life.pdf
+- Practitioner analysis: https://mjg59.dreamwidth.org/34868.html
+
+Much 2025-2026 Panel Replay literature targets display version 20 and newer
+(Lunar Lake and Panther Lake). Raptor Lake Iris Xe on this machine is not in
+that class. Evidence for external Thunderbolt displays is panel-specific.
+
+* Platform documentation
+
+- Lenovo X1 Carbon Gen 11 Linux User Guide (PDF)
+  https://download.lenovo.com/pccbbs/mobiles_pdf/x1carbon_gen11_x1yoga_gen8_linux_ug.pdf
+- Lenovo PSREF: ThinkPad X1 Carbon Gen 11
+  https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_X1_Carbon_Gen_11/ThinkPad_X1_Carbon_Gen_11_Spec.pdf
+- Arch hardware page:
+  https://wiki.archlinux.org/title/Lenovo_ThinkPad_X1_Carbon_(Gen_11)
+
+Evidence grade: C (support matrix and hardware facts, not performance tuning).
+
+* Synthesis for rgx1gen11
+
+| Component | Literature support | Action |
+| MGLRU, PSI, memcg, zswap, zram, DAMON | Strong (A/B) | Keep; tune via userspace policy |
+| sched_ext enabled | Strong (B) | Keep; evaluate scx schedulers empirically |
+| BBRv3 default | Strong with fairness caveats (A) | Keep; document Cubic fallback |
+| BFQ plus block contention | BFQ historically strong (A); ULL NVMe benefit uncertain (HOTSTORAGE 2023) | Benchmark against =none= on KIOXIA XG8 |
+| ADIOS module | No published evaluation (D) | Carry as module only; measure before defaulting |
+| BORE | No published evaluation (D) | Highest-risk carried scheduler patch |
+| re-swappiness, cpuidle TEO, detach_tasks | Problem framed in A-tier work; patches are D until measured | Document as candidates; benchmark before carry |
+
+* Bibliography (BibTeX)
+
+#+begin_src bibtex
+@article{cardwell2016bbr,
+  title={BBR: Congestion-Based Congestion Control},
+  author={Cardwell, Neal and Cheng, Yuchung and others},
+  journal={ACM Queue},
+  year={2016}
+}
+@inproceedings{hock2019bbr,
+  title={In the Fast Lane: A Measurement Study of TCP BBR on Mobile Networks},
+  author={Hock, Philipp and others},
+  booktitle={IMC},
+  year={2019}
+}
+@inproceedings{scherrer2022bbr,
+  title={Model-Based Insights on the Performance of BBR},
+  author={Scherrer, Samuel and others},
+  booktitle={IMC},
+  year={2022}
+}
+@inproceedings{whitaker2023iosched,
+  title={Do we still need IO schedulers for low-latency disks?},
+  author={Whitaker, Caeden and others},
+  booktitle={HOTSTORAGE},
+  year={2023}
+}
+@article{valente2012bfq,
+  title={BFQ: Budget Fair Queueing I/O scheduler},
+  author={Valente, Paolo and Avanzini, Fabio},
+  journal={ACM Operating Systems Review},
+  year={2012}
+}
+@inproceedings{lebeck2020swap,
+  title={End the Senseless Killing: Improving Memory Management for Mobile OSes},
+  author={Lebeck, Kelly and others},
+  booktitle={USENIX ATC},
+  year={2020}
+}
+@article{lim2023swam,
+  title={SWAM: Revisiting Swap and OOMK for Application Responsiveness},
+  author={Lim, Geunsik and others},
+  journal={arXiv:2306.08345},
+  year={2023}
+}
+@inproceedings{skarlatos2022tmo,
+  title={TMO: Transparent Memory Offloading},
+  author={Skarlatos, Dimitrios and others},
+  booktitle={ASPLOS},
+  year={2022}
+}
+#+end_src

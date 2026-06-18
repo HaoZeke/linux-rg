@@ -1,5 +1,18 @@
 #+title: linux-rg rgx1gen11 kernel profile
 
+* Document index
+
+- =docs/rgx1gen11-kernel.org= (this file) -- machine profile and carried patches
+- =docs/literature-review.org= -- research bibliography and evidence grades
+- =docs/candidates.org= -- ADIOS, re-swappiness, cpuidle TEO, detach_tasks,
+  and other candidate or policy notes
+
+Issue tracking (vissues):
+
+- Vault: =Software/linux-rg/issues.org= under the obsidian-notes vault
+- Epic: =linux-rg-ln3w= (Build linux-rg custom kernel for rgx1gen11)
+- CLI: =vissue ready --root ~/Git/Gitlab/obsidian-notes --project linux-rg=
+
 * Machine
 
 Target machine:
@@ -91,34 +104,51 @@ the DDCCI module out of tree for this kernel.
 Fit: `CONFIG_DDCCI=m` and `CONFIG_BACKLIGHT_DDCCI=m` keep support modular.
 `ddcutil` remains userspace opt-in.
 
-** Block layer and ADIOS
+** Block layer contention patch
 
-Source: CachyOS block patch from the 6.17 patch series and selected ADIOS files
-from the CachyOS 6.17 omnibus patch.
+Source: CachyOS block patch from the 6.17 patch series (`0007-block-cachy.patch`).
 
 Why: this patch reduces lock contention in BFQ and mq-deadline merge paths by
 using try-lock behavior for expensive merge checks and by avoiding concurrent
 BFQ dispatch. That matches the laptop's workload: browser caches, source trees,
 package builds, VMs, and sync tools all share one NVMe device.
 
-ADIOS is carried as an optional multi-queue scheduler module. It is not selected
-as the default because BFQ is the lower-risk laptop default for mixed
-interactive I/O. ADIOS remains available for direct testing through the block
-queue scheduler interface.
-
-Fit: the patches apply cleanly to the Arch 7.0 source with offsets. BFQ is
-enabled in the machine overlay, and ADIOS is built as a module:
+Fit: the patch applies cleanly to the Arch 7.0 source with offsets. BFQ is
+enabled in the machine overlay:
 
 - `CONFIG_IOSCHED_BFQ=y`
 - `CONFIG_BFQ_GROUP_IOSCHED=y`
-- `CONFIG_MQ_IOSCHED_ADIOS=m`
-- `# CONFIG_MQ_IOSCHED_DEFAULT_ADIOS is not set`
 
 Tradeoff: the merge-path behavior can skip an occasional non-obvious merge
 under contention. The patch comments state that the block plug remains the
 successful merge point for related I/O. That is acceptable for this laptop
 profile because the target is responsiveness under mixed interactive and build
 load, not maximizing every synthetic merge opportunity.
+
+Literature: BFQ has published scheduler research (Valente, ACM OSR 2012). The
+contention patch itself has no published study. HOTSTORAGE 2023 questions
+default mq scheduler use on ultra-low-latency NVMe; see
+`docs/literature-review.org`.
+
+** ADIOS I/O scheduler
+
+Source: selected files from the CachyOS 6.17 omnibus patch (`0008-adios-cachy.patch`).
+
+Why: ADIOS is an adaptive deadline mq scheduler for local NVMe testing. BFQ
+remains the default because it is literature-backed and conservative for mixed
+laptop I/O. ADIOS is built as a module so scheduler choice can be evaluated on
+the KIOXIA XG8 without DKMS drift.
+
+Fit:
+
+- `CONFIG_MQ_IOSCHED_ADIOS=m`
+- `# CONFIG_MQ_IOSCHED_DEFAULT_ADIOS is not set`
+
+Operational and evaluation notes: `docs/candidates.org` (section "Carried: ADIOS
+I/O scheduler").
+
+Literature: no peer-reviewed ADIOS evaluation exists (evidence grade D). Carry
+is justified as a modular experiment path, not as a literature-mandated default.
 
 ** PSI and memory pressure
 
@@ -232,23 +262,34 @@ and pf-kernel are source pools, not wholesale dependencies.
 
 * Candidate Matrix
 
-| Area | Candidate | Source | Decision | Reason |
-| Scheduler | BORE | CachyOS 7.0 | carried | Small enough to carry; compiles against Arch 7.0; targets desktop latency. |
-| Scheduler | Prjc/BMQ/PDS | CachyOS 7.0 | not carried | Replaces large scheduler internals and conflicts with carrying BORE plus sched_ext. |
-| Scheduler | sched_ext schedulers | mainline plus scx userspace | userspace | Kernel support is enabled; scheduler choice should switch through `scx_loader`. |
-| Network | BBRv3 | CachyOS | carried | Useful on roaming Wi-Fi/Tailscale/SSH workloads; adapted and compiled against Arch 7.0. |
-| Block | BFQ/mq-deadline contention patch | CachyOS 6.17 | carried | Applies to 7.0 and targets local NVMe mixed I/O responsiveness. |
-| Block | ADIOS scheduler | CachyOS 6.17 omnibus patch | carried | Selected files apply to 7.0; carried as a non-default module for block scheduler testing. |
-| GPU memory | cgroup VRAM | CachyOS 7.0 | not carried | Does not apply cleanly to this 7.0 tree; more relevant to constrained dGPU/VRAM cgroups than this iGPU laptop. |
-| Graphics RT | rt-i915 | CachyOS 7.0 | not carried | Applies, but it is for PREEMPT_RT. This package does not enable PREEMPT_RT. |
-| Media | v4l2loopback | pf-kernel 7.0 | carried | Avoids external DKMS drift for virtual camera workflows. |
-| Display controls | DDCCI | ddcci-driver-linux | carried | Avoids external module drift for DDC/CI monitor controls. |
-| Memory | DAMON reclaim/LRU sort/stat | mainline Linux | config | Upstream pressure-management machinery; policy stays in systemd units. |
-| Memory | UKSM | old CachyOS KSM-era patches | not carried | No maintained 7.0 UKSM patch in selected sources; mainline KSM advisor, PSI, MGLRU, zswap, and zram are enabled. |
-| KSM policy | KSM service/settings | CachyOS userspace | userspace | Kernel support is enabled; activation belongs in systemd policy. |
-| Power profiles | scx_loader profile switching | CachyOS PPD patch | userspace | Scheduler mode switching belongs in power-profile policy, not this kernel package. |
-| Handheld | handheld patch | CachyOS 7.0 | not carried | Steam Deck/handheld-oriented code does not match ThinkPad X1 Carbon hardware. |
-| Filesystem union | aufs | CachyOS 7.0 | not carried | Not a performance or battery feature for this machine profile. |
-| ACPI experiments | acpi_call | CachyOS 7.0 | not carried | Out-of-tree ACPI method calling is risky and not required for this ThinkPad profile. |
-| Compiler | clang-polly | CachyOS 7.0 | not carried | This PKGBUILD follows Arch GCC packaging; Polly is a compiler/toolchain experiment, not a hardware support patch. |
-| Hardening | hardened | CachyOS 7.0 | not carried | Security-hardening choices can regress compatibility/performance; this package keeps Arch defaults unless a specific requirement is identified. |
+Summary table. Evidence grades and evaluation plans are in `docs/candidates.org`
+and `docs/literature-review.org`.
+
+| Area | Candidate | Source | Decision | Evidence | Reason |
+| Scheduler | BORE | CachyOS 7.0 | carried | D | Compiles on Arch 7.0; no peer-reviewed evaluation. |
+| Scheduler | Prjc/BMQ/PDS | CachyOS 7.0 | not carried | D | Conflicts with BORE plus sched_ext. |
+| Scheduler | sched_ext schedulers | mainline plus scx userspace | userspace | B | See literature review; use `scx_loader`. |
+| Scheduler | detach_tasks loop_max fix | cachyos-fixes-v27 #09 | candidate | B | Hybrid CPU load-balance fix; likely BORE-compatible. |
+| Scheduler | newidle balance revert | cachyos-fixes-v27 #05 | not carried | D | Conflicts with BORE. |
+| Network | BBRv3 | CachyOS | carried | A | Roaming paths; fairness caveats documented. |
+| Block | BFQ/mq-deadline contention | CachyOS 6.17 | carried | A/D | BFQ literature strong; patch and ULL NVMe benefit uncertain. |
+| Block | ADIOS | CachyOS 6.17 omnibus | carried (module) | D | Non-default; NVMe A/B testing. |
+| Memory | Cachy anon/clean ratios | Cachy 6.17 extract | candidate | B/D | Weld with mglru-patches-v2; see candidates.org |
+| Memory | mglru-patches-v2 | sirlucjan 7.0 | candidate | D | vmscan dev-tree; weld with ratios not re-swappiness |
+| Memory | re-swappiness v1.2 | firelzrd / sirlucjan 7.0 | candidate | D | Deprioritized vs mglru+ratios; conflicts mglru on vmscan |
+| Scheduler | cache-aware SCHED_CACHE | sirlucjan 7.0 | candidate | D | LLC placement; conflicts BORE; separate from mm weld |
+| Memory | DAMON reclaim/LRU sort/stat | mainline Linux | config | B | Policy in systemd units. |
+| Memory | UKSM | CachyOS KSM-era | not carried | D | No maintained 7.0 patch. |
+| Power | cpuidle TEO over menu | sirlucjan 7.0 | candidate | B | Intel laptop idle; check Arch default first. |
+| Policy | systemd-oomd | Meta PSI/OOMD | userspace | B/C | Pairs with CONFIG_PSI. |
+| GPU memory | cgroup VRAM | CachyOS 7.0 | not carried | D | iGPU laptop; patch does not apply cleanly. |
+| Graphics RT | rt-i915 | CachyOS 7.0 | not carried | D | PREEMPT_RT not enabled. |
+| Media | v4l2loopback | pf-kernel 7.0 | carried | D | DKMS avoidance. |
+| Display | DDCCI | ddcci-driver-linux | carried | D | DKMS avoidance for docked displays. |
+| KSM policy | KSM service/settings | CachyOS userspace | userspace | B | Activation in systemd policy. |
+| Power profiles | scx_loader switching | CachyOS PPD | userspace | B | Scheduler mode in power-profile policy. |
+| Handheld | handheld patch | CachyOS 7.0 | not carried | D | Wrong hardware class. |
+| Filesystem | aufs | CachyOS 7.0 | not carried | D | Not a laptop performance feature. |
+| ACPI | acpi_call | CachyOS 7.0 | not carried | D | Risky; not required on ThinkPad. |
+| Compiler | clang-polly | CachyOS 7.0 | not carried | D | Arch GCC packaging path. |
+| Hardening | hardened | CachyOS 7.0 | not carried | D | Compatibility and performance risk. |
