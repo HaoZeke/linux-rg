@@ -74,6 +74,13 @@ Validate the PSI/MGLRU/DAMON/zram memory-pressure contract:
 rgx1gen11-memory-check --live --require-oomd
 ```
 
+Validate the Iris Xe i915/xe boot-driver contract:
+
+```sh
+./rgx1gen11-gpu-check
+rgx1gen11-gpu-check --live --require-boot-log
+```
+
 ## Notes
 
 Design, hardware targets, and patch rationale:

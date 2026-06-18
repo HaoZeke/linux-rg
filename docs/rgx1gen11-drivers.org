@@ -169,6 +169,13 @@ xe.force_probe=9a49
 
 Do not force xe-only without internal panel + suspend testing.
 
+** Mechanical check
+
+#+begin_example
+./rgx1gen11-gpu-check
+rgx1gen11-gpu-check --live --require-boot-log
+#+end_example
+
 * Audio (cAVS 8086:51ca)
 
 | Field | Value |

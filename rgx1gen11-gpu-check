@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
+modules_dir=
+firmware_root=/lib/firmware
+pci_id=8086:a7a1
+expected_driver=i915
+require_firmware=0
+require_boot_log=0
+live=0
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-gpu-check [options]
+
+Validate the rgx1gen11 Iris Xe kernel and boot-driver contract.
+
+Options:
+  --config PATH          Kconfig file to inspect (default: rgx1gen11.config)
+  --modules-dir PATH     Installed module tree, for example /usr/lib/modules/7.0.12-1-rg
+  --firmware-root PATH   Firmware directory (default: /lib/firmware)
+  --pci-id ID            GPU PCI ID to inspect with lspci (default: 8086:a7a1)
+  --driver NAME          Expected live kernel driver (default: i915)
+  --require-firmware     Require Iris Xe firmware files under --firmware-root
+  --require-boot-log     Require current-boot DMC/GuC/HuC journal entries
+  --live                 Check the running kernel module tree and boot policy
+  -h, --help             Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      config_path=$2
+      shift 2
+      ;;
+    --modules-dir)
+      modules_dir=$2
+      shift 2
+      ;;
+    --firmware-root)
+      firmware_root=$2
+      shift 2
+      ;;
+    --pci-id)
+      pci_id=$2
+      shift 2
+      ;;
+    --driver)
+      expected_driver=$2
+      shift 2
+      ;;
+    --require-firmware)
+      require_firmware=1
+      shift
+      ;;
+    --require-boot-log)
+      require_boot_log=1
+      shift
+      ;;
+    --live)
+      config_path="/usr/lib/modules/$(uname -r)/build/.config"
+      modules_dir="/usr/lib/modules/$(uname -r)"
+      require_firmware=1
+      live=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+want_config() {
+  local symbol=$1
+  local want=$2
+  local got
+
+  if [[ ! -r $config_path ]]; then
+    fail "config is not readable: $config_path"
+    return
+  fi
+
+  got=$(grep -E "^(# )?${symbol}(=| is not set)" "$config_path" || true)
+  if [[ $got == "$want" ]]; then
+    pass "$want"
+  elif [[ -n $got ]]; then
+    fail "$symbol is '$got', expected '$want'"
+  else
+    fail "$symbol is missing, expected '$want'"
+  fi
+}
+
+want_module() {
+  local module=$1
+  local found
+
+  [[ -n $modules_dir ]] || return 0
+  if [[ ! -d $modules_dir ]]; then
+    fail "modules directory is not readable: $modules_dir"
+    return
+  fi
+
+  found=$(find "$modules_dir" -type f \( -name "$module.ko" -o -name "$module.ko.*" \) -print -quit)
+  if [[ -n $found ]]; then
+    pass "module $module: ${found#$modules_dir/}"
+  else
+    fail "module $module is missing from $modules_dir"
+  fi
+}
+
+want_firmware() {
+  local pattern=$1
+  local firmware_dir=$firmware_root
+  local firmware_name=$pattern
+  local found
+
+  [[ $require_firmware -eq 1 ]] || return 0
+  if [[ ! -d $firmware_root ]]; then
+    fail "firmware directory is not readable: $firmware_root"
+    return
+  fi
+
+  if [[ $pattern == */* ]]; then
+    firmware_dir="$firmware_root/${pattern%/*}"
+    firmware_name=${pattern##*/}
+  fi
+  if [[ ! -d $firmware_dir ]]; then
+    fail "firmware directory is not readable: $firmware_dir"
+    return
+  fi
+
+  found=$(find "$firmware_dir" -maxdepth 1 \( -type f -o -type l \) -name "$firmware_name" -print -quit)
+  if [[ -n $found ]]; then
+    pass "firmware ${found#$firmware_root/}"
+  else
+    fail "firmware pattern missing: $firmware_root/$pattern"
+  fi
+}
+
+want_cmdline_token() {
+  local token=$1
+  local cmdline
+
+  [[ $live -eq 1 ]] || return 0
+  if [[ ! -r /proc/cmdline ]]; then
+    fail "/proc/cmdline is not readable"
+    return
+  fi
+
+  cmdline=$(</proc/cmdline)
+  if [[ " $cmdline " == *" $token "* ]]; then
+    pass "cmdline token $token"
+  else
+    fail "cmdline token missing: $token"
+  fi
+}
+
+want_lspci_driver() {
+  local lspci_output
+
+  [[ $live -eq 1 ]] || return 0
+  if ! command -v lspci >/dev/null 2>&1; then
+    fail "lspci is unavailable"
+    return
+  fi
+
+  if ! lspci_output=$(lspci -nnk -d "$pci_id" 2>&1); then
+    fail "lspci failed for $pci_id: $lspci_output"
+    return
+  fi
+
+  if grep -Eq "Kernel driver in use:[[:space:]]+$expected_driver$" <<<"$lspci_output"; then
+    pass "$pci_id uses $expected_driver"
+  else
+    fail "$pci_id is not bound to $expected_driver"
+  fi
+
+  if grep -Eq 'Kernel modules:.*(^|[ ,])i915([, ]|$).*xe|Kernel modules:.*(^|[ ,])xe([, ]|$).*i915' <<<"$lspci_output"; then
+    pass "$pci_id exposes i915 and xe modules"
+  else
+    fail "$pci_id does not expose both i915 and xe modules"
+  fi
+}
+
+want_boot_log() {
+  local pattern=$1
+  local description=$2
+  local journal_output
+
+  [[ $require_boot_log -eq 1 ]] || return 0
+  if ! command -v journalctl >/dev/null 2>&1; then
+    fail "journalctl is unavailable"
+    return
+  fi
+
+  if ! journal_output=$(journalctl -k -b --no-pager -q -g "$pattern" 2>&1); then
+    fail "boot log lacks $description: $journal_output"
+    return
+  fi
+
+  if [[ -n $journal_output ]]; then
+    pass "boot log $description"
+  else
+    fail "boot log lacks $description"
+  fi
+}
+
+want_config CONFIG_DRM_I915 'CONFIG_DRM_I915=m'
+want_config CONFIG_DRM_XE 'CONFIG_DRM_XE=m'
+want_config CONFIG_DRM_XE_DISPLAY 'CONFIG_DRM_XE_DISPLAY=y'
+want_config CONFIG_ACPI_VIDEO 'CONFIG_ACPI_VIDEO=m'
+want_config CONFIG_THINKPAD_ACPI_VIDEO 'CONFIG_THINKPAD_ACPI_VIDEO=y'
+want_config CONFIG_BACKLIGHT_CLASS_DEVICE 'CONFIG_BACKLIGHT_CLASS_DEVICE=y'
+
+want_module i915
+want_module xe
+
+want_firmware 'i915/adlp_dmc*.bin*'
+want_firmware 'i915/adlp_guc_70.bin*'
+want_firmware 'i915/tgl_huc*.bin*'
+
+want_cmdline_token i915
+want_cmdline_token 'i915.force_probe=!9a49'
+want_cmdline_token 'xe.force_probe=9a49'
+want_lspci_driver
+want_boot_log 'Finished loading DMC firmware i915/adlp_dmc' 'DMC firmware load'
+want_boot_log 'GT0: GuC firmware i915/adlp_guc_70.bin' 'GuC firmware load'
+want_boot_log 'HuC: authenticated' 'HuC authentication'
+want_boot_log 'GUC: submission enabled' 'GuC submission'
+want_boot_log 'GUC: SLPC enabled' 'GuC SLPC'
+want_boot_log 'GUC: RC enabled' 'GuC RC'
+
+if [[ $failures -gt 0 ]]; then
+  exit 1
+fi
