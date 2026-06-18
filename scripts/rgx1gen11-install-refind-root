@@ -11,6 +11,7 @@ boot_kernel=${BOOT_KERNEL:-/boot/vmlinuz-linux-rg}
 boot_initramfs=${BOOT_INITRAMFS:-/boot/initramfs-linux-rg.img}
 module_list=${LINUX_RG_INITRAMFS_MODULES:-"nvme i915"}
 boot_check=${LINUX_RG_BOOT_CHECK:-/tmp/rgx1gen11-boot-check}
+boot_check_install=${LINUX_RG_BOOT_CHECK_INSTALL:-/usr/local/bin/rgx1gen11-boot-check}
 stamp=$(date +%Y%m%d-%H%M%S)
 
 require_root() {
@@ -210,6 +211,20 @@ EOF
   rm -f "$block" "$tmp"
 }
 
+install_boot_check() {
+  if command -v rgx1gen11-boot-check >/dev/null 2>&1; then
+    echo "boot check provided by package: $(command -v rgx1gen11-boot-check)"
+    return
+  fi
+
+  if [[ -f $boot_check ]]; then
+    install -Dm755 "$boot_check" "$boot_check_install"
+    echo "wrote: $boot_check_install"
+  else
+    echo "skipped: boot check source unavailable at $boot_check"
+  fi
+}
+
 print_state() {
   echo
   echo "== packages =="
@@ -228,6 +243,8 @@ print_state() {
   echo "== linux-rg boot check =="
   if command -v rgx1gen11-boot-check >/dev/null 2>&1; then
     rgx1gen11-boot-check --installed
+  elif [[ -x $boot_check_install ]]; then
+    "$boot_check_install" --installed
   elif [[ -f $boot_check ]]; then
     bash "$boot_check" --installed
   else
@@ -249,6 +266,7 @@ print_plan() {
   echo "mkinitcpio conf: $mkinitcpio_config"
   echo "mkinitcpio preset: $mkinitcpio_preset"
   echo "boot check:      $boot_check"
+  echo "boot check bin:  $boot_check_install"
   echo "initramfs modules: $(module_array_literal)"
   echo "refind config:   $refind_conf"
   echo "refind options:  $options"
@@ -312,6 +330,10 @@ main() {
   echo
   echo "== rEFInd =="
   write_refind_entry
+
+  echo
+  echo "== boot check helper =="
+  install_boot_check
 
   print_state
 }

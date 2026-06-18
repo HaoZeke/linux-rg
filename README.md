@@ -110,7 +110,9 @@ and writes `/boot/initramfs-linux-rg.img` from a separate mkinitcpio config with
 `MODULES=(nvme i915)`.
 
 For the current built package, copy the source checker before running the root
-installer so the install can verify the rEFInd and mkinitcpio state:
+installer so the install can verify the rEFInd and mkinitcpio state. The
+installer keeps the checker in `/usr/local/bin` when the package does not yet
+provide `/usr/bin/rgx1gen11-boot-check`.
 
 ```sh
 cp rgx1gen11-boot-check /tmp/rgx1gen11-boot-check
