@@ -1,0 +1,175 @@
+#+title: linux-rg rgx1gen11 kernel profile
+
+* Machine
+
+Target machine:
+
+- Lenovo ThinkPad X1 Carbon Gen 11, product `21HM002GUS`.
+- CPU: Intel Core i7-1365U, 10 cores and 12 threads, Raptor Lake-P/U.
+- GPU: Intel Raptor Lake-P Iris Xe Graphics.
+- Network: Intel Raptor Lake PCH CNVi Wi-Fi.
+- I/O: Thunderbolt 4, USB 3.2, Intel PCH I2C, NVMe.
+- Storage: KIOXIA XG8 NVMe.
+
+The package starts from Arch's `linux` package, not a generic vendor kernel.
+The base source is kernel.org Linux plus the Arch patch release for
+`7.0.12.arch1`. This keeps pacman packaging, module paths, mkinitcpio behavior,
+and rEFInd installation compatible with the rest of the system.
+
+* Patch Set
+
+** BORE
+
+Source: CachyOS kernel patches, `bore-cachy`.
+
+Why: BORE biases the fair scheduler against burst-heavy tasks. That matches the
+machine's interactive workload: Sway, browser sessions, terminals, editor
+processes, background sync, and local builds share a 12-thread hybrid Intel
+laptop CPU. The goal is lower desktop latency under mixed work, while keeping
+Arch's fair scheduler fallback and normal Linux policy classes.
+
+Fit: the upstream CachyOS hunk for `kernel/sched/fair.c` did not match the Arch
+7.0 fair scheduler layout. `0002-bore-fair-arch-adapt.patch` carries only the
+local placement fix for the rejected fair.c hunk. The full build compiles
+`kernel/sched/bore.o` and the scheduler built-in archive.
+
+Tradeoff: BORE is a downstream scheduler patch, not mainline Linux. This package
+keeps `CONFIG_SCHED_CLASS_EXT=y` as well, so sched_ext userspace schedulers can
+be tried without baking every scheduling decision into the kernel patch stack.
+Kernel documentation describes sched_ext as a BPF-defined scheduler class that
+can be turned on and off dynamically, and reverts to the fair scheduler on
+detected scheduler errors:
+https://docs.kernel.org/scheduler/sched-ext.html
+
+** BBRv3
+
+Source: CachyOS BBRv3 patch, adapted to Arch 7.0 TCP layout.
+
+Why: BBR models bottleneck bandwidth and propagation delay instead of treating
+loss as the primary congestion signal. The ACM Queue BBR paper describes the
+model as estimating `BtlBw` and `RTprop` and notes that Linux uses fq pacing for
+BBR operation:
+https://queue.acm.org/detail.cfm?id=3022184
+
+Fit: this laptop moves across Wi-Fi, airport networks, hotel networks,
+Tailscale, SSH, and high-bandwidth lab networks. BBRv3 is selected as the
+default TCP congestion control and fq as the default qdisc:
+
+- `CONFIG_TCP_CONG_BBR=y`
+- `CONFIG_DEFAULT_BBR=y`
+- `CONFIG_DEFAULT_TCP_CONG="bbr"`
+- `CONFIG_NET_SCH_FQ=y`
+- `CONFIG_DEFAULT_FQ=y`
+- `CONFIG_DEFAULT_NET_SCH="fq"`
+
+Tradeoff: BBR fairness has real literature risk. Experimental work on BBRv1
+reported RTT fairness problems, and later BBR revisions exist partly to address
+such behavior. This package chooses BBRv3, not BBRv1, and keeps the kernel
+configuration explicit so reverting to Cubic is a config change rather than a
+patch-stack rewrite.
+
+** v4l2loopback
+
+Source: pf-kernel 7.0 patch carrying the v4l2loopback driver.
+
+Why: the module supports virtual camera workflows without relying on an external
+DKMS build every time the kernel changes. This matters on a custom kernel
+because out-of-tree module drift is a common breakage point after kernel
+upgrades.
+
+Fit: `CONFIG_V4L2_LOOPBACK=m` keeps it loadable on demand. The package declares
+`V4L2LOOPBACK-MODULE` and lists `v4l2loopback-utils` as optional userspace.
+
+** DDCCI
+
+Source: `ddcci-driver-linux`.
+
+Why: DDCCI exposes monitor DDC/CI controls through kernel modules. It is useful
+when the laptop is docked or attached to external displays and avoids rebuilding
+the DDCCI module out of tree for this kernel.
+
+Fit: `CONFIG_DDCCI=m` and `CONFIG_BACKLIGHT_DDCCI=m` keep support modular.
+`ddcutil` remains userspace opt-in.
+
+** PSI and memory pressure
+
+Source: mainline Linux configuration.
+
+Why: PSI gives userspace a direct pressure signal for memory, CPU, and I/O. It
+is the kernel-side foundation needed by pressure-aware userspace policy such as
+`oomd`. The profile pins PSI, memcg, memcg swap accounting, cgroups, and BPF.
+
+Fit:
+
+- `CONFIG_PSI=y`
+- `CONFIG_MEMCG=y`
+- `CONFIG_MEMCG_SWAP=y`
+- `CONFIG_CGROUP_BPF=y`
+
+** MGLRU, KSM, zswap, and zram
+
+Source: mainline Linux configuration.
+
+Why: the laptop has enough RAM for normal work but still benefits from pressure
+handling during browsers, local builds, containers, VMs, and scientific
+toolchains. MGLRU improves page reclaim behavior, zswap/zram provide compressed
+memory paths, and KSM can deduplicate selected anonymous pages.
+
+Fit:
+
+- `CONFIG_LRU_GEN=y`
+- `CONFIG_LRU_GEN_ENABLED=y`
+- `CONFIG_KSM=y`
+- `CONFIG_ZSWAP=y`
+- `CONFIG_ZSWAP_DEFAULT_ON=y`
+- `CONFIG_ZRAM=m`
+
+The kernel KSM documentation describes KSM as a `CONFIG_KSM=y` feature that
+deduplicates anonymous pages registered with `MADV_MERGEABLE`; it also documents
+the scan-time advisor and profit metrics:
+https://docs.kernel.org/admin-guide/mm/ksm.html
+
+The kernel MGLRU documentation exposes `/sys/kernel/mm/lru_gen/enabled`; the
+profile enables the feature by default:
+https://docs.kernel.org/admin-guide/mm/multigen_lru.html
+
+UKSM is not selected. The selected source sets do not carry a maintained 7.0
+UKSM patch. CachyOS provides older KSM/UKSM-era patches and a userspace KSM
+settings package, while Linux 7.0 already has KSM smart scan, scan-time advisor
+controls, MGLRU, zswap, zram, and PSI. Carrying a stale memory-management patch
+would add higher risk than benefit for this laptop.
+
+** Battery and laptop hardware
+
+Source: Arch config plus machine overlay.
+
+Why: the profile keeps Intel and ThinkPad laptop paths visible to the config
+resolver. That includes Intel pstate, Intel idle, schedutil, ThinkPad ACPI,
+platform profile, Intel PMC/PMT telemetry, Intel Wi-Fi, Intel Bluetooth, i915,
+xe, SOF audio, NVMe, USB4, Thunderbolt, Type-C, I2C HID, and ACPI suspend and
+hibernation support.
+
+Fit:
+
+- `CONFIG_X86_INTEL_PSTATE=y`
+- `CONFIG_INTEL_IDLE=y`
+- `CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y`
+- `CONFIG_THINKPAD_ACPI=m`
+- `CONFIG_ACPI_PLATFORM_PROFILE=y`
+- `CONFIG_PCIEASPM_POWER_SUPERSAVE=y`
+- `CONFIG_PM_AUTOSLEEP=y`
+- `CONFIG_HIBERNATION=y`
+- `CONFIG_SUSPEND=y`
+
+* Carry Rules
+
+Patches are kept only when they satisfy all of these constraints:
+
+- Source is public and reviewable.
+- The patch applies reproducibly from the PKGBUILD.
+- The code compiles against the selected Arch kernel base.
+- The behavior matches this ThinkPad profile.
+- The feature can be disabled or made modular when practical.
+
+This keeps the package closer to Arch than to a large omnibus kernel. CachyOS
+and pf-kernel are source pools, not wholesale dependencies.
