@@ -41,6 +41,7 @@ source=(
   https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/${_srcname}.tar.{xz,sign}
   $url/releases/download/$_srctag/linux-$_srctag.patch.zst{,.sig}
   0001-bore-cachy.patch
+  0002-bore-fair-arch-adapt.patch
   rgx1gen11.config
 )
 source_x86_64=(config.x86_64)
@@ -54,6 +55,7 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         '26230d1a111b24fe9239273acdfacda37c5bf009f861c448ad25392dcca433514246d629a077ce5c66478c7e0f4e5477ce5f95c91d08b3a02cc87bb35b849bcf'
         'SKIP'
         'SKIP'
+        'SKIP'
         'SKIP')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
 
@@ -61,6 +63,7 @@ b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c5
 sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'SKIP'
             'ce38af1268931b099993cf01c537d6c3b21007e08cad84d2f1e71f95cc5cb75b'
+            'SKIP'
             'SKIP'
             'SKIP'
             'SKIP')
@@ -82,8 +85,18 @@ prepare() {
     src="${src##*/}"
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
+    [[ $src = 0002-bore-fair-arch-adapt.patch ]] && continue
     echo "Applying patch $src..."
-    patch -Np1 < "../$src"
+    if [[ $src = 0001-bore-cachy.patch ]]; then
+      if ! patch -Np1 < "../$src"; then
+        test -s kernel/sched/fair.c.rej || exit 1
+        grep -q 'sysctl_sched_tunable_scaling' kernel/sched/fair.c.rej || exit 1
+        echo "Applying Arch fair.c adaptation for BORE..."
+        patch -Np1 < ../0002-bore-fair-arch-adapt.patch
+      fi
+    else
+      patch -Np1 < "../$src"
+    fi
   done
 
   echo "Setting config..."
