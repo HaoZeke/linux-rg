@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+sys_root=${RGAM5TERRA_SYS_ROOT:-/sys}
+proc_root=${RGAM5TERRA_PROC_ROOT:-/proc}
+config_path=${RGAM5TERRA_CONFIG:-rgam5terra.config}
+live=0
+max_cpu_temp_c=95
+max_gpu_temp_c=85
+expected_epp=${RGAM5TERRA_EPP:-balance_performance}
+
+usage() {
+  cat <<'USAGE'
+usage: rgam5terra-thermal-check [options]
+
+Validate rgam5terra thermal/power policy visibility for Terra + 9950X + RTX.
+
+Options:
+  --config PATH       Kconfig file to inspect (default: rgam5terra.config)
+  --sys-root PATH     sysfs root to inspect (default: /sys)
+  --proc-root PATH    procfs root to inspect (default: /proc)
+  --max-cpu-temp C    CPU package temp threshold for live checks (default: 95)
+  --max-gpu-temp C    NVIDIA temp threshold for live checks (default: 85)
+  --epp VALUE         Expected amd-pstate EPP string (default: balance_performance)
+  --live              Check running sensors where available
+  -h, --help          Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      config_path=$2
+      shift 2
+      ;;
+    --sys-root)
+      sys_root=$2
+      shift 2
+      ;;
+    --proc-root)
+      proc_root=$2
+      shift 2
+      ;;
+    --max-cpu-temp)
+      max_cpu_temp_c=$2
+      shift 2
+      ;;
+    --max-gpu-temp)
+      max_gpu_temp_c=$2
+      shift 2
+      ;;
+    --epp)
+      expected_epp=$2
+      shift 2
+      ;;
+    --live)
+      live=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+want_config() {
+  local symbol=$1
+  local want=$2
+  local got
+
+  if [[ ! -r $config_path ]]; then
+    fail "config is not readable: $config_path"
+    return
+  fi
+
+  got=$(grep -E "^(# )?${symbol}(=| is not set)" "$config_path" || true)
+  if [[ $got == "$want" ]]; then
+    pass "$want"
+  elif [[ -n $got ]]; then
+    fail "$symbol is '$got', expected '$want'"
+  else
+    fail "$symbol is missing, expected '$want'"
+  fi
+}
+
+find_cpu_temp_millic() {
+  local input label name
+  shopt -s nullglob
+  for input in "$sys_root"/class/hwmon/hwmon*/temp*_input; do
+    label=${input%_input}_label
+    name=${input%/temp*_input}/name
+    if [[ -r $label ]] && grep -Eqi 'tctl|tdie|package' "$label"; then
+      cat "$input"
+      shopt -u nullglob
+      return 0
+    fi
+    if [[ -r $name ]] && grep -Eqi 'k10temp' "$name"; then
+      cat "$input"
+      shopt -u nullglob
+      return 0
+    fi
+  done
+  shopt -u nullglob
+  return 1
+}
+
+want_cpu_temp() {
+  local temp_millic temp_c
+
+  [[ $live -eq 1 ]] || return 0
+  if temp_millic=$(find_cpu_temp_millic); then
+    temp_c=$((temp_millic / 1000))
+    if (( temp_c <= max_cpu_temp_c )); then
+      pass "CPU package temperature ${temp_c}C <= ${max_cpu_temp_c}C"
+    else
+      fail "CPU package temperature ${temp_c}C > ${max_cpu_temp_c}C"
+    fi
+  else
+    fail "CPU package temperature sensor not found"
+  fi
+}
+
+want_epp() {
+  local policy epp seen=0
+
+  [[ $live -eq 1 ]] || return 0
+  shopt -s nullglob
+  for policy in "$sys_root"/devices/system/cpu/cpufreq/policy*; do
+    [[ -r $policy/energy_performance_preference ]] || continue
+    seen=1
+    epp=$(<"$policy/energy_performance_preference")
+    if [[ $epp == "$expected_epp" ]]; then
+      pass "$(basename "$policy") EPP $expected_epp"
+    else
+      fail "$(basename "$policy") EPP is '$epp', expected '$expected_epp'"
+    fi
+  done
+  shopt -u nullglob
+  if [[ $seen -eq 0 ]]; then
+    fail "no amd-pstate EPP policy files found"
+  fi
+}
+
+want_gpu_temp() {
+  local temp
+
+  [[ $live -eq 1 ]] || return 0
+  if ! command -v nvidia-smi >/dev/null 2>&1; then
+    fail "nvidia-smi unavailable"
+    return
+  fi
+  if temp=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -n 1); then
+    if [[ $temp =~ ^[0-9]+$ && $temp -le $max_gpu_temp_c ]]; then
+      pass "NVIDIA GPU temperature ${temp}C <= ${max_gpu_temp_c}C"
+    else
+      fail "NVIDIA GPU temperature '$temp' exceeds ${max_gpu_temp_c}C or is not numeric"
+    fi
+  else
+    fail "nvidia-smi temperature query failed"
+  fi
+}
+
+want_pressure() {
+  [[ $live -eq 1 ]] || return 0
+  if [[ -r $proc_root/pressure/cpu && -r $proc_root/pressure/memory && -r $proc_root/pressure/io ]]; then
+    pass "PSI files readable"
+  else
+    fail "PSI files missing under $proc_root/pressure"
+  fi
+}
+
+want_config CONFIG_X86_AMD_PSTATE 'CONFIG_X86_AMD_PSTATE=y'
+want_config CONFIG_X86_AMD_PSTATE_DEFAULT_MODE 'CONFIG_X86_AMD_PSTATE_DEFAULT_MODE=3'
+want_config CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL 'CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y'
+want_config CONFIG_HWMON 'CONFIG_HWMON=y'
+want_config CONFIG_PSI 'CONFIG_PSI=y'
+
+want_cpu_temp
+want_epp
+want_gpu_temp
+want_pressure
+
+if [[ $failures -gt 0 ]]; then
+  exit 1
+fi

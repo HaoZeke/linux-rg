@@ -1,0 +1,13 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux-rg
+Target = linux-rg-headers
+
+[Action]
+Description = Patch linux-rg DKMS compatibility overlays
+Depends = dkms
+Depends = patch
+When = PostTransaction
+Exec = /usr/bin/rgx1gen11-dkms-overlay-apply --patch-only --if-present

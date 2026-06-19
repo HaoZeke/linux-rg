@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+sys_root=${RGAM5TERRA_SYS_ROOT:-/sys}
+profile=daily
+dry_run=1
+cpu_epp=
+gpu_power_limit=
+ppt_watts=
+
+usage() {
+  cat <<'USAGE'
+usage: rg-terra-power [options] [profile]
+
+Apply or print rgam5terra power profiles for the Fractal Terra build.
+
+Profiles:
+  daily     EPP balance_performance, GPU 200 W hint, PPT 95 W note
+  build     EPP performance, GPU 180 W hint, PPT 120 W note
+  gaming    EPP balance_performance, GPU 220 W hint, PPT 105 W note
+  quiet     EPP power, GPU 160 W hint, PPT 80 W note
+  stress    EPP performance, no GPU power cap change, PPT note only
+
+Options:
+  --apply             Write sysfs values and run nvidia-smi when available
+  --dry-run           Print actions without applying them (default)
+  --epp VALUE         Override CPU energy_performance_preference
+  --gpu-watts VALUE   Override NVIDIA power limit; use "none" to skip
+  --ppt-watts VALUE   Override PPT note; BIOS/ryzenadj still owns PPT
+  --sys-root PATH     sysfs root (default: /sys)
+  -h, --help          Show this help
+USAGE
+}
+
+set_profile_defaults() {
+  case "$profile" in
+    daily)
+      cpu_epp=balance_performance
+      gpu_power_limit=200
+      ppt_watts=95
+      ;;
+    build)
+      cpu_epp=performance
+      gpu_power_limit=180
+      ppt_watts=120
+      ;;
+    gaming)
+      cpu_epp=balance_performance
+      gpu_power_limit=220
+      ppt_watts=105
+      ;;
+    quiet)
+      cpu_epp=power
+      gpu_power_limit=160
+      ppt_watts=80
+      ;;
+    stress)
+      cpu_epp=performance
+      gpu_power_limit=none
+      ppt_watts=120
+      ;;
+    *)
+      printf 'unknown profile: %s\n' "$profile" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --apply)
+      dry_run=0
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --epp)
+      cpu_epp=$2
+      shift 2
+      ;;
+    --gpu-watts)
+      gpu_power_limit=$2
+      shift 2
+      ;;
+    --ppt-watts)
+      ppt_watts=$2
+      shift 2
+      ;;
+    --sys-root)
+      sys_root=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    daily|build|gaming|quiet|stress)
+      profile=$1
+      shift
+      ;;
+    *)
+      printf 'unknown argument: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+default_epp=$cpu_epp
+default_gpu=$gpu_power_limit
+default_ppt=$ppt_watts
+set_profile_defaults
+[[ -n ${default_epp:-} ]] && cpu_epp=$default_epp
+[[ -n ${default_gpu:-} ]] && gpu_power_limit=$default_gpu
+[[ -n ${default_ppt:-} ]] && ppt_watts=$default_ppt
+
+say() {
+  printf '%s\n' "$*"
+}
+
+run_or_print() {
+  if [[ $dry_run -eq 1 ]]; then
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+write_file() {
+  local path=$1 value=$2
+  if [[ $dry_run -eq 1 ]]; then
+    printf '+ printf %%s %q > %q\n' "$value" "$path"
+  else
+    printf '%s' "$value" > "$path"
+  fi
+}
+
+apply_epp() {
+  local policy path seen=0
+  shopt -s nullglob
+  for policy in "$sys_root"/devices/system/cpu/cpufreq/policy*; do
+    path=$policy/energy_performance_preference
+    [[ -w $path || ( $dry_run -eq 1 && -e $path ) ]] || continue
+    seen=1
+    write_file "$path" "$cpu_epp"
+  done
+  shopt -u nullglob
+  if [[ $seen -eq 0 ]]; then
+    say "warn: no writable EPP files found under $sys_root/devices/system/cpu/cpufreq"
+  fi
+}
+
+apply_gpu_limit() {
+  [[ $gpu_power_limit != none ]] || return 0
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    run_or_print nvidia-smi -pl "$gpu_power_limit"
+  else
+    say "warn: nvidia-smi unavailable; GPU power limit ${gpu_power_limit}W not applied"
+  fi
+}
+
+print_ppt_note() {
+  say "PPT target: ${ppt_watts}W"
+  say "PPT is firmware/SMU policy: set it in BIOS or with a reviewed ryzenadj invocation."
+}
+
+say "profile: $profile"
+say "CPU EPP: $cpu_epp"
+say "GPU power limit: $gpu_power_limit"
+apply_epp
+apply_gpu_limit
+print_ppt_note

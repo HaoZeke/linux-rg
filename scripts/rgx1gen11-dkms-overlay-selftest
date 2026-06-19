@@ -46,6 +46,7 @@ dry_run_patch() {
 }
 
 require_executable rgx1gen11-dkms-overlay-apply
+require_file 69-linux-rg-dkms-overlays.hook
 
 require_file dkms-overlays/ddcci-0.4.5-linux-7.0.patch
 require_file dkms-overlays/rtl88xxau-r1298-linux-7.0.patch
@@ -59,6 +60,11 @@ require_text dkms-overlays/rtl88xxau-r1298-linux-7.0.patch 'radio_idx'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'EVDI_ENABLE_FBDEV'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'const struct drm_format_info *info'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'MODULE_IMPORT_NS("DMA_BUF")'
+
+require_text 69-linux-rg-dkms-overlays.hook 'Exec = /usr/bin/rgx1gen11-dkms-overlay-apply --patch-only --if-present'
+require_text 69-linux-rg-dkms-overlays.hook 'Target = linux-rg'
+require_text 69-linux-rg-dkms-overlays.hook 'Target = linux-rg-headers'
+require_text PKGBUILD 'patch'
 
 dry_run_patch dkms-overlays/ddcci-0.4.5-linux-7.0.patch ddcci-0.4.5
 dry_run_patch dkms-overlays/rtl88xxau-r1298-linux-7.0.patch rtl88xxau-r1298.b44d288

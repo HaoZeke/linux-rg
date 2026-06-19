@@ -127,10 +127,10 @@ https://wiki.archlinux.org/title/Solid_state_drive/NVMe
 - HOTSTORAGE 2023 motivates scheduler A/B (=bfq= / =adios= / =none=), not
   assuming BFQ helps on ULL Gen4 SSD.
 
-** Planned checker
+** Packaged checker
 
-Add =rgam5terra-nvme-check= mirroring =rgx1gen11-nvme-check= once hardware
-exists. Until then, manual:
+=rgam5terra-nvme-check= verifies the expected kernel config and live NVMe
+telemetry once the machine exists. Manual probes for first boot:
 
 #+begin_example
 nvme list
@@ -261,12 +261,14 @@ tweaks"). Files below are **hypotheses** until live probe.
 
 ** NVIDIA (=nvidia-open=)
 
-File: =/etc/modprobe.d/rgam5terra-nvidia.conf=
+File: =/usr/lib/modprobe.d/rgam5terra-nvidia.conf= (packaged by =linux-rg=)
 
 #+begin_example
 # Grade B/C hypotheses; validate resume + Wayland before treating as contract
 options nvidia_drm modeset=1
 options nvidia NVreg_PreserveVideoMemoryAllocations=1
+options nvidia NVreg_DynamicPowerManagement=0x02
+options nvidia NVreg_UsePageAttributeTable=1
 #+end_example
 
 Userspace (grade C for SFF thermals):
@@ -327,7 +329,7 @@ C tooling) before linux-rg scheduler benchmarks.
 | rtw89 power save vs latency | modprobe / iw | =linux-rg-3up1= |
 | PPT cap + NH-L9a thermal envelope | BIOS/ryzenadj | =linux-rg-3up1= |
 | pcie_aspm off vs powersave matrix | cmdline | =linux-rg-3up1= |
-| rgam5terra-nvme-check script | packaging | =linux-rg-3up1= |
+| rgam5terra check scripts + =rg-terra-power= | packaging | =linux-rg-3up1= |
 
 * Document index
 

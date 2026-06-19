@@ -94,7 +94,7 @@ Derived from receipt table above plus vendor spec sheets.
 | Audio | Realtek ALC897 7.1 HD codec (onboard) | ASRock spec |
 | Retailer | Micro Center Cambridge (store 121) | receipt |
 | Status | Purchased per receipts; not yet live-probed | -- |
-| Config overlay | =rgam5terra.config= (not yet added) | -- |
+| Config overlay | =rgam5terra.config= via =LINUX_RG_PROFILE=rgam5terra= | linux-rg package |
 
 ** Thermal constraint (primary research finding)
 
@@ -338,13 +338,14 @@ open* (diagnostic only) to separate airflow vs power-limit issues.
 | Build jobs | =make -j16= default in Terra; =-j32= only with GPU idle + PPT headroom | chezmoi env |
 | Compositor | cap frame rate idle; VRR where stable | reduces GPU waste heat |
 
-Example power script contract (chezmoi later):
+Packaged power helper contract:
 
 #+begin_example
-# rg-terra-power apply daily|build|gaming|stress
-# daily:    PPT 95W,  GPU PL 150W, EPP balance_power
-# build:    PPT 120W, GPU PL 120W, make -j16
-# gaming:   PPT 100W, GPU PL 200W, EPP balance_performance
+# rg-terra-power [--dry-run|--apply] daily|build|gaming|quiet|stress
+# daily:    PPT 95W,  GPU PL 200W, EPP balance_performance
+# build:    PPT 120W, GPU PL 180W, EPP performance
+# gaming:   PPT 105W, GPU PL 220W, EPP balance_performance
+# quiet:    PPT 80W,  GPU PL 160W, EPP power
 # stress:   document only; not simultaneous full CPU+GPU
 #+end_example
 
@@ -402,7 +403,7 @@ Ordered by expected impact once the machine is running:
 1. Bootable package + stock Arch rollback (=linux-rg-3up1= boot-safety)
 2. NVIDIA open driver + mkinitcpio contract (nvme + nvidia modules)
 3. NVMe scheduler A/B on SN850X (=linux-rg-rt1t=)
-4. Memory policy for 48 GiB (=linux-rg-zram=, =linux-rg-7f5e=)
+4. Memory policy for 48 GiB (=rgam5terra-memory-check=; =linux-rg-zram=, =linux-rg-7f5e=)
 5. sched_ext / ASA / cache-aware 0020 on dual-CCD topology (=linux-rg-tjsl=, =linux-rg-kr7t=)
 6. BORE-only fair eval (skip hybrid 0010-0013 unless evidence says otherwise)
 7. Zen5-specific carries: 0022 RDSEED (P0), btrfs 0023 if applicable (P1)
@@ -411,6 +412,11 @@ Ordered by expected impact once the machine is running:
 10. Thermal-sustained validation under Terra airflow (=linux-rg-3up1=)
 
 Downstream patch survey: =docs/rgam5terra-kernel.org= ("Downstream kernel survey").
+
+Packaged userspace:
+
+- =rg-terra-power=: EPP/GPU-power profile helper with PPT notes.
+- =rgam5terra-memory-check=, =rgam5terra-nvme-check=, =rgam5terra-thermal-check=.
 
 * Measurement checklist (planned)
 

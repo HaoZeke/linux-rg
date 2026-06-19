@@ -36,9 +36,8 @@ Target machine:
 Planned inventory and acceptance thresholds: =docs/rgam5terra-targets.org=.
 
 The package starts from Arch's =linux= package (kernel.org + Arch
-=7.0.12.arch1= release). Per-profile overlay =rgam5terra.config= is **not yet
-added**. Until live probes exist, treat this file as the patch applicability
-research record only.
+=7.0.12.arch1= release). Per-profile overlay =rgam5terra.config= carries the
+AM5/NVIDIA/Realtek profile and is selected with =LINUX_RG_PROFILE=rgam5terra=.
 
 * Platform expectations (Zen 5 + discrete NVIDIA)
 
@@ -103,7 +102,7 @@ profile-specific interpretation as of 2026-06-19 research pass.
 | 0019 MGLRU dev-tree weld | planned | Pairs with 0018 |
 | 0020 cache-aware SCHED_CACHE | evaluating | **Higher priority** on dual-CCD Zen 5 |
 | 0021 MM bulk-free | evaluating | Large-RAM reclaim hot paths |
-| 0022 znver5 RDSEED warn | **planned carry** | cachyos-fixes #19; staged patch file |
+| 0022 znver5 RDSEED warn | **profile carry** | cachyos-fixes #19; =LINUX_RG_PROFILE=rgam5terra= |
 | 0023 btrfs DIO parallel | likely skip | Arch 7.0.12 has =IS_NOSEC= DIO path |
 | 0027 BT USB quirks | probe-gated | cachyos-fixes #04; =linux-rg-eamh= |
 | 0028 in-kernel r8125 | probe-gated | sirlucjan r8125-patches; =linux-rg-awbh= |
@@ -137,7 +136,7 @@ shows headroom makes zram sizing redundant:
 - BFQ default + 0007 contention patch: same HOTSTORAGE-motivated skepticism.
 - ADIOS module only; compare =none= on SN850X before any default change.
 
-* Config overlay rationale (planned =rgam5terra.config=)
+* Config overlay rationale (=rgam5terra.config=)
 
 When the overlay is added, expect these **differences from =rgx1gen11.config=**:
 
@@ -160,7 +159,7 @@ Pins likely **unchanged** from shared linux-rg policy:
 - BBR + fq defaults
 - pstore contract (EFI disabled by default)
 
-** Planned =rgam5terra.config= hardware pins (draft)**
+** =rgam5terra.config= hardware pins
 
 Not yet committed as a file. Compile-time enables for the receipt hardware:
 
@@ -169,7 +168,7 @@ Not yet committed as a file. Compile-time enables for the receipt hardware:
 CONFIG_X86_AMD_PSTATE=y
 CONFIG_AMD_PSTATE=y
 # Mode selected at boot via cmdline (grade B: kernel.org amd-pstate doc):
-# amd_pstate=guided  # hypothesis for desktop EPP control; A/B vs active
+# amd_pstate=guided  # optional A/B vs active
 
 # Platform
 CONFIG_ACPI=y
@@ -425,7 +424,7 @@ for AMD desktop repos -- this is the closest CachyOS "profile" to rgam5terra.
 | 09 | detach_tasks loop_max | blocked w/ hybrid weld | B | carried =0011= (rgx1gen11); blocked group on Zen |
 | 16-17 | mm bulk-free | shared | D | carried =0021= |
 | 18 | sched_ext SMT idle | **evaluate** 32T | D | carried =0012= |
-| **19** | **znver5 RDSEED microcode warn** | **carry** 9950X | B | staged =0022= (profile-only) |
+| **19** | **znver5 RDSEED microcode warn** | **carry** 9950X | B | =0022= applied by =LINUX_RG_PROFILE=rgam5terra= |
 | 38 | btrfs DIO not serialized | **carry if btrfs root** | B/C | candidate =0023= |
 | 03 | BT USB quirk =0489:e112= (ASUS B650M) | skip | C | **already in Arch 7.0.12** |
 | 04 | BT USB quirk delta (+15 IDs) | probe B650I VID/PID | C | candidate =0027= if BT broken |
@@ -469,10 +468,10 @@ Cachy cpu-cachyos-patches stops at **znver4** -- outdated for 9950X.
 
 ** Proposed rgam5terra patch queue (beyond shared 00xx)
 
-Ordered for implementation when =rgam5terra.config= lands:
+Ordered implementation queue for the profile:
 
 | ID | Patch | Source | Priority | Gate |
-| 0022 | amd znver5 RDSEED warn-only | cachyos-fixes #19 | P0 | Zen 5 boot; file staged in repo |
+| 0022 | amd znver5 RDSEED warn-only | cachyos-fixes #19 | P0 | Zen 5 boot; profile-gated in PKGBUILD |
 | 0023 | btrfs DIO parallel writes | cachyos-fixes #38 | -- | **likely skip** on 7.0.12 (=linux-rg-jt9d=) |
 | 0024 | graysky MZEN5 Kconfig/=-march= | cpu-patches | P2 | >1% bench @ fixed PPT (=linux-rg-1btr=) |
 | 0025 | gaming-sched cgroup_mode | gaming-sched | P3 | cgroup starvation only (=linux-rg-g2nl=) |

@@ -3,7 +3,7 @@
 pkgbase=linux-rg
 pkgver=7.0.12.arch1
 pkgrel=1
-pkgdesc='Linux kernel for rgx1gen11 ThinkPad X1 Carbon Gen 11'
+pkgdesc='Linux kernel for linux-rg machine profiles'
 url='https://github.com/archlinux/linux'
 arch=(
   x86_64
@@ -61,8 +61,14 @@ source=(
   0019-mglru-devtree-adapt.patch
   0020-cache-aware-sched.patch
   0021-mm-bulk-free-hotpaths.patch
+  0022-amd-znver5-rdseed.patch
   rgx1gen11.config
+  rgam5terra.config
   asa-router
+  rg-terra-power
+  rgam5terra-memory-check
+  rgam5terra-nvme-check
+  rgam5terra-thermal-check
   rgx1gen11-ax211-check
   rgx1gen11-memory-check
   rgx1gen11-pstore-check
@@ -77,8 +83,10 @@ source=(
   rgx1gen11-s0ix-tool-sync
   rgx1gen11-boot-check
   rgx1gen11-dkms-overlay-apply
+  69-linux-rg-dkms-overlays.hook
   rgx1gen11-iwlwifi.conf
   rgx1gen11-btusb.conf
+  rgam5terra-nvidia.conf
   ddcci-0.4.5-linux-7.0.patch
   rtl88xxau-r1298-linux-7.0.patch
   evdi-1.14.7-linux-7.0.patch
@@ -114,8 +122,14 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             '168a5264f9be2654889554a561a746c37df3e9c021e5bea7ff638d36f5341c8b'
             'e9f56c6b5022ecab01b8ae7fa619c5d0f36b8254db5dfcb757b60b2868a3d567'
             'c6deacb47a8ca1185d379a164e9579413a843285090e5778fe54395b76efbe71'
+            'c1aa2ff3cfd18e6f024ca97ab5ee39b69d01dd15e7852e1bd3759f449272f9fc'
             '8f930fbee14095459f3562bd83d1e5f32bf4bc19f53211f9611b2485d3cb7b5d'
+            'b8310d63765adf751befcf80c9b00a092fa007452479e4a23507ffafc6893b75'
             'fa9059e8274b60d3caf1d5e78a1fe21b92d937fe21562df5920b9c66d0013923'
+            '7ed090e02c037129860b9042b812751b80d0e9818faad9c6109857f9423be64e'
+            '580d3b6e6e3f4cac1506c401889fb21d70b19e68dc64c61f1e53d865d2e28cfc'
+            'da416fe965d19ab353b12b3a7d5bcec5e28fb8589f354e1ce026b03abc41e683'
+            '52b000c509a2840978bd45b6cf96e890be34a34998d90e5dfc0fdf1daeefce5d'
             'ae73ca4affd8a3dd9a46d710774268e085f6bbba8462bb1a65963301f36f0579'
             '6804385a0c7c67150e6c11071081fd787036fc4b6a71e9dbafe39c5885c47c6a'
             '81f35cfa14c9883a13e75afa531f667edd27fdba0ad4925aabc57c886fee79e1'
@@ -129,9 +143,11 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             '8c3aeff5ae229526346a8ad5aad5e2d8c05e1e2ad49b8d6694a422acdd5d0658'
             'd6ca16a22bb0c90e6f4f3c1b06386bc270ab41c22db64099404741ac604cac09'
             '619d43e497595f4d30007082c24ba708d5a2828c277d4fdbb66de830b80e506a'
-            '0b7bd84abab1334845c6ed9181dc82415add396c2cfaed419bce6f870bf5320f'
+            'dfca3cef00da13c3966ec4435162368c85e83634466554d3f2e15ae33be4d43e'
+            '922d9daa57bd6ddd5c1b3617286114673d0553b7a42f3a043cf279aa86ce823b'
             '134551c9ab2a33011cd2cdf366e66da4cc9297011146a8abe8840f5b7a3f7408'
             '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74'
+            'ae747b523380447b9e0e514c7128791ef793208edb121ee5476d3a054f4583bf'
             '7332851854410e619113de8ea64bc0b917ee74d7edefa807626cadbc3850a37c'
             '3f2e0bc333e1fd3a8727714fcd4e574edc4d875884a972cdd61cbcbe25fed0b5'
             '91dd3f39a7204db4dbc8c288dbf199120d4ce796f00c67cf1911ee57715e202b')
@@ -161,8 +177,14 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         'a816bd03d460ca3910fa4790ea7d945df0a3fa5adef85f681057e82a549aba959f0c3296853285a4d370faa222841ef8c1efe40bb41f0134e7806106d8723481'
         '5b9c44d3e1b13bcd7599ecc0b07d0af822bb83672876138f981374aba20b0f7f1475dadd06127e2c29596550f3ad8232a9f534f29810192d95ed6bd7ed279a73'
         'b8ff5dee5b81818ef02107990b5711a7a4d060a943a6663334e0ffa828dd52696bef62b79f2a9ceb369221db0e468d238c6d61ef7127a7b318dacf350f3bbfa6'
+        'e4adc5f4d70c0a35472e5a1383a9cccb142dff0844cfe9000a4870c9633b7b9c57ea28c12f305c14e9e65a5d7ceb27f99edfb8d42f3434cc65f0142bf64bd862'
         '44bdaac40ac63a62455c640228faf90cf9efba18a238306dad21734f811b14d5e332198389c1f634903aae308974768110070b05983ea19a3a2aa9f946b7bd99'
+        '85e9a7a9ade677f2aa97bf6f4ce93f99b0d7d3f89e98f918b3b22a28ee1a2c13b68a50e1f22198361131ced13bfc1e54b546e0b1c8e25853397506f3c04e02ac'
         '4f290c4b5aeed7d8a2e048410f304c891955129c1641b5a1145302e61f1e9f76593448d9c765fc13e1717159245c9d304948087f79e04d69e53fdfea4a5e5f13'
+        '46b138b363e9a399b9ec9da510395f39399c25342962b61f97aa5da97cd70dfe30c20f7f5c39072dcf6038b94e30cb142c3dd86c08df53c8ea2466f238103eb1'
+        'edd328c56ffb547a0fb9a43ecc816358c4c6f056777560da48cac5e12258a535d9fecaa36c8b788bfad87d86167d760c2b68b00e191e985c65bedc7153893892'
+        '8ccd16659f42098f8c7952346c8091ff508e3f2254f64af68ce7065f4d8efc87f3dacfc9048240b95252978291c14dff13c18bbc1a3d80060c5582ddb47249ae'
+        '23404ef0e006662f6b5cc650e434da71060b6172226a7d5add0389af00ccf0c0b43bf7dfb30f4be52463e3c6780dc568fe70d0ecaff0977fb2c473137a127645'
         '9025bb521840b05518bb39fff120cc6ba8ee90b09886631cf9868a5731151b064fb2c8ac22ad910eeb1e32437785df97a3e2a3bd43581c314a6ff34bebca85e6'
         'cab92ac56d079d737388b335dd95b1ed0b684b334a1f381eafc7855ca69918ee9028bc64d1ff3bdad568eff5bc06f65c678da2099922fcdc966a9040188b4f51'
         'c0efa28a08c225f90e40858319760ee1b6ebcfcaa8241ba996b5df61cd2e457e4dabe35dd4a9b49ed0243c1789902de8d82e4e73e4a02efbd89efcde8d3916d3'
@@ -176,9 +198,11 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         'b471180bd622c0a6069b19505b29ac95bfad0f43ca01f5bed5765c11830a8ef75f93b5506b198a16422fe3c8263fc31150a067a336bcbf92224f846ed121614d'
         '94dbc482b57cb1c1ceb7469a518af49bf684612e5f77ac31ed83b61633b21bcb29c03c0ac8f79a8629c38b0130be81b8e9909a35f5eccdbc4fc832d7cd57b108'
         '6138aee47dcdf5f16864e64e43462d98fcaa518eb27ce45b4166ab6f55d42a44614130209857d6c527c0e4203aa5be7c2589bc6995443c8af7886f9bb2edb0b3'
-        '8cdbdcc2ee94574aa0a70dc6e13b312487c670f22cc9fc9a7e3a672f27bad365d790fba3051f9526b4bd1582fa3bcd0fc3faa90c1373ade9e492cf652526e5a7'
+        '8a9d4aeab45becc658c161174eac7eb12fc2062927168585caa34b644a4edab57fa9ef25879c8a48b8bede1bb7fd7f71bc8299d409b11063aee6e65160521e92'
+        '16e05ed707270707abc52bf789d5fca18ca7041ca01cd15d49c9d3b10743bc899f1672271afe590e2042aca46f5aba8019aa05ab452dc43a93f6d8b492b1f9e7'
         '9baa113f8982af04ffafd26096c48c0a099e7aebeafc635c97e79fd5c70da2c348d7b40e05110d01a5f2e2c2ebf5750bab37ebe6b080b5e6c27520aec6dffc82'
         '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a'
+        '5536d53de6a4b5729fdf7324f2dadf16fea839ace25a4e90c304fc0b05e8d9be66361dddd5c6d39cb5fb3d83a89b58542557a0782aa67d85f8d60560244863ff'
         '687e4c74aba0e69a5f6a8f8989d62ca38cceaadd5100f5c7773c010c84efece4968ffed9e7cf429571ee934c09f5fc5cc7835771ee62e7cdd5998561427c8e70'
         '0731dbc14f9b3cf1023d7d35382c221b95eb44b4a18f883e47d1b537a81d81e588edcf401f5a1b958035ab3ed3305bd4929baa66123f90c9796243baa65645b3'
         '7b9c5e5e3d3393d2ae1cc2c2cd55c1896c5e6ecc0c7a71178ebb297f9426b11cb7c5f98efc610e09cbaf808ea172375242d38d00bad81a7c08968f499e3869a6')
@@ -190,12 +214,25 @@ export KBUILD_BUILD_HOST=archlinux
 export KBUILD_BUILD_USER=$pkgbase
 export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
 
+_linux_rg_apply_path_remap() {
+  local map_src="$srcdir"
+  export KCPPFLAGS="${KCPPFLAGS:+$KCPPFLAGS }-fmacro-prefix-map=$map_src=."
+  export KCFLAGS="${KCFLAGS:+$KCFLAGS }-fdebug-prefix-map=$map_src=. -ffile-prefix-map=$map_src=."
+  export KRUSTFLAGS="${KRUSTFLAGS:+$KRUSTFLAGS }--remap-path-prefix=$map_src=."
+}
+
 prepare() {
   cd $_srcname
 
   echo "Setting version..."
   echo "-$pkgrel" > localversion.10-pkgrel
   echo "${pkgbase#linux}" > localversion.20-pkgname
+  local linux_rg_profile=${LINUX_RG_PROFILE:-rgx1gen11}
+  case "$linux_rg_profile" in
+    rgx1gen11|rgam5terra) ;;
+    *) echo "unsupported linux-rg profile: $linux_rg_profile" >&2; exit 1 ;;
+  esac
+  echo "Using linux-rg profile: $linux_rg_profile"
 
   local src
   for src in "${source[@]}"; do
@@ -208,6 +245,7 @@ prepare() {
     [[ $src = ddcci-0.4.5-linux-7.0.patch ]] && continue
     [[ $src = rtl88xxau-r1298-linux-7.0.patch ]] && continue
     [[ $src = evdi-1.14.7-linux-7.0.patch ]] && continue
+    [[ $src = 0022-amd-znver5-rdseed.patch && $linux_rg_profile != rgam5terra ]] && continue
     echo "Applying patch $src..."
     if [[ $src = 0001-bore-cachy.patch ]]; then
       if ! patch -Np1 < "../$src"; then
@@ -241,7 +279,7 @@ prepare() {
 
   echo "Setting config..."
   cp ../config.$CARCH .config
-  echo "Applying rgx1gen11 config..."
+  echo "Applying $linux_rg_profile config..."
   while IFS= read -r rg_cfg; do
     case "$rg_cfg" in "") continue ;; esac
     if [[ "$rg_cfg" =~ ^\#\ CONFIG_([A-Za-z0-9_]+)\ is\ not\ set$ ]]; then
@@ -259,10 +297,10 @@ prepare() {
     elif [[ "$rg_cfg" =~ ^CONFIG_([A-Za-z0-9_]+)=([0-9]+)$ ]]; then
       scripts/config --set-val "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
     else
-      echo "unsupported rgx1gen11 config line: $rg_cfg" >&2
+      echo "unsupported $linux_rg_profile config line: $rg_cfg" >&2
       exit 1
     fi
-  done < ../rgx1gen11.config
+  done < "../$linux_rg_profile.config"
   make olddefconfig
   diff -u ../config.$CARCH .config || :
 
@@ -272,6 +310,7 @@ prepare() {
 
 build() {
   cd $_srcname
+  _linux_rg_apply_path_remap
   make all
   make -C tools/bpf/bpftool vmlinux.h feature-clang-bpf-co-re=1
 }
@@ -283,13 +322,13 @@ _package() {
     initramfs
     kmod
     linux-firmware
+    patch
   )
   optdepends=(
     "$pkgbase-headers: headers and scripts for building modules"
     'ddcutil: userspace DDC/CI monitor controls'
     'dkms: rebuild external module overlays for linux-rg'
     'linux-firmware: AX211 Wi-Fi/BT and SOF firmware (also in depends)'
-    'patch: apply DKMS compatibility overlays'
     'scx-scheds: to use sched-ext schedulers'
     'scx-tools: ASA router expert scheduler switching with scx_loader'
     'v4l2loopback-utils: utilities to control v4l2loopback devices'
@@ -317,6 +356,8 @@ _package() {
   install -Dm644 "$(make -s image_name)" "$modulesdir/vmlinuz"
 
   # Used by mkinitcpio to name the kernel
+  install -Dm644 "$srcdir/rgx1gen11.config" "$pkgdir/usr/share/linux-rg/profiles/rgx1gen11.config"
+  install -Dm644 "$srcdir/rgam5terra.config" "$pkgdir/usr/share/linux-rg/profiles/rgam5terra.config"
   echo "$pkgbase" | install -Dm644 /dev/stdin "$modulesdir/pkgbase"
 
   echo "Installing modules..."
@@ -324,6 +365,10 @@ _package() {
     DEPMOD=/usr/bin/true modules_install  # Pacman hooks regenerate module indices.
 
   install -Dm755 "$srcdir/asa-router" "$pkgdir/usr/bin/asa-router"
+  install -Dm755 "$srcdir/rg-terra-power" "$pkgdir/usr/bin/rg-terra-power"
+  install -Dm755 "$srcdir/rgam5terra-memory-check" "$pkgdir/usr/bin/rgam5terra-memory-check"
+  install -Dm755 "$srcdir/rgam5terra-nvme-check" "$pkgdir/usr/bin/rgam5terra-nvme-check"
+  install -Dm755 "$srcdir/rgam5terra-thermal-check" "$pkgdir/usr/bin/rgam5terra-thermal-check"
   install -Dm755 "$srcdir/rgx1gen11-ax211-check" "$pkgdir/usr/bin/rgx1gen11-ax211-check"
   install -Dm755 "$srcdir/rgx1gen11-memory-check" "$pkgdir/usr/bin/rgx1gen11-memory-check"
   install -Dm755 "$srcdir/rgx1gen11-pstore-check" "$pkgdir/usr/bin/rgx1gen11-pstore-check"
@@ -339,8 +384,11 @@ _package() {
   install -Dm755 "$srcdir/rgx1gen11-s0ix-tool-sync" "$pkgdir/usr/bin/rgx1gen11-s0ix-tool-sync"
   install -Dm755 "$srcdir/rgx1gen11-boot-check" "$pkgdir/usr/bin/rgx1gen11-boot-check"
   install -Dm755 "$srcdir/rgx1gen11-dkms-overlay-apply" "$pkgdir/usr/bin/rgx1gen11-dkms-overlay-apply"
+  install -Dm644 "$srcdir/69-linux-rg-dkms-overlays.hook" \
+    "$pkgdir/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
   install -Dm644 "$srcdir/rgx1gen11-iwlwifi.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf"
   install -Dm644 "$srcdir/rgx1gen11-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-btusb.conf"
+  install -Dm644 "$srcdir/rgam5terra-nvidia.conf" "$pkgdir/usr/lib/modprobe.d/rgam5terra-nvidia.conf"
   install -Dm644 "$srcdir/ddcci-0.4.5-linux-7.0.patch" \
     "$pkgdir/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
   install -Dm644 "$srcdir/rtl88xxau-r1298-linux-7.0.patch" \

@@ -14,9 +14,61 @@ else
 fi
 backup_root=${RG_DKMS_OVERLAY_BACKUP_ROOT:-/tmp/rg-linux-rg-dkms-overlay-backups}
 jobs=${RG_DKMS_JOBS:-}
-target_kver=${1:-${RG_DKMS_KVER:-}}
+target_kver=${RG_DKMS_KVER:-}
+patch_only=0
+if_present=0
 
-if (( EUID != 0 )); then
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-dkms-overlay-apply [options] [kernel-release]
+
+Apply linux-rg compatibility patches to known DKMS source trees.
+
+Options:
+  --patch-only    Patch DKMS sources and leave rebuilds to the pacman DKMS hook
+  --if-present    Skip missing optional DKMS sources or linux-rg headers
+  --jobs N        DKMS rebuild jobs, defaulting to 80% of local CPUs
+USAGE
+}
+
+while (($#)); do
+  case "$1" in
+    --patch-only)
+      patch_only=1
+      shift
+      ;;
+    --if-present)
+      if_present=1
+      shift
+      ;;
+    --jobs)
+      [[ $# -ge 2 ]] || {
+        printf 'error: --jobs needs a value\n' >&2
+        exit 2
+      }
+      jobs=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --*)
+      printf 'error: unknown option: %s\n' "$1" >&2
+      exit 2
+      ;;
+    *)
+      [[ -z $target_kver ]] || {
+        printf 'error: multiple kernel releases specified\n' >&2
+        exit 2
+      }
+      target_kver=$1
+      shift
+      ;;
+  esac
+done
+
+if ((EUID != 0)); then
   printf 'error: run as root\n' >&2
   exit 1
 fi
@@ -38,11 +90,19 @@ if [[ -z $target_kver ]]; then
 fi
 
 if [[ -z $target_kver ]]; then
+  if ((if_present)); then
+    printf 'skip: no installed linux-rg module tree\n'
+    exit 0
+  fi
   printf 'error: could not find an installed linux-rg module tree\n' >&2
   exit 1
 fi
 
 if [[ ! -d /usr/lib/modules/$target_kver/build ]]; then
+  if ((if_present)); then
+    printf 'skip: missing headers for %s\n' "$target_kver"
+    exit 0
+  fi
   printf 'error: missing headers for %s\n' "$target_kver" >&2
   exit 1
 fi
@@ -91,6 +151,10 @@ patch_module() {
     return 1
   }
   [[ -d $src_dir ]] || {
+    if ((if_present)); then
+      printf 'skip: missing DKMS source: %s\n' "$src_dir"
+      return 0
+    fi
     printf 'error: missing DKMS source: %s\n' "$src_dir" >&2
     return 1
   }
@@ -121,6 +185,11 @@ printf 'jobs: %s\n' "$jobs"
 patch_module ddcci 0.4.5 ddcci-0.4.5 dkms-overlays/ddcci-0.4.5-linux-7.0.patch "$stamp"
 patch_module rtl88xxau r1298.b44d288 rtl88xxau-r1298.b44d288 dkms-overlays/rtl88xxau-r1298-linux-7.0.patch "$stamp"
 patch_module evdi 1.14.7 evdi-1.14.7 dkms-overlays/evdi-1.14.7-linux-7.0.patch "$stamp"
+
+if ((patch_only)); then
+  printf '\npatch-only: dkms rebuild left to pacman hook\n'
+  exit 0
+fi
 
 rebuild_module ddcci 0.4.5
 rebuild_module rtl88xxau r1298.b44d288

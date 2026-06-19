@@ -79,10 +79,10 @@ Downstream survey (CachyOS / sirlucjan / Liquorix): =docs/rgam5terra-kernel.org=
 ** Status
 
 | Field | Value |
-| Decision | planned carry for rgam5terra profile build |
+| Decision | profile-gated carry for rgam5terra build |
 | Evidence grade | B (CPU erratum + microcode policy) |
 | Source | cachyos-fixes-patches-v27 #19/46; Eric Naim |
-| Patch file | =0022-amd-znver5-rdseed.patch= (staged; not in PKGBUILD until profile overlay) |
+| Patch file | =0022-amd-znver5-rdseed.patch=; PKGBUILD applies it only for =LINUX_RG_PROFILE=rgam5terra= |
 | vissue | =linux-rg-gjou= |
 
 ** What it is
@@ -95,11 +95,11 @@ RDSEED remains available while nagging to update =amd-ucode=.
 
 | Profile | Status |
 | rgx1gen11 | n/a (Intel) |
-| rgam5terra | planned carry |
+| rgam5terra | profile-gated carry |
 
 ** Carry gate
 
-Ship with profile overlay only. Production box must still install =amd-ucode=
+Carry only in the rgam5terra profile. Production box must still install =amd-ucode=
 and pass early microcode load in initramfs.
 
 * Candidate: btrfs DIO parallel writes (0023)

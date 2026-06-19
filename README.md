@@ -282,7 +282,7 @@ reproducibly, compile against the Arch kernel base, and have documented
 applicability to one or more active profiles (see candidates.org and the
 profile targets docs).
 
-rgam5terra profile docs include a CachyOS/sirlucjan downstream patch survey;
-=0022-amd-znver5-rdseed.patch= is staged for the Zen 5 profile. Archiso
+rgam5terra profile docs include a CachyOS/sirlucjan downstream patch survey.
+=0022-amd-znver5-rdseed.patch= is profile-gated for the Zen 5 build. Archiso
 profile-selector behavior is tracked in =linux-rg-1xe1=, and NixOS provisioning
 evaluation is tracked in =linux-rg-gdg7=.
