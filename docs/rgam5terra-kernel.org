@@ -17,7 +17,8 @@ Shared:
 - =docs/literature-review.org= -- evidence grades, venue map
 - =docs/candidates.org= -- candidates with per-profile applicability notes
 
-Related vissue: =linux-rg-3up1=.
+Related vissues: =linux-rg-3up1= (parent); patch children =linux-rg-gjou=
+through =linux-rg-awbh=; gates =linux-rg-1s03=, =linux-rg-ax5w=.
 
 * Machine (rgam5terra profile)
 
@@ -103,7 +104,10 @@ profile-specific interpretation as of 2026-06-19 research pass.
 | 0020 cache-aware SCHED_CACHE | evaluating | **Higher priority** on dual-CCD Zen 5 |
 | 0021 MM bulk-free | evaluating | Large-RAM reclaim hot paths |
 | 0022 znver5 RDSEED warn | **planned carry** | cachyos-fixes #19; staged patch file |
-| 0023 btrfs DIO parallel | candidate | If btrfs root; cachyos-fixes #38 |
+| 0023 btrfs DIO parallel | likely skip | Arch 7.0.12 has =IS_NOSEC= DIO path |
+| 0027 BT USB quirks | probe-gated | cachyos-fixes #04; =linux-rg-eamh= |
+| 0028 in-kernel r8125 | probe-gated | sirlucjan r8125-patches; =linux-rg-awbh= |
+| 0029 udmabuf sg fix | candidate | cachyos-fixes #11; =linux-rg-6rl5= |
 | 0024 MZEN5 znver5 ISA | candidate | graysky cpu-patches; after PPT gate |
 | 0025 gaming-sched cgroup_mode | candidate | 32T cgroup shares; BORE conflict risk |
 | 0026 newidle balance revert | candidate | Cachy desktop; mutually exclusive w/ 0025 |
@@ -395,7 +399,9 @@ for AMD desktop repos -- this is the closest CachyOS "profile" to rgam5terra.
 | 18 | sched_ext SMT idle | **evaluate** 32T | D | carried =0012= |
 | **19** | **znver5 RDSEED microcode warn** | **carry** 9950X | B | staged =0022= (profile-only) |
 | 38 | btrfs DIO not serialized | **carry if btrfs root** | B/C | candidate =0023= |
-| 03-04 | BT USB quirks (B650 board) | probe B650I VID/PID | C | candidate if BT broken |
+| 03 | BT USB quirk =0489:e112= (ASUS B650M) | skip | C | **already in Arch 7.0.12** |
+| 04 | BT USB quirk delta (+15 IDs) | probe B650I VID/PID | C | candidate =0027= if BT broken |
+| 11 | udmabuf malformed scatterlist | shared stability | B | candidate =0029= |
 | 01-02,12-29 | i915/Panther PSR/FRED | skip | -- | wrong hardware |
 | 40-46 | AMD PMC laptop quirks | skip | C | ThinkPad/Lenovo laptops |
 
@@ -439,11 +445,14 @@ Ordered for implementation when =rgam5terra.config= lands:
 
 | ID | Patch | Source | Priority | Gate |
 | 0022 | amd znver5 RDSEED warn-only | cachyos-fixes #19 | P0 | Zen 5 boot; file staged in repo |
-| 0023 | btrfs DIO parallel writes | cachyos-fixes #38 | P1 | btrfs root only |
-| 0024 | graysky MZEN5 Kconfig/=-march= | cpu-patches | P2 | >1% bench @ fixed PPT |
-| 0025 | gaming-sched cgroup_mode | gaming-sched | P3 | Only if cgroup starvation measured |
-| 0026 | newidle balance revert | cachyos-fixes #05 | P3 | Alternative to 0025; not with BORE+0025 |
-| -- | r8125 DKMS package | CachyOS packaging | P1 | r8169 link instability |
+| 0023 | btrfs DIO parallel writes | cachyos-fixes #38 | -- | **likely skip** on 7.0.12 (=linux-rg-jt9d=) |
+| 0024 | graysky MZEN5 Kconfig/=-march= | cpu-patches | P2 | >1% bench @ fixed PPT (=linux-rg-1btr=) |
+| 0025 | gaming-sched cgroup_mode | gaming-sched | P3 | cgroup starvation only (=linux-rg-g2nl=) |
+| 0026 | newidle balance revert | cachyos-fixes #05 | P3 | alt to 0025 (=linux-rg-nc54=) |
+| 0027 | BT USB quirk delta | cachyos-fixes #04 | P1 | probe-gated (=linux-rg-eamh=) |
+| 0028 | in-kernel r8125 | r8125-patches | P1 | vs DKMS (=linux-rg-awbh=) |
+| 0029 | udmabuf scatterlist fix | cachyos-fixes #11 | P1 | dma-buf stability (=linux-rg-6rl5=) |
+| -- | r8125 DKMS package | CachyOS packaging | P1 | r8169 link instability (=linux-rg-lvi1=) |
 | -- | out-of-tree nvidia-open bind | CachyOS packaging | P2 | ABI match linux-rg-headers |
 
 P0/P1 patches are small and hardware-specific; P2+ require Terra bench harness.

@@ -22,7 +22,8 @@ Companion docs:
 - =docs/candidates.org= -- shared candidate registry with per-profile notes
 - =docs/literature-review.org= -- evidence grades and bibliography
 
-Related vissue: =linux-rg-3up1= ("linux-rg: rgam5terra AM5 RTX profile").
+Related vissues: =linux-rg-3up1= (parent); =linux-rg-ax5w= (first probe);
+patch queue =linux-rg-gjou= through =linux-rg-awbh=.
 
 * Full build listing (Micro Center receipts)
 
@@ -63,8 +64,9 @@ likely rounding or a kiosk display quirk; use SKU table as authoritative).
 - Cooler is the **AM4** NH-L9a SKU. Build state: the AM4 cooler is physically
   mounted on AM5. Thermal plan is unchanged (low-profile air in Terra).
 - Case color **Jade**; GPU is **ASUS Dual** two-fan, not a generic board partner.
-- Motherboard is **B650I** (B650 chipset mini-ITX), matching the receipt crop
-  and ASRock product page.
+- Motherboard receipt line reads **B650I** (SKU 657478). Confirm chipset on
+  silkscreen at unbox (=linux-rg-ax5w=); driver plan follows the B650I vendor
+  page unless the board probe disagrees.
 - Arctic P12 Pro is an extra 120 mm fan beyond the PSU/GPU/case fans -- document
   airflow plan when Terra panels are on.
 

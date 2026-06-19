@@ -58,6 +58,9 @@ each carried / candidate section.
 | 0024 MZEN5 ISA | n/a | evaluating | graysky; not znver4 |
 | 0025 gaming-sched | n/a | evaluating | 32T cgroup fairness |
 | 0026 newidle revert | n/a | evaluating | alt to 0025 |
+| 0027 BT USB quirks | n/a | probe-gated | cachyos-fixes #04 delta |
+| 0028 in-kernel r8125 | n/a | probe-gated | alt to DKMS |
+| 0029 udmabuf sg fix | shared? | candidate | cachyos-fixes #11 |
 
 rgam5terra research pass 2026-06-19: profile docs populated from primary
 sources; live carry decisions remain gated on assembly + bench (=linux-rg-3up1=).
@@ -74,7 +77,7 @@ Downstream survey (CachyOS / sirlucjan / Liquorix): =docs/rgam5terra-kernel.org=
 | Evidence grade | B (CPU erratum + microcode policy) |
 | Source | cachyos-fixes-patches-v27 #19/46; Eric Naim |
 | Patch file | =0022-amd-znver5-rdseed.patch= (staged; not in PKGBUILD until profile overlay) |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-gjou= |
 
 ** What it is
 
@@ -101,7 +104,7 @@ and pass early microcode load in initramfs.
 | Decision | candidate (btrfs root only) |
 | Evidence grade | B/C (filesystem maintainer fix; Cachy measured ~59% DIO on one box) |
 | Source | cachyos-fixes-patches-v27 #38/46 |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-jt9d= |
 
 ** What it is
 
@@ -116,8 +119,9 @@ Irrelevant for ext4-only installs.
 
 ** Decision gate
 
-Carry only when root FS is confirmed btrfs. Check if fix is already in Arch
-7.0.12+ base before extracting.
+Carry only when root FS is confirmed btrfs. **Arch 7.0.12 already has =IS_NOSEC=
+parallel DIO path** in =fs/btrfs/direct-io.c= (downstream survey 2026-06-19) --
+likely CANCELLED unless rebased kernel regresses.
 
 * Candidate: graysky MZEN5 / znver5 compiler target (0024)
 
@@ -127,7 +131,7 @@ Carry only when root FS is confirmed btrfs. Check if fix is already in Arch
 | Decision | evaluating |
 | Evidence grade | D (ISA tuning folklore) |
 | Source | sirlucjan =7.0/cpu-patches= (graysky merge) |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-1btr= |
 
 ** What it is
 
@@ -152,7 +156,7 @@ Same as znver5 ISA row: >1% =make -j32= or kernel compile win at identical power
 | Decision | evaluating |
 | Evidence grade | D (Intel maintainer prototype; no published desktop study) |
 | Source | sirlucjan =7.0/gaming-sched= (Peter Zijlstra series) |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-g2nl= |
 
 ** What it is
 
@@ -184,7 +188,7 @@ stock BORE+sched_ext, and gaming-sched wins A/B over newidle revert.
 | Decision | evaluating (rgam5terra only) |
 | Evidence grade | D |
 | Source | cachyos-fixes-patches-v27 #05/46 |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-nc54= |
 
 ** rgam5terra difference from rgx1gen11 block
 
@@ -204,7 +208,7 @@ both BORE and 0025.
 | Decision | evaluating (userspace/DKMS, not kernel patch) |
 | Evidence grade | C (CachyOS ships it; Realtek vendor driver) |
 | Source | CachyOS =_build_r8125=yes=, github.com/aravance/r8125 |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-lvi1= (DKMS); =linux-rg-awbh= (in-kernel 0028) |
 
 ** What it is
 
@@ -220,6 +224,60 @@ for rgam5terra.
 ** Decision gate
 
 Probe =ethtool= link modes on first boot. Carry DKMS helper only on failure.
+
+* Candidate: BT USB quirk delta (0027)
+
+** Status
+
+| Field | Value |
+| Decision | probe-gated |
+| Evidence grade | C (board-specific BT firmware load) |
+| Source | cachyos-fixes-patches-v27 #04 (+15 IDs incl. =13d3:3625=) |
+| vissue | =linux-rg-eamh= |
+
+** What it is
+
+Adds MediaTek/Realtek BT USB device-table quirks missing from Arch 7.0.12
+=btusb.c=. v27 #03 (=0489:e112= ASUS PRIME B650M) is already upstream.
+
+** rgam5terra fit
+
+B650I Lightning WiFi combo module VID/PID unknown until =linux-rg-ax5w= probe.
+Carry only on confirmed gap + BT firmware failure.
+
+* Candidate: in-kernel r8125 module (0028)
+
+** Status
+
+| Field | Value |
+| Decision | probe-gated (alternative to DKMS) |
+| Evidence grade | C (vendor driver; sirlucjan packaging) |
+| Source | sirlucjan =7.0/r8125-patches/= (7 patches, r8169 coexist) |
+| vissue | =linux-rg-awbh= |
+
+** What it is
+
+In-tree Realtek r8125 driver series instead of CachyOS DKMS packaging
+(=linux-rg-lvi1=). Pick one path after =ethtool= probe on B650I 2.5G LAN.
+
+* Candidate: udmabuf malformed scatterlist fix (0029)
+
+** Status
+
+| Field | Value |
+| Decision | candidate |
+| Evidence grade | B (dma-buf stability) |
+| Source | cachyos-fixes-patches-v27 #11 |
+| vissue | =linux-rg-6rl5= |
+
+** What it is
+
+Replaces =sg_set_folio= loop with =sg_alloc_table_from_pages= in udmabuf path.
+Arch 7.0.12 still uses older pattern; Cachy 7.1.1 prebuilt has fix.
+
+** Applicability
+
+May benefit all profiles if carried in shared 00xx queue.
 
 * Candidate: CachyOS CONFIG_CACHY fair (explicit block for rgam5terra)
 
@@ -254,7 +312,7 @@ conflicts with T1 PPT cap and NH-L9a thermal envelope. Use amd-pstate EPP.
 | Field | Value |
 | Decision | planned (userspace/firmware; mandatory before kernel bench) |
 | Evidence grade | B (Noctua TDP class) + C (SFF practice) |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-1s03= |
 
 ** What it is
 
@@ -280,7 +338,7 @@ CPU peak temp is stable across a 10-minute mixed load with Terra panels on.
 | Field | Value |
 | Decision | probe (cmdline A/B) |
 | Evidence grade | C (Arch/community NVIDIA+ASPM anecdotes) |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-6dpc= |
 
 ** What it is
 
@@ -304,7 +362,7 @@ Test =off= vs =powersave= with five S3 cycles and modeset recovery.
 | Field | Value |
 | Decision | probe-first (may disable) |
 | Evidence grade | B (ArchWiki APST semantics) + C (WD community reports) |
-| vissue | =linux-rg-3up1=, =linux-rg-rt1t= |
+| vissue | =linux-rg-gkns=, =linux-rg-rt1t= |
 
 ** What it is
 
@@ -330,7 +388,7 @@ idle NVMe power savings until five suspend cycles pass with APST on. Fallback:
 | Decision | evaluating (no carry until bench) |
 | Evidence grade | D (Phoronix/Cachy folklore) |
 | Source | cpu-cachyos-patches lineage; Arch =-march=x86-64-v3= default |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-1btr= |
 
 ** What it is
 
@@ -355,7 +413,7 @@ Promote only if kernel image compile + =make -j32= throughput improves >1% at
 | Field | Value |
 | Decision | planned userspace experiment |
 | Evidence grade | C (ArchWiki NVIDIA tips; not peer-reviewed) |
-| vissue | =linux-rg-3up1= |
+| vissue | =linux-rg-t49m= |
 
 ** What it is
 
