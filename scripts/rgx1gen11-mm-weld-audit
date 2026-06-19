@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ratio_patch=${1:-0018-cachy-mm-ratios.patch}
+mglru_patch=${2:-0019-mglru-devtree-adapt.patch}
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+want_file() {
+  local path=$1
+  if [[ -r $path ]]; then
+    return 0
+  fi
+  fail "not readable: $path"
+  return 1
+}
+
+want_pattern() {
+  local file=$1
+  local pattern=$2
+  local description=$3
+  local failure_description=${4:-$description}
+
+  if rg -q "$pattern" "$file"; then
+    pass "$description"
+  else
+    fail "$failure_description"
+  fi
+}
+
+want_file "$ratio_patch" || exit 1
+want_file "$mglru_patch" || exit 1
+
+want_pattern "$ratio_patch" 'config ANON_MIN_RATIO' '0018 defines ANON_MIN_RATIO'
+want_pattern "$ratio_patch" 'config CLEAN_LOW_RATIO' '0018 defines CLEAN_LOW_RATIO'
+want_pattern "$ratio_patch" 'config CLEAN_MIN_RATIO' '0018 defines CLEAN_MIN_RATIO'
+want_pattern "$ratio_patch" 'workingset_protection' '0018 defines workingset_protection sysctl'
+want_pattern "$ratio_patch" 'get_type_to_scan\(struct lruvec \*lruvec, struct scan_control \*sc,' \
+  '0018 makes get_type_to_scan scan_control-aware'
+want_pattern "$ratio_patch" 'sc->clean_below_min \|\| sc->clean_below_low' \
+  '0018 gates file reclaim under clean ratios'
+want_pattern "$ratio_patch" 'sc->anon_below_min' \
+  '0018 gates anonymous reclaim under anon ratio'
+want_pattern "$ratio_patch" 'prepare_workingset_protection\(pgdat, sc\)' \
+  '0018 prepares node-local ratio state'
+
+want_pattern "$mglru_patch" 'handle_reclaim_writeback' \
+  '0019 carries MGLRU writeback helper'
+want_pattern "$mglru_patch" 'lruvec_evictable_size' \
+  '0019 carries MGLRU evictable-size helper'
+want_pattern "$mglru_patch" 'try_to_inc_min_seq\(lruvec, swappiness\)' \
+  '0019 carries MGLRU min-seq flushing'
+want_pattern "$mglru_patch" 'get_type_to_scan\(lruvec, sc, swappiness\)' \
+  '0019 keeps ratio-aware get_type_to_scan call' \
+  '0019 lacks ratio-aware get_type_to_scan(lruvec, sc, swappiness)'
+want_pattern "$mglru_patch" 'isolate_folios\(nr_to_scan, lruvec, sc, swappiness,' \
+  '0019 keeps scan_control in isolate_folios call'
+want_pattern "$mglru_patch" 'handle_reclaim_writeback\(isolated, pgdat, sc, &stat\)' \
+  '0019 accounts writeback after isolated folios'
+
+if (( failures > 0 )); then
+  exit 1
+fi

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+audit="$repo/scripts/rgx1gen11-mm-weld-audit"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$audit" || fail "missing executable MM weld audit"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+cp "$repo/0018-cachy-mm-ratios.patch" "$tmpdir/0018.patch"
+cp "$repo/0019-mglru-devtree-adapt.patch" "$tmpdir/0019.patch"
+
+"$audit" "$tmpdir/0018.patch" "$tmpdir/0019.patch" >/tmp/rgx1gen11-mm-weld-audit.good
+rg -Fq 'ok: 0019 keeps ratio-aware get_type_to_scan call' /tmp/rgx1gen11-mm-weld-audit.good \
+  || fail "audit should report the ratio-aware get_type_to_scan call"
+
+sed -i 's/get_type_to_scan(lruvec, sc, swappiness)/get_type_to_scan(lruvec, swappiness)/' "$tmpdir/0019.patch"
+if "$audit" "$tmpdir/0018.patch" "$tmpdir/0019.patch" >/tmp/rgx1gen11-mm-weld-audit.bad 2>&1; then
+  fail "audit should fail when 0019 drops scan_control from get_type_to_scan"
+fi
+rg -Fq 'fail: 0019 lacks ratio-aware get_type_to_scan(lruvec, sc, swappiness)' /tmp/rgx1gen11-mm-weld-audit.bad \
+  || fail "audit failure should name the dropped ratio weld"
+
+printf 'ok\n'
