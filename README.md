@@ -205,6 +205,27 @@ After selecting `Arch Linux linux-rg` in rEFInd:
 rgx1gen11-boot-check --live --require-boot-log
 ```
 
+## DKMS Overlays
+
+The package ships compatibility overlays for out-of-tree modules that lag the
+Linux 7.0 kernel API:
+
+- `ddcci/0.4.5`
+- `rtl88xxau/r1298.b44d288`
+- `evdi/1.14.7`
+
+After installing `linux-rg` and `linux-rg-headers`, apply the overlays and
+rebuild the modules for the installed kernel:
+
+```sh
+sudo RG_DKMS_JOBS=9 rgx1gen11-dkms-overlay-apply 7.0.12-arch1-1-rg
+```
+
+The helper backs up the DKMS sources under
+`/tmp/rg-linux-rg-dkms-overlay-backups`, patches both `/usr/src` and active
+`/var/lib/dkms/*/build` trees idempotently, then runs `dkms build`, `dkms
+install`, and `depmod` for the target kernel.
+
 ## Notes
 
 Design, hardware targets, and patch rationale:
