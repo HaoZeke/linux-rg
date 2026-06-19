@@ -61,6 +61,12 @@ each carried / candidate section.
 | 0027 BT USB quirks | n/a | probe-gated | cachyos-fixes #04 delta |
 | 0028 in-kernel r8125 | n/a | probe-gated | alt to DKMS |
 | 0029 udmabuf sg fix | shared? | candidate | cachyos-fixes #11 |
+| 0040 poc-selector dual-CCD | n/a | evaluating | sirlucjan |
+| 0042 NAP cpuidle | n/a | evaluating | amd idle ML gov |
+| T41-T44 cmdline matrix | n/a | probe | AMD idle/IOMMU/NVMe |
+| T45-T47 NVIDIA modparams | n/a | probe | DPM/PAT/fan |
+| T48-T49 uclamp | shared | planned | cgroup slices + Slurm |
+| T54 rg-terra-power | n/a | planned | chezmoi thermal profiles |
 
 rgam5terra research pass 2026-06-19: profile docs populated from primary
 sources; live carry decisions remain gated on assembly + bench (=linux-rg-3up1=).

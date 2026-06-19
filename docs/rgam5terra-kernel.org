@@ -275,6 +275,23 @@ standards, B kernel.org/LWN/LPC, C vendor/Phoronix, D folklore until bench).
 | T36 | IRQ | irqbalance disable trial (single-socket 32T) | userspace | C | evaluating | =linux-rg-cmqd=; port =linux-rg-kqlk= |
 | T37 | LAN | RPS/RFS on RTL8125 NIC for build/NFS softirq | kernel sysfs | C | evaluating | =linux-rg-b0t2= |
 | T40 | Batch queue | Single-node Slurm + NVIDIA GRES | chezmoi | B | planned | Epic =linux-rg-uxqx= |
+| T39 | PCIe | GPU Gen4 link verify (lspci LnkSta) | probe | B | probe | =linux-rg-ax5w= |
+| T41 | CPU idle | =max_cstate= / =idle=nomwait= cmdline A/B | cmdline | C | probe | =linux-rg-gu04= |
+| T42 | CPU idle | (see T41 nomwait row) | cmdline | C | probe | =linux-rg-gu04= |
+| T43 | IOMMU | =amd_iommu=on iommu=pt= | cmdline | B | probe | KVM/GPU passthrough prep |
+| T44 | NVMe | =nvme_core.io_timeout= tune | cmdline | C | probe | =linux-rg-gu04= |
+| T45 | GPU | =NVreg_DynamicPowerManagement= | module | C | probe | =linux-rg-8vkn= |
+| T46 | GPU | PAT / firmware module params | module | C | probe | =linux-rg-8vkn= |
+| T47 | GPU | RegistryDwords fan policy | module | C | probe | =linux-rg-8vkn= |
+| T48 | Scheduler | uclamp on slices / Slurm | cgroup v2 | B | planned | =linux-rg-p523= |
+| T49 | Scheduler | =CONFIG_UCLAMP_*= overlay pin | config | B | planned | =linux-rg-p523= |
+| T51 | RAM | =rgam5terra-memory-check= | userspace | B | planned | =linux-rg-qy57= |
+| T52 | RAM | ManagedOOM + oomd port | chezmoi | B | planned | =linux-rg-3hoq= |
+| T54 | Thermals | =rg-terra-power= chezmoi | chezmoi | C | planned | =linux-rg-pn2n= |
+| T56 | Scheduler | scx_rusty/flash 32T build | userspace | C | evaluating | =linux-rg-6fzb= |
+| T60 | ACPI | S3 vs s2idle desktop+NVIDIA | firmware | C | probe | =linux-rg-jp34= |
+| T68 | IRQ | MSI affinity NVMe+NIC CCD0 | sysfs | C | evaluating | =linux-rg-zypp= |
+| T73 | GPU packaging | nvidia-open ABI bind | packaging | B | planned | =linux-rg-qgqu= |
 
 ** Subsystem detail
 
@@ -467,6 +484,8 @@ Ordered for implementation when =rgam5terra.config= lands:
 | 0030 | sched idle symmetric hooks | cachyos-fixes #20 | P2 | =linux-rg-i27u= |
 | 0032 | detach_tasks standalone (0011) | fair.c fix | P2 | =linux-rg-ylxm= |
 | 0031 | BFQ dev-tree hunks | block-patches | P3 | =linux-rg-dz7l= |
+| 0040 | poc-selector dual-CCD | poc-selector-patches | P3 | =linux-rg-99v9= |
+| 0042 | NAP cpuidle governor | nap-patches | P3 | =linux-rg-qfco= |
 | -- | out-of-tree nvidia-open bind | CachyOS packaging | P2 | ABI match linux-rg-headers |
 
 P0/P1 patches are small and hardware-specific; P2+ require Terra bench harness.
