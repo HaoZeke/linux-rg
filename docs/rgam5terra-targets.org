@@ -44,7 +44,7 @@ linux-rg boot** (receipt != assembled system).
 | 8 | Noctua NH-L9a-AM4 low-profile CPU cooler | 958454 | 1 | 64.99 | 64.99 | 4, Aisle 35 |
 | 9 | ARCTIC P12 Pro 120mm case fan (Black) | 953612 | 1 | 11.99 | 11.99 | 14, Aisle 35 |
 
-** Receipt totals (image 1, cart with all nine lines)**
+** Receipt totals (image 1, cart with all nine lines)
 
 | Field | Amount |
 | Subtotal | $2,786.91 |
@@ -56,7 +56,7 @@ linux-rg boot** (receipt != assembled system).
 Line-item sum: $2,787.91 (nine parts); kiosk subtotal $2,786.91 (off by $1.00 --
 likely rounding or a kiosk display quirk; use SKU table as authoritative).
 
-** Receipt transcription notes**
+** Receipt transcription notes
 
 - Kiosk line 1 prints "Ryzen 9 8950X" at 4.2 GHz; SKU 721191 + 16-core Granite
   Ridge + $499.99 price point match the catalog **Ryzen 9 9950X**. Confirm model
@@ -96,7 +96,7 @@ Derived from receipt table above plus vendor spec sheets.
 | Status | Purchased per receipts; not yet live-probed | -- |
 | Config overlay | =rgam5terra.config= (not yet added) | -- |
 
-** Thermal constraint (primary research finding)**
+** Thermal constraint (primary research finding)
 
 The Terra case plus NH-L9a-AM4 mounted on AM5 is a **low-profile air cooler on a
 170 W CPU** in a volume-constrained chassis, paired with a **~250 W-class
@@ -122,7 +122,8 @@ Default daily driver once assembled: =desktop-mixed=. SFF thermals make
 
 | Profile | Typical load | Priority metrics |
 | desktop-mixed | Sway/Hyprland, browser, terminals, sync, light compile | frame pacing, UI latency, idle noise |
-| build-heavy | =make -j32=, containers, scientific builds, cosmolab remote compile | wall time, PSI memory/cpu, NVMe queue depth |
+| build-heavy | =make -j32=, containers, scientific builds, recorded remote build offload when access exists | wall time, PSI memory/cpu, NVMe queue depth |
+| slurm-local | Single-node Slurm partition =terra= (32 CPUs, 1x RTX 5070 GRES) | job wall time, GPU exclusivity, thermal concurrency caps |
 | gaming-dgpu | RTX 5070 primary, compositor + games, voice chat | frametime consistency, GPU power state, audio glitching |
 | memory-pressure | browser + VM + build on 48 GiB | swap thrash, oomd reaction, zram ratio |
 | thermal-sustained | Combined CPU+GPU load in closed Terra panels | CPU/GPU throttle points, fan audibility, clock stability |
@@ -256,7 +257,135 @@ parameters and policy files").
 | 5 | T2-T6, T25 | amd-pstate EPP + sched_ext/cache-aware after thermals stable |
 | 6 | T18-T22 | Network/audio polish |
 
-** Critical thermal evidence (pre-assembly)**
+* Thermal management spec (Terra + 9950X + NH-L9a + RTX 5070)
+
+Full stack for managing heat in a ~12 L sandwich case. Shorter cables, fan
+direction, and power caps matter as much as kernel tuning. Vissues: =linux-rg-1s03=
+(T1), =linux-rg-t49m= (T8), =linux-rg-ncz9= (T35), =linux-rg-uxqx= (Slurm caps).
+
+** Heat budget (why this dominates)
+
+| Source | Stock envelope | Realistic Terra sustained target |
+| CPU 9950X | 170 W TDP / 230 W PPT ceiling | *95-120 W PPT* (NH-L9a class) |
+| GPU RTX 5070 Dual | ~250 W TGP class | *150-200 W* until measured (=T8=) |
+| VRM + RAM + NVMe + PSU loss | 15-40 W under load | same order |
+| Case | Fractal Terra sandwich; wood side panels | closed-panel =thermal-sustained= profile |
+
+The sandwich isolates GPU and CPU chambers, but the *center spine and PSU zone
+still share heat*. Uncapped CPU + GPU together will throttle something; design
+for *one hot domain at a time* or accept lower clocks.
+
+** Layer 1 - Physical build (do at assembly)
+
+*** Cable and clutter (includes shorter cables)
+
+| Item | Spec / action | Why |
+| PSU cables | Use *short modular cables* for SP850 (custom length 15-25 cm segments) or route stock cables with *zero coil overlap* on GPU chamber intake | Blocked intake is the #1 Terra thermal failure mode |
+| 12VHPWR / PCIe GPU power | Single clean path along case floor or spine; *no cable sitting on GPU fan intake* | ASUS Dual fans are bottom-biased |
+| Front-panel / USB-C | Route along spine, not across CPU cooler intake | NH-L9a needs direct fin airflow |
+| Wi-Fi/BT antenna wires | Tape to spine, away from exhaust | Avoid turbulence at P12 |
+| PCIe 4.0 riser | Use *stock Fractal riser*; gentle bend radius; screw bracket firmly | Poor seating raises GPU temp + replay errors |
+| NVMe | SN850X has heatsink label; ensure *thermal pad contacts*; do not stack cables on drive | Hot spot in CPU chamber |
+
+Shorter cables are worth it: SP850 is modular (receipt). Budget *$30-80* for an
+SFF cable kit sized for Terra + ITX, or measure and order per-length.
+
+*** Fans and airflow
+
+| Fan | Role | Draft spec |
+| Arctic P12 Pro (receipt) | Case fan on Terra bottom bracket | *Intake* cool air into GPU or CPU chamber per Fractal manual; confirm orientation with smoke test |
+| ASUS RTX 5070 Dual | 2x axial, stock curve | Stock until baseline temps; then *custom fan curve in nvidia-settings* or CoolerControl |
+| Lian Li SP850 V2 | 120 mm internal PSU fan | PSU *fan down / intake from case* if manual allows; avoid recirculating hot GPU exhaust |
+| NH-L9a-AM4 | 92 mm top-down on CPU | *No case fan fighting it*; ensure fins clear VRM; quality TIM (NT-H2 included) dot method |
+
+Fractal Terra supports bottom 120 mm mount (=T23=). Common SFF patterns:
+
+- *GPU-heavy gaming:* bottom fan as intake to GPU chamber; accept CPU relies on NH-L9a + chimney effect.
+- *Build-heavy CPU:* bias intake toward CPU chamber side; cap PPT harder if GPU idle.
+
+Run =thermal-sustained= with *wood panels on* (real use) and once with *panel
+open* (diagnostic only) to separate airflow vs power-limit issues.
+
+*** Mechanical
+
+| Item | Spec |
+| TIM | Noctua NT-H2, pea/dot; remount if temps uneven across CCDs |
+| Standoffs | All motherboard standoffs; no flex on riser |
+| Terra feet / desk | Hard surface; not on cloth; blocks bottom intake |
+| Dust | Clean filters monthly; Terra has tight pressure budget |
+
+** Layer 2 - Firmware (BIOS before Linux)
+
+| Setting | Draft value | Notes |
+| PPT / TDP | *95-120 W* package power tracking | Primary lever; =ryzenadj= mirrors BIOS |
+| EDC / TDC | Scale with PPT (board defaults often too high) | ASRock Lightning WiFi; use Fan Tuning + power limits |
+| EXPO DDR5-8000 | Enable if stable (=T34=); else *6400/6000* | High DRAM voltage adds case heat |
+| Precision Boost | On, but bounded by PPT | |
+| CPU fan header | NH-L9a: *quiet profile min 40-50%* after idle noise test | Avoid 0 RPM stall on low-profile |
+| Chipset / VRM fan | If header exists: aggressive when VRM > 80 C | mini-ITX VRM is thin |
+| PCIe | Gen4 auto for GPU slot (card is Gen5, riser Gen4) | =T39= verify in =lspci -vv= |
+| ReBAR | On (NVIDIA) | not thermal; standard |
+
+** Layer 3 - Linux userspace (chezmoi / profiles)
+
+| Control | Mechanism | Profile hook |
+| CPU PPT | =ryzenadj= systemd oneshot or =rg-terra-power= | =thermal-sustained=, =build-heavy= |
+| CPU EPP | =balance_power= daily; =balance_performance= gaming; never global =performance= | =linux-rg-chzm= style profile |
+| GPU power | =nvidia-smi -pl 150|175|200= | =gaming-dgpu=, =slurm-local= GRES prolog |
+| GPU fan | nvidia-settings / CoolerControl | tie to GPU temp > 75 C |
+| Case P12 | =fancontrol= with =lm-sensors= / =pwmconfig= | =linux-rg-ncz9= |
+| Concurrency | Slurm =MaxJobs= 2-4, =--cpus-per-task=, GRES exclusivity | =linux-rg-uxqx= |
+| Build jobs | =make -j16= default in Terra; =-j32= only with GPU idle + PPT headroom | chezmoi env |
+| Compositor | cap frame rate idle; VRR where stable | reduces GPU waste heat |
+
+Example power script contract (chezmoi later):
+
+#+begin_example
+# rg-terra-power apply daily|build|gaming|stress
+# daily:    PPT 95W,  GPU PL 150W, EPP balance_power
+# build:    PPT 120W, GPU PL 120W, make -j16
+# gaming:   PPT 100W, GPU PL 200W, EPP balance_performance
+# stress:   document only; not simultaneous full CPU+GPU
+#+end_example
+
+** Layer 4 - Workload rules (behavior)
+
+| Rule | Rationale |
+| Do not run *full GPU train + make -j32* with panels closed unless in =stress= diagnostic | exceeds sandwich heat capacity |
+| Slurm: *one GPU job OR one heavy CPU job* by default | =DefCpuPerGPU= 8-16 |
+| Remote build offload requires a recorded endpoint and live access | avoids baking unavailable builder assumptions into the profile |
+| Close unused browser tabs before long builds | 48 GiB + CPU power |
+| NVMe: watch composite > 70 C (=T15=) | SN850X in warm CPU chamber |
+
+** Layer 5 - Measurement and acceptance
+
+| Sensor | Command / tool | Alert threshold (draft) |
+| CPU | =sensors=, =ryzenadj --info= | package > 95 C sustained |
+| GPU | =nvidia-smi dmon=, =sensors= | hotspot > 83 C sustained |
+| NVMe | =nvme smart-log=, =sensors nvme-pci*= | composite > 70 C |
+| VRM | board sensor if exposed | > 90 C |
+| Throttle | =journalctl -k -g THRM=, =nvidia-smi -q -d PERFORMANCE= | any sustained throttle in =thermal-sustained= |
+
+=thermal-sustained= acceptance: 10 min combined load (e.g. =stress-ng --cpu= +
+GPU furmark or game) with panels on; document clocks, noise, and whether PPT/GPU
+PL caps were hit.
+
+** Layer 6 - Hardware escape hatches (if spec insufficient)
+
+Ordered by invasiveness:
+
+1. *Shorter cables + fan curve tune* (free/cheap)
+2. *Lower PPT / GPU PL* (free, performance cost)
+3. *Second P12* on bottom bracket if Terra mount allows (receipt has one; buy second)
+4. *Cooler swap*: NH-L12S / IS-55 class if height clears GPU (measure Terra GPU length mode)
+5. *CPU downgrade in BIOS*: not ideal; prefer PPT cap on 9950X
+6. *External GPU*: not part of this build profile
+
+Kernel patches (BORE, znver5, gaming-sched) are *layer 7*; only after layers
+1-5 are stable (=linux-rg-1s03= gate).
+
+
+* Critical thermal evidence (pre-assembly)
 
 | Claim | Grade | Source |
 | 9950X 170 W default TDP | B | AMD Granite Ridge spec |

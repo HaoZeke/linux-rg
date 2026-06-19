@@ -197,6 +197,26 @@ assembly.
 Probe =lsusb= and =hciconfig= at assembly. If absent, skip BT section in
 checkers.
 
+** Bluetooth headset (Soundcore Liberty 5 Pro Max -- userspace)
+
+Phone-app profiles (ANC 4.0, HearID, whisper-clear mic DSP) are *vendor BLE
+commands*, not kernel or PipeWire settings. Linux split:
+
+| Layer | What it controls | Tool |
+| A2DP / HFP audio path | Music playback, call mic routing, codec | PipeWire + WirePlumber + BlueZ |
+| Bud ANC / EQ / gaming / LDAC | Firmware on earbuds | [[https://github.com/Oppzippy/OpenSCQ30][OpenSCQ30]] (supports *A3957* Liberty 5; *D1204* Pro Max not listed yet) |
+| Host call cleanup | Echo cancel, gain | PipeWire filters (=linux-rg-mvxn= RT rlimits) |
+| Pro Max smart case | AI note-taker, case UI | Soundcore app / phone only until D1204 BLE is reversed |
+
+Work split (vissue =linux-rg-6mt9=):
+
+| Layer | Repo | Issue |
+| Probe matrix | linux-rg docs | =linux-rg-7gce= |
+| D1204 BLE / ANC driver | [[https://github.com/Oppzippy/OpenSCQ30][OpenSCQ30]] PR | =linux-rg-owdb= |
+| =rg-soundcore-profile= + WirePlumber | chezmoi | =linux-rg-aeq1= |
+
+BudsLink targets Apple/Sony/Samsung/Google/Nothing -- not Soundcore.
+
 * Audio (Realtek ALC897)
 
 | Field | Value |

@@ -264,6 +264,17 @@ standards, B kernel.org/LWN/LPC, C vendor/Phoronix, D folklore until bench).
 | T24 | Microcode | =amd-ucode= early in initramfs | mkinitcpio | B | planned | Arch wiki microcode |
 | T25 | TCP | BBRv3 + fq default (shared linux-rg) | kernel config | A | evaluating | Less roam urgency than laptop |
 | T26 | Rust | Keep =CONFIG_RUST_FW_LOADER_ABSTRACTIONS=; skip Nova DRM | config | B/C | planned | Safety pins only; RTX uses nvidia-open |
+| T27 | GPU compute | NVIDIA persistence mode + =nvidia-persistenced= | userspace | B | planned | =linux-rg-4ho5=; Slurm job GPU init latency |
+| T28 | GPU firmware | GSP load verify + RPC timeout journal watch | userspace | B/C | planned | Blackwell open stack; pairs T7 |
+| T29 | GPU compute power | =nvidia-smi -pl= persistence, compute mode, optional locked clocks | userspace | C | planned | Extends T8; Slurm prolog hook candidate |
+| T30 | GPU display | Wayland env contract (GBM, GLX vendor, compositor matrix) | chezmoi | C | planned | =linux-rg-ecb0= |
+| T31 | CPU topology | Dual-CCD locality: =numa_balancing= A/B, =numactl= on =-j32= | sysctl + userspace | B/C | evaluating | =linux-rg-txp1=; pairs 0020 cache-aware |
+| T32 | CPU CPPC | Preferred-core BIOS + =amd_pstate_prefcore= depth probe | firmware + sysfs | B | probe | =linux-rg-ft51=; extends T3 |
+| T34 | RAM | DDR5-8000 EXPO stability; fallback 6400/6000 if train fails | firmware | C | probe | =linux-rg-qo89=; receipt CL38 kit |
+| T35 | SFF thermals | Arctic P12 PWM curve + ASRock fan tuning + optional =fancontrol= | hardware + userspace | C | planned | =linux-rg-ncz9=; extends T23 |
+| T36 | IRQ | irqbalance disable trial (single-socket 32T) | userspace | C | evaluating | =linux-rg-cmqd=; port =linux-rg-kqlk= |
+| T37 | LAN | RPS/RFS on RTL8125 NIC for build/NFS softirq | kernel sysfs | C | evaluating | =linux-rg-b0t2= |
+| T40 | Batch queue | Single-node Slurm + NVIDIA GRES | chezmoi | B | planned | Epic =linux-rg-uxqx= |
 
 ** Subsystem detail
 
@@ -453,6 +464,9 @@ Ordered for implementation when =rgam5terra.config= lands:
 | 0028 | in-kernel r8125 | r8125-patches | P1 | vs DKMS (=linux-rg-awbh=) |
 | 0029 | udmabuf scatterlist fix | cachyos-fixes #11 | P1 | dma-buf stability (=linux-rg-6rl5=) |
 | -- | r8125 DKMS package | CachyOS packaging | P1 | r8169 link instability (=linux-rg-lvi1=) |
+| 0030 | sched idle symmetric hooks | cachyos-fixes #20 | P2 | =linux-rg-i27u= |
+| 0032 | detach_tasks standalone (0011) | fair.c fix | P2 | =linux-rg-ylxm= |
+| 0031 | BFQ dev-tree hunks | block-patches | P3 | =linux-rg-dz7l= |
 | -- | out-of-tree nvidia-open bind | CachyOS packaging | P2 | ABI match linux-rg-headers |
 
 P0/P1 patches are small and hardware-specific; P2+ require Terra bench harness.
