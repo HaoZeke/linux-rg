@@ -56,12 +56,16 @@ Hooks: preserve the host's encrypted btrfs resume path:
 =base udev plymouth modconf keyboard autodetect kms keymap consolefont block
 encrypt btrfs resume filesystems fsck=.
 
+The LUKS prompt uses the vconsole keymap from the initramfs. This profile
+requires =/etc/vconsole.conf= to contain =KEYMAP=colemak= and the
+=keyboard keymap consolefont= hooks to stay present.
+
 The installer probes the live machine before package installation or boot-file
 writes. It refuses to continue unless stock rEFInd options include
 =cryptdevice=, =root=/dev/mapper/luks=, =rootflags=subvol=@=,
 =resume=/dev/mapper/luks=, =resume_offset=, =i915=, and
-=pcie_aspm.policy=powersave=, and unless =/= is currently btrfs on
-=/dev/mapper/luks=.
+=pcie_aspm.policy=powersave=, unless =/= is currently btrfs on
+=/dev/mapper/luks=, and unless the initramfs keymap path is Colemak-safe.
 
 * Rollback procedure
 

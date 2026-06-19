@@ -130,7 +130,8 @@ The dry-run is a hardware probe. It refuses to proceed unless the live machine
 matches the rgx1gen11 boot contract: encrypted btrfs root on `/dev/mapper/luks`,
 the stock rEFInd command line carries `cryptdevice=`, `rootflags=subvol=@`,
 `resume=`, `resume_offset=`, standalone `i915`, and `pcie_aspm.policy=powersave`,
-and the linux-rg initramfs keeps early `nvme i915`.
+the linux-rg initramfs keeps early `nvme i915`, and `/etc/vconsole.conf` uses
+`KEYMAP=colemak` so the LUKS prompt remains typeable.
 
 Validate the installer dry-run and package discovery path without root:
 

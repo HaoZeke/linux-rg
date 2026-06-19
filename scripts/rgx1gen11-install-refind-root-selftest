@@ -44,9 +44,15 @@ cat >"$proc_mounts" <<'EOF'
 /dev/mapper/luks / btrfs rw,relatime,ssd,space_cache=v2,subvolid=256,subvol=/@ 0 0
 EOF
 
+vconsole_conf="$tmpdir/vconsole.conf"
+cat >"$vconsole_conf" <<'EOF'
+KEYMAP=colemak
+EOF
+
 out="$tmpdir/dry-run.out"
 LINUX_RG_ARTIFACT_DIR="$artifact_dir" \
   LINUX_RG_PROC_MOUNTS="$proc_mounts" \
+  LINUX_RG_VCONSOLE_CONF="$vconsole_conf" \
   REFIND_CONF="$refind_conf" \
   MKINITCPIO_BASE="$mkinitcpio_base" \
   "$installer" --dry-run >"$out"
@@ -61,6 +67,8 @@ rg -Fq "boot contract: root=/dev/mapper/luks fstype=btrfs modules=MODULES=(nvme 
   || fail "dry run should probe encrypted btrfs boot contract"
 rg -Fq "base mkinitcpio modules: MODULES=(i915)" "$out" \
   || fail "dry run should report base early graphics module"
+rg -Fq "vconsole keymap: colemak" "$out" \
+  || fail "dry run should require the Colemak initramfs keymap"
 rg -Fq "initramfs modules: MODULES=(nvme i915)" "$out" \
   || fail "dry run should keep nvme and early i915 in initramfs modules"
 rg -Fq 'refind options:  cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=12345 i915 pcie_aspm.policy=powersave quiet' "$out" \

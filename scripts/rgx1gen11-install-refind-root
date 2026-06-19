@@ -53,6 +53,7 @@ boot_kernel=${BOOT_KERNEL:-/boot/vmlinuz-linux-rg}
 boot_initramfs=${BOOT_INITRAMFS:-/boot/initramfs-linux-rg.img}
 module_list=${LINUX_RG_INITRAMFS_MODULES:-"nvme i915"}
 proc_mounts=${LINUX_RG_PROC_MOUNTS:-/proc/mounts}
+vconsole_conf=${LINUX_RG_VCONSOLE_CONF:-/etc/vconsole.conf}
 boot_check=${LINUX_RG_BOOT_CHECK:-/tmp/rgx1gen11-boot-check}
 boot_check_install=${LINUX_RG_BOOT_CHECK_INSTALL:-/usr/local/bin/rgx1gen11-boot-check}
 stamp=$(date +%Y%m%d-%H%M%S)
@@ -116,6 +117,12 @@ base_hooks_line() {
   grep -E '^[[:space:]]*HOOKS=' "$mkinitcpio_base" | tail -n 1 || true
 }
 
+vconsole_keymap() {
+  if [[ -r $vconsole_conf ]]; then
+    sed -nE 's/^[[:space:]]*KEYMAP=([^[:space:]#]+).*/\1/p' "$vconsole_conf" | tail -n 1
+  fi
+}
+
 has_word() {
   local haystack=$1 needle=$2
   [[ " $haystack " == *" $needle "* ]]
@@ -142,13 +149,14 @@ want_prefix_word() {
 }
 
 probe_boot_contract() {
-  local modules hooks options root_fstype root_source root_line
+  local keymap modules hooks options root_fstype root_source root_line
   modules=$(line_words "$(base_modules_line)")
   hooks=$(line_words "$(base_hooks_line)")
   options=$(stock_options)
   root_line=$(awk '$2 == "/" { print; exit }' "$proc_mounts" 2>/dev/null || true)
   root_source=$(awk '$2 == "/" { print $1; exit }' "$proc_mounts" 2>/dev/null || true)
   root_fstype=$(awk '$2 == "/" { print $3; exit }' "$proc_mounts" 2>/dev/null || true)
+  keymap=$(vconsole_keymap)
 
   want_word "$(module_array_literal | sed -E 's/^MODULES=\((.*)\)$/\1/')" nvme "linux-rg initramfs MODULES"
   want_word "$(module_array_literal | sed -E 's/^MODULES=\((.*)\)$/\1/')" i915 "linux-rg initramfs MODULES"
@@ -157,6 +165,8 @@ probe_boot_contract() {
   want_word "$hooks" btrfs "$mkinitcpio_base HOOKS"
   want_word "$hooks" resume "$mkinitcpio_base HOOKS"
   want_word "$hooks" keyboard "$mkinitcpio_base HOOKS"
+  want_word "$hooks" keymap "$mkinitcpio_base HOOKS"
+  want_word "$hooks" consolefont "$mkinitcpio_base HOOKS"
   want_prefix_word "$options" cryptdevice= "$refind_conf options"
   want_word "$options" root=/dev/mapper/luks "$refind_conf options"
   want_word "$options" rootflags=subvol=@ "$refind_conf options"
@@ -176,12 +186,18 @@ probe_boot_contract() {
     fi
   fi
 
+  if [[ $keymap != colemak ]]; then
+    printf 'error: %s KEYMAP is not colemak: %s\n' "$vconsole_conf" "${keymap:-missing}" >&2
+    exit 1
+  fi
+
   printf 'boot contract: root=%s fstype=%s modules=%s hooks=%s\n' \
     "${root_source:-unknown}" "${root_fstype:-unknown}" \
     "$(module_array_literal)" "$hooks"
   if [[ -n $modules ]]; then
     printf 'base mkinitcpio modules: MODULES=(%s)\n' "$modules"
   fi
+  printf 'vconsole keymap: %s\n' "$keymap"
 }
 
 write_mkinitcpio_config() {
