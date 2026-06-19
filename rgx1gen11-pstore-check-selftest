@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+checker="$repo/rgx1gen11-pstore-check"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$checker" || fail "missing executable pstore checker"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+mkdir -p "$tmpdir/sys/fs/pstore" "$tmpdir/sys/module/efi_pstore/parameters" "$tmpdir/bin"
+printf 'Y\n' >"$tmpdir/sys/module/efi_pstore/parameters/pstore_disable"
+
+cat >"$tmpdir/bin/systemctl" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  'is-active systemd-pstore.service')
+    printf 'active\n'
+    ;;
+  'is-enabled systemd-pstore.service')
+    printf 'static\n'
+    ;;
+  *)
+    printf 'unexpected systemctl call: %s\n' "$*" >&2
+    exit 2
+    ;;
+esac
+SH
+chmod +x "$tmpdir/bin/systemctl"
+
+output=$(
+  RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$checker"
+)
+
+printf '%s\n' "$output" | rg -q 'pstore mount: readable' \
+  || fail "checker should report a readable pstore mount"
+printf '%s\n' "$output" | rg -q 'pstore files: 0' \
+  || fail "checker should report empty pstore state"
+printf '%s\n' "$output" | rg -q 'efi_pstore disabled: Y' \
+  || fail "checker should report disabled EFI pstore"
+printf '%s\n' "$output" | rg -q 'ramoops: not active' \
+  || fail "checker should keep ramoops inactive without reservation"
+printf '%s\n' "$output" | rg -q 'systemd-pstore active: active' \
+  || fail "checker should report systemd-pstore active state"
+
+printf 'dmesg-pstore sample\n' >"$tmpdir/sys/fs/pstore/dmesg-efi-1"
+output=$(
+  RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$checker"
+)
+
+printf '%s\n' "$output" | rg -q 'pstore files: 1' \
+  || fail "checker should count pstore records"
+printf '%s\n' "$output" | rg -q 'dmesg-efi-1' \
+  || fail "checker should list pstore record names"
+
+rm -rf "$tmpdir/sys/fs/pstore"
+output=$(
+  RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$checker"
+)
+
+printf '%s\n' "$output" | rg -q 'pstore mount: unavailable' \
+  || fail "checker should report missing pstore mount"
+printf '%s\n' "$output" | rg -q 'systemd-pstore active: active' \
+  || fail "checker should continue after missing pstore mount"
+
+printf 'ok\n'

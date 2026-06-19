@@ -303,6 +303,7 @@ check_installed() {
     want_checker rgx1gen11-ax211-check --config "$config_path" --modules-dir "$modules_dir" \
       --modprobe-file /usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf --firmware-root "$firmware_root" --require-firmware
     want_checker rgx1gen11-memory-check --config "$config_path"
+    want_checker rgx1gen11-pstore-check
     want_checker rgx1gen11-gpu-check --config "$config_path" --modules-dir "$modules_dir" \
       --firmware-root "$firmware_root" --require-firmware
     want_checker rgx1gen11-sof-check --config "$config_path" --modules-dir "$modules_dir" \
@@ -326,6 +327,7 @@ check_live() {
 
   want_checker rgx1gen11-ax211-check --live
   want_checker rgx1gen11-memory-check --live
+  want_checker rgx1gen11-pstore-check
   want_checker rgx1gen11-gpu-check --live "${boot_log_args[@]}"
   want_checker rgx1gen11-sof-check --live "${boot_log_args[@]}"
   want_checker rgx1gen11-nvme-check --live

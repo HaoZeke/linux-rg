@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+sys_root=${RGX1GEN11_SYS_ROOT:-/sys}
+pstore_root=${RGX1GEN11_PSTORE_ROOT:-$sys_root/fs/pstore}
+systemctl_bin=${RGX1GEN11_SYSTEMCTL:-systemctl}
+
+print_file_value() {
+  local label=$1 path=$2
+  if [[ -r $path ]]; then
+    printf '%s: %s\n' "$label" "$(<"$path")"
+  else
+    printf '%s: unavailable\n' "$label"
+  fi
+}
+
+print_systemd_pstore() {
+  local value
+  if ! command -v "$systemctl_bin" >/dev/null 2>&1; then
+    printf 'systemd-pstore active: unavailable\n'
+    printf 'systemd-pstore enabled: unavailable\n'
+    return 0
+  fi
+
+  value=$("$systemctl_bin" is-active systemd-pstore.service 2>&1 || true)
+  printf 'systemd-pstore active: %s\n' "$value"
+  value=$("$systemctl_bin" is-enabled systemd-pstore.service 2>&1 || true)
+  printf 'systemd-pstore enabled: %s\n' "$value"
+}
+
+print_pstore_records() {
+  local files=()
+  local file
+
+  if [[ ! -d $pstore_root || ! -r $pstore_root ]]; then
+    printf 'pstore mount: unavailable\n'
+    printf 'pstore files: unavailable\n'
+    return 0
+  fi
+
+  printf 'pstore mount: readable\n'
+  while IFS= read -r -d '' file; do
+    files+=("${file##*/}")
+  done < <(find "$pstore_root" -mindepth 1 -maxdepth 1 -type f -print0 | sort -z)
+  printf 'pstore files: %s\n' "${#files[@]}"
+  if ((${#files[@]} > 0)); then
+    printf 'pstore records:\n'
+    printf '  %s\n' "${files[@]}"
+  fi
+}
+
+print_ramoops() {
+  local dir=$sys_root/module/ramoops/parameters
+  if [[ ! -d $dir ]]; then
+    printf 'ramoops: not active\n'
+    return 0
+  fi
+
+  print_file_value 'ramoops mem_address' "$dir/mem_address"
+  print_file_value 'ramoops mem_size' "$dir/mem_size"
+  print_file_value 'ramoops record_size' "$dir/record_size"
+  print_file_value 'ramoops console_size' "$dir/console_size"
+}
+
+print_pstore_blk() {
+  local dir=$sys_root/module/pstore_blk/parameters
+  if [[ ! -d $dir ]]; then
+    printf 'pstore-blk: not active\n'
+    return 0
+  fi
+
+  print_file_value 'pstore-blk blkdev' "$dir/blkdev"
+  print_file_value 'pstore-blk kmsg_size' "$dir/kmsg_size"
+  print_file_value 'pstore-blk max_reason' "$dir/max_reason"
+}
+
+print_pstore_records
+print_file_value 'efi_pstore disabled' "$sys_root/module/efi_pstore/parameters/pstore_disable"
+print_ramoops
+print_pstore_blk
+print_systemd_pstore

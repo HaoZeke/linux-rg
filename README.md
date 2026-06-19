@@ -93,6 +93,12 @@ The same checker asserts the pstore crash-log config contract. Active pstore
 backend selection is tracked separately so EFI-variable writes are not enabled
 blindly.
 
+Inspect pstore post-boot evidence and `systemd-pstore` state:
+
+```sh
+rgx1gen11-pstore-check
+```
+
 Validate the Iris Xe i915/xe boot-driver contract:
 
 ```sh
