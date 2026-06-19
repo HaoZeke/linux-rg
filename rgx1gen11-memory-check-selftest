@@ -16,6 +16,8 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 good_config="$tmpdir/good.config"
 bad_config="$tmpdir/bad.config"
+proc_root="$tmpdir/proc"
+sys_root="$tmpdir/sys"
 
 cat >"$good_config" <<'EOF'
 CONFIG_PSI=y
@@ -70,5 +72,43 @@ if bash "$checker" --config "$bad_config" >/tmp/rgx1gen11-memory-check.bad 2>&1;
 fi
 rg -Fq "CONFIG_PSTORE is missing" /tmp/rgx1gen11-memory-check.bad \
   || fail "checker should explain missing pstore"
+
+mkdir -p \
+  "$proc_root/pressure" \
+  "$proc_root/sys/vm" \
+  "$sys_root/kernel/mm/lru_gen" \
+  "$sys_root/module/zswap/parameters" \
+  "$sys_root/kernel/mm/ksm" \
+  "$sys_root/block/zram0"
+touch "$proc_root/pressure/memory" "$proc_root/pressure/cpu" "$proc_root/pressure/io"
+printf '1\n' >"$proc_root/sys/vm/workingset_protection"
+printf '1\n' >"$proc_root/sys/vm/anon_min_ratio"
+printf '15\n' >"$proc_root/sys/vm/clean_low_ratio"
+printf '4\n' >"$proc_root/sys/vm/clean_min_ratio"
+printf '0x0007\n' >"$sys_root/kernel/mm/lru_gen/enabled"
+printf 'Y\n' >"$sys_root/module/zswap/parameters/enabled"
+printf '0\n' >"$sys_root/kernel/mm/ksm/run"
+printf '1 1 1 0 0 0 0 0\n' >"$sys_root/block/zram0/mm_stat"
+
+bash "$checker" \
+  --config "$good_config" \
+  --proc-root "$proc_root" \
+  --sys-root "$sys_root" \
+  --live >/tmp/rgx1gen11-memory-check.live-good
+rg -Fq "ok: $proc_root/sys/vm/workingset_protection = 1" /tmp/rgx1gen11-memory-check.live-good \
+  || fail "checker should report injected workingset_protection"
+rg -Fq "ok: $proc_root/sys/vm/clean_low_ratio = 15" /tmp/rgx1gen11-memory-check.live-good \
+  || fail "checker should report injected clean_low_ratio"
+
+printf '14\n' >"$proc_root/sys/vm/clean_low_ratio"
+if bash "$checker" \
+  --config "$good_config" \
+  --proc-root "$proc_root" \
+  --sys-root "$sys_root" \
+  --live >/tmp/rgx1gen11-memory-check.live-bad-ratio 2>&1; then
+  fail "checker should reject a wrong clean_low_ratio"
+fi
+rg -Fq "$proc_root/sys/vm/clean_low_ratio is '14', expected /^15$/" /tmp/rgx1gen11-memory-check.live-bad-ratio \
+  || fail "bad ratio failure should be explicit"
 
 printf 'ok\n'

@@ -2,6 +2,8 @@
 set -euo pipefail
 
 config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
+proc_root=${RGX1GEN11_PROC_ROOT:-/proc}
+sys_root=${RGX1GEN11_SYS_ROOT:-/sys}
 live=0
 require_oomd=0
 
@@ -13,6 +15,8 @@ Validate the rgx1gen11 memory-pressure kernel contract.
 
 Options:
   --config PATH      Kconfig file to inspect (default: rgx1gen11.config)
+  --proc-root PATH   procfs root to inspect (default: /proc)
+  --sys-root PATH    sysfs root to inspect (default: /sys)
   --live             Also inspect the running kernel memory-pressure interfaces
   --require-oomd     With --live, require systemd-oomd to be active
   -h, --help         Show this help
@@ -23,6 +27,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
       config_path=$2
+      shift 2
+      ;;
+    --proc-root)
+      proc_root=$2
+      shift 2
+      ;;
+    --sys-root)
+      sys_root=$2
       shift 2
       ;;
     --live)
@@ -161,17 +173,17 @@ want_config CONFIG_DAMON_STAT 'CONFIG_DAMON_STAT=y'
 want_config CONFIG_DAMON_STAT_ENABLED_DEFAULT '# CONFIG_DAMON_STAT_ENABLED_DEFAULT is not set'
 
 if [[ $live -eq 1 ]]; then
-  want_readable /proc/pressure/memory
-  want_readable /proc/pressure/cpu
-  want_readable /proc/pressure/io
-  want_sysfs_value /proc/sys/vm/workingset_protection '^1$'
-  want_sysfs_value /proc/sys/vm/anon_min_ratio '^1$'
-  want_sysfs_value /proc/sys/vm/clean_low_ratio '^15$'
-  want_sysfs_value /proc/sys/vm/clean_min_ratio '^4$'
-  want_sysfs_value /sys/kernel/mm/lru_gen/enabled '^(0x)?[0-9a-fA-F]+$'
-  want_sysfs_value /sys/module/zswap/parameters/enabled '^(Y|1)$'
-  want_readable /sys/kernel/mm/ksm/run
-  want_readable /sys/block/zram0/mm_stat
+  want_readable "$proc_root/pressure/memory"
+  want_readable "$proc_root/pressure/cpu"
+  want_readable "$proc_root/pressure/io"
+  want_sysfs_value "$proc_root/sys/vm/workingset_protection" '^1$'
+  want_sysfs_value "$proc_root/sys/vm/anon_min_ratio" '^1$'
+  want_sysfs_value "$proc_root/sys/vm/clean_low_ratio" '^15$'
+  want_sysfs_value "$proc_root/sys/vm/clean_min_ratio" '^4$'
+  want_sysfs_value "$sys_root/kernel/mm/lru_gen/enabled" '^(0x)?[0-9a-fA-F]+$'
+  want_sysfs_value "$sys_root/module/zswap/parameters/enabled" '^(Y|1)$'
+  want_readable "$sys_root/kernel/mm/ksm/run"
+  want_readable "$sys_root/block/zram0/mm_stat"
   want_oomd
 fi
 
