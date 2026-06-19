@@ -1,19 +1,369 @@
-#+title: linux-rg patch and policy candidates (rgx1gen11)
+#+title: linux-rg patch and policy candidates
 
 * Overview
 
 This file documents carried modules, pending patch candidates, and userspace
-policy options for the rgx1gen11 kernel profile. Literature grades refer to
-=docs/literature-review.org= (including "Why kernel research feels absent" and
-the venue map -- read that before trusting patch-stack marketing).
+policy options for linux-rg. It is the shared candidate registry.
 
-Carry rules from =docs/rgx1gen11-kernel.org= still apply:
+Literature grades refer to =docs/literature-review.org= (including "Why kernel
+research feels absent" and the venue map -- read that before trusting
+patch-stack marketing).
+
+** Applicability
+
+Each candidate records which profiles it is relevant to, carried for, or
+blocked on. Use these markers:
+
+- =applies: rgx1gen11, rgam5terra= -- evidence or motivation exists for these profiles
+- =carry: rgx1gen11= -- currently enabled in that profile's .config overlay
+- =blocked: rgam5terra= -- evaluated and rejected (with reason)
+
+A patch in the shared 00xx series may be compiled in for one profile and left
+off (or made a module) for another.
+
+** Carry rules (per-profile)
 
 - Public, reviewable source.
 - Reproducible application from the PKGBUILD.
-- Clean compile against Arch =7.0.12.arch1=.
-- Behavior matches this ThinkPad profile.
+- Clean compile against the current Arch base.
+- Documented behavior match or measured win for the target profile.
 - Disable or modularize when practical.
+
+See the profile's kernel.org and targets.org for the final carried set and
+acceptance criteria (e.g. =docs/rgx1gen11-kernel.org=).
+
+** Current high-level patch applicability (summary)
+
+This is a convenience view. The authoritative per-candidate tables live under
+each carried / candidate section.
+
+| Patch / area | rgx1gen11 | rgam5terra | Notes |
+|--------------|-----------|------------|-------|
+| BORE + arch-adapt | carried | evaluating | Laptop hybrid vs homogeneous Zen 5 CCDs |
+| BBRv3 + arch-adapt | carried | evaluating | Laptop roam vs desktop LAN+VPN |
+| v4l2loopback | carried | likely | Virtual cam utility |
+| DDCCI | carried | blocked/low | Desktop: ddcutil userspace preferred |
+| Block contention (0007) | carried | evaluating | SN850X under build + browser |
+| ADIOS (module) | carried | evaluating | SN850X A/B; same HOTSTORAGE gate |
+| 0010-0013 sched weld | carried | blocked | Intel P/E motivation; see kernel.org |
+| 0014-0015 zen MM/cpufreq | partial | evaluating | 0014 MM yes; 0015 schedutil path differs |
+| 0016 cpuidle TEO | carried | blocked | Intel idle governor |
+| ASA sched_ext router | carried | evaluating | Strong desktop expert-switching case |
+| PSI/MGLRU/zswap/zram/DAMON | carried | planned | 48 GiB sizing; see targets.org |
+| Cache-aware sched (0020) | carried | evaluating | **Higher priority** on dual-CCD 9950X |
+| MM bulk-free (0021) | carried | evaluating | Large-RAM reclaim paths |
+| Hybrid iwlwifi/i915 zen hunks | skipped | n/a | Wrong hardware class |
+| 0022 znver5 RDSEED | n/a | planned | Zen 5 only (cachyos-fixes #19) |
+| 0023 btrfs DIO | n/a | candidate | btrfs root option |
+| 0024 MZEN5 ISA | n/a | evaluating | graysky; not znver4 |
+| 0025 gaming-sched | n/a | evaluating | 32T cgroup fairness |
+| 0026 newidle revert | n/a | evaluating | alt to 0025 |
+
+rgam5terra research pass 2026-06-19: profile docs populated from primary
+sources; live carry decisions remain gated on assembly + bench (=linux-rg-3up1=).
+
+Downstream survey (CachyOS / sirlucjan / Liquorix): =docs/rgam5terra-kernel.org=
+("Downstream kernel survey"). Hardware tweak registry (T1-T26): same file.
+
+* Candidate: amd znver5 RDSEED warn-only (0022)
+
+** Status
+
+| Field | Value |
+| Decision | planned carry for rgam5terra profile build |
+| Evidence grade | B (CPU erratum + microcode policy) |
+| Source | cachyos-fixes-patches-v27 #19/46; Eric Naim |
+| Patch file | =0022-amd-znver5-rdseed.patch= (staged; not in PKGBUILD until profile overlay) |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+On Zen 5, mainline =init_amd_zen5()= clears =X86_FEATURE_RDSEED= when microcode
+is below the known-good revision. CachyOS changes this to **warn only** so
+RDSEED remains available while nagging to update =amd-ucode=.
+
+** Applicability
+
+| Profile | Status |
+| rgx1gen11 | n/a (Intel) |
+| rgam5terra | planned carry |
+
+** Carry gate
+
+Ship with profile overlay only. Production box must still install =amd-ucode=
+and pass early microcode load in initramfs.
+
+* Candidate: btrfs DIO parallel writes (0023)
+
+** Status
+
+| Field | Value |
+| Decision | candidate (btrfs root only) |
+| Evidence grade | B/C (filesystem maintainer fix; Cachy measured ~59% DIO on one box) |
+| Source | cachyos-fixes-patches-v27 #38/46 |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+Restores btrfs behavior where direct I/O writes to the same file were wrongly
+serialized after the new mount API transition. One-line =IS_NOSEC= path fix in
+btrfs.
+
+** rgam5terra fit
+
+Relevant if root or data subvolumes use btrfs (likely, mirroring rgx1gen11).
+Irrelevant for ext4-only installs.
+
+** Decision gate
+
+Carry only when root FS is confirmed btrfs. Check if fix is already in Arch
+7.0.12+ base before extracting.
+
+* Candidate: graysky MZEN5 / znver5 compiler target (0024)
+
+** Status
+
+| Field | Value |
+| Decision | evaluating |
+| Evidence grade | D (ISA tuning folklore) |
+| Source | sirlucjan =7.0/cpu-patches= (graysky merge) |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+Adds =CONFIG_MZEN5= selecting =-march=znver5= and =KBUILD_RUSTFLAGS -Ctarget-cpu=znver5=.
+Supersedes Cachy =MZEN4= / =znver4= paths used in CachyOS build scripts today.
+
+** Applicability
+
+| Profile | Status |
+| rgx1gen11 | blocked (Intel) |
+| rgam5terra | evaluate after T1 PPT thermal cap |
+
+** Decision gate
+
+Same as znver5 ISA row: >1% =make -j32= or kernel compile win at identical power cap.
+
+* Candidate: gaming-sched cgroup_mode (0025)
+
+** Status
+
+| Field | Value |
+| Decision | evaluating |
+| Evidence grade | D (Intel maintainer prototype; no published desktop study) |
+| Source | sirlucjan =7.0/gaming-sched= (Peter Zijlstra series) |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+Adds =cgroup_mode= sysfs modes (=smp=, =up=, =max=, =concur=) altering how
+=cfs_rq= group shares are computed on many-CPU systems. Default in series: **up**
+(full shares per CPU, fixes 1/n_cpus shrink).
+
+** rgam5terra fit
+
+9950X has 32 logical CPUs; chezmoi-style =browser.slice= / =build.slice= memory
+cgroups may starve under stock proportional group shares. This is the **Cachy
+desktop problem** on many-core, but via cgroup math not hybrid P/E.
+
+** Conflicts
+
+Touches =kernel/sched/fair.c=; stacks poorly with BORE, newidle revert (0026),
+and CONFIG_CACHY fair. Try sched_ext + ASA first.
+
+** Decision gate
+
+Carry only if PSI/cgroup metrics show persistent build.slice CPU starvation on
+stock BORE+sched_ext, and gaming-sched wins A/B over newidle revert.
+
+* Candidate: proportional newidle balance revert (0026, rgam5terra re-eval)
+
+** Status
+
+| Field | Value |
+| Decision | evaluating (rgam5terra only) |
+| Evidence grade | D |
+| Source | cachyos-fixes-patches-v27 #05/46 |
+| vissue | =linux-rg-3up1= |
+
+** rgam5terra difference from rgx1gen11 block
+
+Original block cited hybrid CPU + BORE conflict. On 9950X the motivation is
+**many-core desktop latency**, same as CachyOS intent, not P/E clusters.
+
+** Decision gate
+
+Mutually exclusive experiment track with 0025 gaming-sched. Do not stack with
+both BORE and 0025.
+
+* Candidate: out-of-tree r8125 driver (CachyOS packaging pattern)
+
+** Status
+
+| Field | Value |
+| Decision | evaluating (userspace/DKMS, not kernel patch) |
+| Evidence grade | C (CachyOS ships it; Realtek vendor driver) |
+| Source | CachyOS =_build_r8125=yes=, github.com/aravance/r8125 |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+CachyOS builds Realtek's =r8125= out-of-tree module instead of in-tree =r8169=
+for 2.5G Dragon LAN on AMD boards.
+
+** rgam5terra fit
+
+ASRock B650I Lightning WiFi advertises 2.5G Realtek. If =r8169= shows downshift
+to 100M or link flaps (ArchWiki reports), mirror CachyOS and package r8125-dkms
+for rgam5terra.
+
+** Decision gate
+
+Probe =ethtool= link modes on first boot. Carry DKMS helper only on failure.
+
+* Candidate: CachyOS CONFIG_CACHY fair (explicit block for rgam5terra)
+
+** Status
+
+| Field | Value |
+| Decision | blocked |
+| Evidence grade | D |
+| Source | CachyOS =_cachy_config=yes= enables CONFIG_CACHY fair slice/migration |
+
+** Why blocked
+
+Same region as BORE and optional 0025/0026. Cachy lowers =sysctl_sched_base_slice=
+and =sysctl_sched_migration_cost= when CONFIG_CACHY=y. linux-rg uses BORE for
+burst scoring instead.
+
+* Candidate: CachyOS default performance governor (explicit block)
+
+** Status
+
+| Field | Value |
+| Decision | blocked on rgam5terra |
+| Evidence grade | C (distro practice) |
+
+Cachy PKGBUILD can set =CPU_FREQ_DEFAULT_GOV_PERFORMANCE=. **Reject** on Terra:
+conflicts with T1 PPT cap and NH-L9a thermal envelope. Use amd-pstate EPP.
+
+* Candidate: rgam5terra PPT / thermal cap (NH-L9a + Terra)
+
+** Status
+
+| Field | Value |
+| Decision | planned (userspace/firmware; mandatory before kernel bench) |
+| Evidence grade | B (Noctua TDP class) + C (SFF practice) |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+Cap AMD package power (PPT) to 95-120 W via BIOS or =ryzenadj= so the 9950X is
+not thermally starved on an NH-L9a in a Fractal Terra with an uncapped RTX 5070
+neighbor.
+
+** Applicability
+
+| Profile | Status | Notes |
+| rgx1gen11 | n/a | Different thermal envelope (ultrabook DPTF) |
+| rgam5terra | planned | **Gate** for all CPU scheduler and =-j32= benchmarks |
+
+** Decision gate
+
+Do not compare BORE/cache-aware/BORE sched_ext until PPT policy is documented and
+CPU peak temp is stable across a 10-minute mixed load with Terra panels on.
+
+* Candidate: rgam5terra PCIe ASPM policy (NVIDIA dGPU)
+
+** Status
+
+| Field | Value |
+| Decision | probe (cmdline A/B) |
+| Evidence grade | C (Arch/community NVIDIA+ASPM anecdotes) |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+Kernel cmdline =pcie_aspm.policy= controls PCIe link power states. rgx1gen11
+carries =powersave= for Iris Xe + CNVi battery idle (grade C laptop practice).
+
+** rgam5terra fit
+
+Desktop with ASUS RTX 5070 Dual on B650I PCIe 4.0 x16 slot through Terra riser: ASPM interactions with
+NVIDIA open modules and resume are **not** transferable from the laptop profile.
+Test =off= vs =powersave= with five S3 cycles and modeset recovery.
+
+| Profile | Status | Notes |
+| rgx1gen11 | carried cmdline | Ultrabook powersave |
+| rgam5terra | probe | Do not inherit rgx1gen11 boot-check token |
+
+* Candidate: rgam5terra SN850X APST policy
+
+** Status
+
+| Field | Value |
+| Decision | probe-first (may disable) |
+| Evidence grade | B (ArchWiki APST semantics) + C (WD community reports) |
+| vissue | =linux-rg-3up1=, =linux-rg-rt1t= |
+
+** What it is
+
+NVMe autonomous power state transition (APST) saves idle power but can break
+resume on some firmware (ArchWiki "broken APST support"). rgx1gen11-nvme-check
+**requires** APST enabled for KIOXIA XG8.
+
+** rgam5terra fit
+
+SN850X on AM5 desktop (AC-powered, SFF thermals): prefer **resume stability** over
+idle NVMe power savings until five suspend cycles pass with APST on. Fallback:
+=nvme_core.default_ps_max_latency_us=0= or udev APST disable (grade B workaround).
+
+| Profile | Status | Notes |
+| rgx1gen11 | APST required in checker | Laptop battery + XG8 path |
+| rgam5terra | probe-first | Opposite default until SN850X proves clean |
+
+* Candidate: znver5 / x86-64-v4 ISA tuning (rgam5terra only)
+
+** Status
+
+| Field | Value |
+| Decision | evaluating (no carry until bench) |
+| Evidence grade | D (Phoronix/Cachy folklore) |
+| Source | cpu-cachyos-patches lineage; Arch =-march=x86-64-v3= default |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+Compiler ISA selection (=znver5=, =x86-64-v4=) via Kconfig/Makefile CPU tuning
+patches. Cachy ships =znver4= paths -- **wrong generation** for 9950X.
+
+** Applicability
+
+| Profile | Status | Notes |
+| rgx1gen11 | blocked znver4 | Intel CPU |
+| rgam5terra | evaluating | Bench only after T1 PPT cap fixed |
+
+** Decision gate
+
+Promote only if kernel image compile + =make -j32= throughput improves >1% at
+**identical** PPT/thermal envelope vs Arch generic v3.
+
+* Candidate: NVIDIA SFF power limit (RTX 5070 Dual)
+
+** Status
+
+| Field | Value |
+| Decision | planned userspace experiment |
+| Evidence grade | C (ArchWiki NVIDIA tips; not peer-reviewed) |
+| vissue | =linux-rg-3up1= |
+
+** What it is
+
+=nvidia-smi -pl <W>= reduces GPU power draw and heat dump into Terra. Pairs with
+T1 CPU PPT cap for closed-panel thermal-sustained profile.
+
+Not a kernel patch; document in profile targets and =rgam5terra-thermal-check=
+(future).
 
 * Carried: ADIOS I/O scheduler
 
@@ -39,9 +389,34 @@ Version carried in the 7.0 extraction: 3.1.7 (CachyOS omnibus). Upstream ADIOS
 3.2.0 exists for newer kernels via firelzrd stable patches; revisit on kernel
 bumps.
 
-** Why it is on this profile
+** Applicability
 
-The laptop uses a KIOXIA XG8 NVMe device under mixed interactive and build
+| Profile     | Status     | Notes |
+|-------------|------------|-------|
+| rgx1gen11   | carried    | KIOXIA XG8 ULL NVMe under mixed laptop load |
+| rgam5terra  | evaluating | WD SN850X 2 TB; SFF thermal envelope; same HOTSTORAGE gate |
+
+** rgam5terra fit (research 2026-06-19)
+
+SN850X is PCIe Gen4 ULL class storage under the same HOTSTORAGE 2023 skepticism
+as KIOXIA XG8. The desktop differs by sustained power (build -j32, less idle on
+battery) and case thermals (Fractal Terra + NH-L9a). BFQ stays the conservative
+default; ADIOS remains a module for local A/B only.
+
+Suggested SN850X measurement (after assembly):
+
+#+begin_src sh
+sudo modprobe adios
+cat /sys/block/nvme0n1/queue/scheduler
+for s in bfq adios none; do
+  echo "$s" | sudo tee /sys/block/nvme0n1/queue/scheduler
+  # fio mixed randrw + background desktop load; record p99
+done
+#+end_src
+
+** rgx1gen11 fit
+
+The ThinkPad uses a KIOXIA XG8 NVMe device under mixed interactive and build
 load: browser caches, source trees, package builds, VMs, and sync tools share
 one storage device.
 
@@ -117,7 +492,7 @@ Start with defaults; tune only after baseline captures.
 
 ** Decision gate for promoting to default
 
-Promote ADIOS to default only if, on this machine:
+Promote ADIOS to default only if, for a given profile:
 
 - Interactive latency is consistently better than BFQ and =none= across repeated
   trials, and
@@ -147,9 +522,9 @@ Touched files (typical 7.0 patch):
 - =mm/vmscan.c=
 - =mm/workingset.c=
 
-** Why it might help rgx1gen11
+** rgx1gen11 motivation (example)
 
-The profile enables MGLRU, zswap, zram, KSM, PSI, and DAMON. Under browser plus
+rgx1gen11 enables MGLRU, zswap, zram, KSM, PSI, and DAMON. Under browser plus
 build plus container load, reclaim policy strongly affects responsiveness.
 
 Literature motivation:
@@ -208,9 +583,9 @@ Files:
 - =drivers/cpuidle/governors/menu.c=
 - =drivers/cpuidle/governors/teo.c=
 
-** Why it might help rgx1gen11
+** rgx1gen11 motivation (example)
 
-The profile uses =intel_idle=, =intel_pstate=, and =schedutil= on a Raptor Lake
+rgx1gen11 uses =intel_idle=, =intel_pstate=, and =schedutil= on a Raptor Lake
 U-series laptop where s2idle and NO_HZ idle are active paths.
 
 TEO (Timer Events Oriented governor) focuses on predictable timer-driven idle
@@ -230,7 +605,7 @@ Patch is not redundant.
 3. Ten s2idle cycles: no resume regression.
 4. Gate promotion: equal or better idle power; no fan spin-up regression undocked.
 
-* rgx1gen11 hardware fit (21HM002GUS)
+* rgx1gen11 hardware fit (example profile)
 
 Reference machine: ThinkPad X1 Carbon Gen 11, i7-1365U, 32 GiB RAM, Iris Xe
 (8086:a7a1), CNVi Wi-Fi (8086:51f1), KIOXIA XG8 1 TB NVMe, dual TB4.
@@ -296,7 +671,7 @@ modprobe. Full map: =docs/rgx1gen11-drivers.org=. Boot rules:
 | 16 | =free_contig_range()= bulk free | mm/page_alloc.c | **carried** =0021= |
 | 17 | =vfree()= via =free_pages_bulk()= | mm/vmalloc.c | **carried** =0021= |
 
-** Low-value / skip for this machine
+** Low-value / skip for rgx1gen11 (example)
 
 | # | Reason to skip |
 | 05 | Proportional newidle balance revert -- conflicts with BORE |
@@ -346,6 +721,16 @@ Reviewed-by lines in the patch include Vincent Guittot and Valentin Schneider.
 The i7-1365U is a hybrid 12-thread CPU. Load balancing across P-cores and
 E-cores is frequent under mixed desktop and build workloads. Redundant
 =detach_tasks()= scans waste CPU and can add latency jitter.
+
+** Applicability: rgam5terra
+
+| Profile | Status | Notes |
+|---------|--------|-------|
+| rgx1gen11 | carried | Hybrid load-balance motivation |
+| rgam5terra | blocked (with 0010-0013 group) | Fix is vendor-neutral but bundled in hybrid weld; 9950X lacks P/E story |
+
+If split from the hybrid weld in future, revisit as a standalone fair.c fix on
+32-thread Zen 5 (grade B fix, weaker profile motivation).
 
 ** Interaction with BORE
 
@@ -426,8 +811,8 @@ both rewrite MGLRU reclaim control flow in =mm/vmscan.c=.
 
 ** What it is
 
-Three sysctl knobs for reclaim protection on each NUMA node (this laptop is
-effectively one node):
+Three sysctl knobs for reclaim protection on each NUMA node (rgx1gen11 is
+effectively one node; rgam5terra will be evaluated as a single-socket Zen 5):
 
 - =vm.anon_min_ratio= -- hard floor for anonymous pages (default 1%). Kconfig
   help explicitly mentions zram overfill thrash.
@@ -602,6 +987,22 @@ LPC 2022 documents Linux hybrid scheduling gaps. cache-aware is a downstream
 attempt to reduce cross-LLC migration; it is not the same as mainline Intel EAS
 work.
 
+** Why it might matter on rgam5terra (9950X)
+
+Granite Ridge ships **two CCDs** with separate L3 caches. Cross-CCD migration is
+the desktop analog of the laptop hybrid problem, but with homogeneous cores per
+CCD. Kernel topology exposes NUMA/CCD boundaries via CPU topology sysfs; cache-aware
+is a downstream attempt to reduce cross-cache migration. Evidence remains grade D
+until bench on Terra hardware. **Higher priority** than on rgx1gen11 per
+=docs/rgam5terra-kernel.org=.
+
+** Applicability
+
+| Profile | Status | Notes |
+|---------|--------|-------|
+| rgx1gen11 | carried | Hybrid LLC experiment |
+| rgam5terra | evaluating (priority) | Dual-CCD locality; compare vs scx_loader |
+
 ** Carry constraints
 
 - The patch applies on the BORE stack with offsets.
@@ -658,7 +1059,7 @@ Applied the full ~130k-line zen omnibus on top of Arch 7.0.12 and diffed the
 result. iwlwifi (mvm beacon rates, mld link/tx), i915 (PSR2 scanline WA, DP aux
 parent-irq wait), and intel_pstate hybrid scaling all **reject as .rej** -- Arch
 7.0.12 already ships the same fixes. No separate iwlwifi/i915 zen patches are
-needed for AX211 / Iris Xe on this machine.
+needed for AX211 / Iris Xe on rgx1gen11.
 
 ** Overlap with linux-rg already carried
 
@@ -716,7 +1117,7 @@ PDS + zen omnibus on every 7.0 bump. For rgx1gen11, prefer sched_ext userspace
 
 | Field | Value |
 | Decision | not carried |
-| Evidence grade | A for control loops; **D** for this laptop daily driver |
+| Evidence grade | A for control loops; **D** for rgx1gen11 daily driver |
 | Source | linux-rt / =CONFIG_PREEMPT_RT= tree |
 | vissue | =linux-rg-prert= |
 
@@ -826,7 +1227,7 @@ from the same author lineage and overlaps the fair.c region.
 
 | Layer | Source (7.0) | Primary files | rgx1gen11 verdict |
 | CONFIG_CACHY fair tweaks | Cachy 6.17 omnibus | kernel/sched/fair.c, sched.h | not carried; conflicts with BORE |
-| Compiler ISA (x86-64-v3, znver4) | cpu-cachyos-patches | arch/x86/Kconfig.cpu, Makefile | not carried; 1365U is Intel, not znver4 |
+| Compiler ISA (x86-64-v3, znver4) | cpu-cachyos-patches | arch/x86/Kconfig.cpu, Makefile | not carried on rgx1gen11 (Intel); rgam5terra evaluates znver5 separately |
 | -O3 kernel build | kbuild-cachyos-patches | Makefile, init/Kconfig | not carried; no laptop win shown over Arch =-O2= |
 | ThinLTO distributed backend | kbuild-dev-patches | Makefile, scripts/Makefile.thinlto, vmlinux_a | not carried while remote builders are unavailable |
 | Rust KBUILD_RUSTFLAGS sync | omnibus + cpu patch | Makefile, arch/x86/Makefile | mirrors CFLAGS (-Copt-level, -Ctarget-cpu) |
@@ -860,7 +1261,7 @@ binder Rust evaluation.
 On Arch 7.0.12 with =CONFIG_RUST=y=, the **active** Rust path on a desktop
 build is mainly =CONFIG_ANDROID_BINDER_IPC_RUST=y= (binder IPC). Iris Xe uses
 =CONFIG_DRM_I915= (C), not =CONFIG_DRM_NOVA= (Rust). So enabling Rust does
-**not** rewrite the graphics, Wi-Fi, or NVMe stack on this laptop today.
+**not** rewrite the graphics, Wi-Fi, or NVMe stack on rgx1gen11 today.
 
 ** Cachy =KBUILD_RUSTFLAGS= is a separate, smaller question**
 
@@ -898,7 +1299,7 @@ safety on firmware load and optional Android IPC; not a latency patch.
 | DRM panic QR | built with =DRM_PANIC= | **Optional** debug; no perf win |
 | HID Rust | none in production 7.0 | ELAN/SYNA use C =i2c_hid= |
 
-** What not to expect from Rust on this laptop**
+** What not to expect from Rust on rgx1gen11**
 
 - No Rust rewrite of Iris Xe (=i915=), AX211 (=iwlwifi=), or KIOXIA (=nvme=) in 7.0.
 - =KBUILD_RUSTFLAGS -O3 / -Ctarget-cpu=x86-64-v3= only affects the small =*.rs=
@@ -915,7 +1316,8 @@ without the matching Cachy Kconfig patches; symbols would be inert or fail
 
 | Patch | Carry? | Blocker |
 | CONFIG_CACHY fair | no | BORE stack |
-| cpu znver4 | no | wrong CPU vendor |
+| cpu znver4 | no on rgx1gen11 | wrong CPU vendor |
+| cpu znver5 / x86-64-v4 | rgam5terra only | evaluate after PPT thermal gate |
 | x86-64-v3 ISA choice | no default | needs benchmark vs Arch generic |
 | -O3 / rust opt-level 3 | no default | compile-time and size study |
 | ThinLTO dist | optional | dist builder infra only |
@@ -1453,10 +1855,11 @@ rg-bench-matrix run collect      # writes wide-net.txt into run dir
 
 * Document index
 
-- =docs/rgx1gen11-targets.org= -- hardware inventory, workload profiles, targets
-- =docs/rgx1gen11-kernel.org= -- machine profile and carried patch rationale
-- =docs/literature-review.org= -- research bibliography and evidence grades
-- =docs/candidates.org= -- this file
+- =docs/profiles.org= -- machine profiles index and applicability map
+- =docs/rgx1gen11-targets.org= -- rgx1gen11 hardware inventory, workload profiles, targets
+- =docs/rgx1gen11-kernel.org= -- rgx1gen11 profile and carried patch rationale
+- =docs/literature-review.org= -- shared research bibliography and evidence grades
+- =docs/candidates.org= -- this file (shared candidates + per-profile applicability)
 
 Issue tracking: vissues project =linux-rg=, epic =linux-rg-ln3w=.
 Hardware: =linux-rg-wpdr= and children in =docs/rgx1gen11-targets.org=.

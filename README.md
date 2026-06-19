@@ -1,30 +1,50 @@
 # linux-rg
 
-`linux-rg` is an Arch Linux kernel package for a ThinkPad X1 Carbon Gen 11,
-model `21HM002GUS`, with an Intel Core i7-1365U, Intel Iris Xe graphics, Intel
-CNVi Wi-Fi, Thunderbolt 4, and KIOXIA XG8 NVMe storage.
+`linux-rg` is an Arch Linux kernel package with support for multiple machine
+profiles. It follows Arch's `linux` PKGBUILD layout and produces `linux-rg` plus
+`linux-rg-headers`.
 
-The package follows Arch's `linux` PKGBUILD layout and produces `linux-rg` plus
-`linux-rg-headers`. It keeps the upstream Arch source and config as the base,
-then applies a small machine overlay in `rgx1gen11.config`.
+The package starts from the upstream Arch source and `config.x86_64`, then
+applies a small machine-specific overlay (e.g. `rgx1gen11.config`). Shared patch
+series live at the repo root; each profile contributes its own config overlay
+and hardware-specific validation.
 
-## Selected Changes
+## Machine profiles
+
+| Slug       | Form factor | CPU / GPU                  | Status     | Key files                  |
+|------------|-------------|----------------------------|------------|----------------------------|
+| rgx1gen11  | Laptop      | Intel i7-1365U / Iris Xe   | Active     | rgx1gen11.config + docs    |
+| rgam5terra | Desktop     | Ryzen 9 9950X / ASUS RTX 5070 Dual / B650I Terra | Researching | MC receipts in targets.org |
+
+- Shared research evidence and candidate evaluation: `docs/literature-review.org`, `docs/candidates.org`
+- Per-profile hardware targets, drivers, boot contracts, and patch applicability notes live in the profile-specific docs.
+- The patch stack (0001-*.patch) is evaluated for one or more profiles; applicability is tracked in candidates.org and per-profile targets.
+
+Current focus: rgx1gen11 (daily driver). rgam5terra (AM5/RTX) profile docs and
+vissues feed both the Archiso selector and NixOS provisioning evaluation.
+
+## Selected Changes (current carry set)
+
+The changes below are the currently carried set. Most were motivated by the
+rgx1gen11 profile; applicability to other profiles (e.g. rgam5terra) is tracked
+in =docs/candidates.org= and the per-profile kernel/targets docs.
 
 - BORE from the CachyOS patch set, adapted for Arch 7.0 fair scheduler layout.
 - BBRv3 from the CachyOS patch set, adapted for the Arch 7.0 TCP layout.
 - v4l2loopback from pf-kernel, built in-tree as `CONFIG_V4L2_LOOPBACK=m`.
 - DDCCI and DDCCI backlight support from `ddcci-driver-linux`, built in-tree.
 - CachyOS block-layer contention patch for BFQ and mq-deadline.
-- Scheduler weld for hybrid i7-1365U: hot-path inlines (0010), detach_tasks fix
-  (0011), sched_ext SMT idle (0012), migration_cost sysctl (0013).
+- Scheduler weld for hybrid i7-1365U (rgx1gen11): hot-path inlines (0010),
+  detach_tasks fix (0011), sched_ext SMT idle (0012), migration_cost sysctl (0013).
 - Cache-aware fair-class placement experiment (0020), enabled as
-  `CONFIG_SCHED_CACHE=y` for LLC locality testing on the hybrid CPU.
+  `CONFIG_SCHED_CACHE=y` for LLC locality testing on the hybrid CPU (rgx1gen11).
 - Liquorix zen cherry-picks (no PDS): kswapd_waiters MM fix (0014), schedutil
   DL limits_changed (0015). iwlwifi/i915 zen hunks skipped -- already in Arch 7.0.12.
 - ADIOS block scheduler module (non-default) and ASA sched_ext router prototype
   (arXiv:2511.11628) with `asa-router` userspace helper.
 - PSI, memcg, DAMON, MGLRU, KSM, zswap, zram, BFQ, sched_ext, and
-  ThinkPad/Intel laptop support pinned in the machine config overlay.
+  platform support pinned in per-profile config overlays (rgx1gen11 example:
+  ThinkPad/Intel laptop paths).
 - Compression policy support: zswap defaults to zstd, zram writeback/tracking is
   available, and the installed kernel keeps zstd modules available for compressed
   memory, initramfs, module, and btrfs policy work.
@@ -233,19 +253,20 @@ install`, and `depmod` for the target kernel.
 
 ## Notes
 
-Design, hardware targets, and patch rationale:
+### Profile docs
 
-- `docs/rgx1gen11-boot-safety.org` -- **read before first boot** (rollback, mkinitcpio)
-- `docs/rgx1gen11-drivers.org` -- Wi-Fi/BT/GPU/audio/NVMe/TB4 driver map
-- `docs/rgx1gen11-targets.org` -- verified hardware inventory, workload profiles,
-  measurable targets, vissue map
-- `docs/rgx1gen11-kernel.org` -- machine profile and carried patches
-- `docs/literature-review.org` -- evidence grades, venue map, why laptop kernel
-  tuning is under-published vs cloud/security kernel research
-- `docs/candidates.org` -- ADIOS, re-swappiness, cpuidle TEO, detach_tasks, and
-  other candidate notes
+- `docs/profiles.org` -- index of machine profiles, hardware summaries, and applicability map
+- `docs/rgx1gen11-kernel.org` -- rgx1gen11 profile + carried patches rationale
+- `docs/rgx1gen11-targets.org` -- verified hardware inventory, workload profiles, targets
+- `docs/rgx1gen11-drivers.org` -- driver map for the profile
+- `docs/rgx1gen11-boot-safety.org` -- rollback and mkinitcpio contract (read first for the profile)
 
-Issue tracking (vissues):
+Shared evidence (applies across profiles unless noted):
+
+- `docs/literature-review.org` -- research sources, evidence grades, venue map
+- `docs/candidates.org` -- patch and policy candidates with per-profile applicability notes
+
+### Issue tracking (vissues)
 
 ```sh
 vissue ready --root ~/Git/Gitlab/obsidian-notes --project linux-rg
@@ -254,6 +275,14 @@ vissue tree --root ~/Git/Gitlab/obsidian-notes linux-rg-ln3w
 
 Vault file: `~/Git/Gitlab/obsidian-notes/Software/linux-rg/issues.org`
 
+### Patch and policy rules
+
 Patch carry decisions are intentionally narrow: selected patches must apply
-reproducibly, compile against the Arch kernel base, and match this laptop's use
-cases.
+reproducibly, compile against the Arch kernel base, and have documented
+applicability to one or more active profiles (see candidates.org and the
+profile targets docs).
+
+rgam5terra profile docs include a CachyOS/sirlucjan downstream patch survey;
+=0022-amd-znver5-rdseed.patch= is staged for the Zen 5 profile. Archiso
+profile-selector behavior is tracked in =linux-rg-1xe1=, and NixOS provisioning
+evaluation is tracked in =linux-rg-gdg7=.

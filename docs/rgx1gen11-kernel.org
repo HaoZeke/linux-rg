@@ -2,23 +2,29 @@
 
 * Document index
 
-- =docs/rgx1gen11-kernel.org= (this file) -- machine profile and carried patches
+See =docs/profiles.org= for the full list of profiles and cross-profile patch
+applicability.
+
+rgx1gen11 profile docs:
+
+- =docs/rgx1gen11-kernel.org= (this file) -- rgx1gen11 profile and carried patches
 - =docs/rgx1gen11-boot-safety.org= -- rollback and mkinitcpio rules (read first)
 - =docs/rgx1gen11-drivers.org= -- Wi-Fi/BT/GPU/audio/NVMe driver stacks
 - =docs/rgx1gen11-targets.org= -- verified hardware inventory, workload profiles,
   measurable targets, vissue map
-- =docs/literature-review.org= -- evidence grades, venue map, why downstream
-  patch stacks lack citations (read before carrying more cuts)
-- =docs/candidates.org= -- ADIOS, re-swappiness, cpuidle TEO, detach_tasks,
-  and other candidate or policy notes
+
+Shared:
+
+- =docs/literature-review.org= -- evidence grades, venue map (shared across profiles)
+- =docs/candidates.org= -- candidates with per-profile applicability notes
 
 Issue tracking (vissues):
 
 - Vault: =Software/linux-rg/issues.org= under the obsidian-notes vault
-- Epic: =linux-rg-ln3w= (Build linux-rg custom kernel for rgx1gen11)
+- Epic: =linux-rg-ln3w= (rgx1gen11 profile work; see profiles.org for others)
 - CLI: =vissue ready --root ~/Git/Gitlab/obsidian-notes --project linux-rg=
 
-* Machine
+* Machine (rgx1gen11 profile)
 
 Target machine:
 
@@ -32,10 +38,13 @@ Target machine:
 
 Verified live inventory and per-subsystem targets: =docs/rgx1gen11-targets.org=.
 
+See =docs/profiles.org= for other profiles (e.g. rgam5terra).
+
 The package starts from Arch's `linux` package, not a generic vendor kernel.
 The base source is kernel.org Linux plus the Arch patch release for
 `7.0.12.arch1`. This keeps pacman packaging, module paths, mkinitcpio behavior,
-and rEFInd installation compatible with the rest of the system.
+and boot loader installation compatible across profiles. Per-profile config
+overlays and validation are layered on top.
 
 * Patch Set
 

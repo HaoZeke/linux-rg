@@ -1,0 +1,317 @@
+#+title: linux-rg rgam5terra driver map
+#+date: [2026-06-19 Fri]
+
+* Purpose
+
+Kernel and firmware driver stacks for the rgam5terra profile (AM5 + RTX 5070
+Terra build). Hardware IDs are **planned** from vendor spec sheets until the
+assembled machine is probed.
+
+Use with =docs/rgam5terra-boot-safety.org= before first linux-rg boot.
+
+See =docs/profiles.org= for the profile list. Shared driver research:
+=docs/literature-review.org=, =docs/candidates.org=.
+
+Related vissue: =linux-rg-3up1=.
+
+* Platform (AMD B650 + AM5)
+
+| Field | Value |
+| Chipset | AMD B650 |
+| Board | ASRock B650I Lightning WiFi (mini-ITX) |
+| ACPI | Standard ACPI 6.x platform; no ThinkPad-specific drivers |
+| IOMMU | AMD-Vi (enable for VFIO if passthrough ever needed) |
+| USB | xhci_hcd (USB 3.2 on rear I/O) |
+| SATA | Not used on planned build (NVMe-only storage) |
+
+** Kernel config expectations
+
+- =CONFIG_ACPI=y=, =CONFIG_ACPI_PROCESSOR=y=
+- =CONFIG_X86_AMD_PSTATE=y= (preferred over legacy acpi-cpufreq)
+- =CONFIG_AMD_IOMMU=y= (module or built per Arch base)
+- =CONFIG_PINCTRL_AMD=y=
+
+** Userspace firmware
+
+- =linux-firmware= (AMD GPU firmware blobs are irrelevant without iGPU; still
+  needed for Wi-Fi/NVIDIA as below)
+
+* CPU (Ryzen 9 9950X, Zen 5)
+
+| Field | Value |
+| Architecture | x86_64, znver5 class |
+| cpufreq driver | =amd_pstate= (CPPC) |
+| Idle | =amd_idle= via ACPI processor idle |
+| Microcode | =amd-ucode= package (Arch) |
+
+** Key sysfs paths (post-boot probe)
+
+- =/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor=
+- =/sys/devices/system/cpu/amd_pstate/status=
+- =/sys/devices/system/cpu/amd_pstate_prefcore/status= (if preferred cores enabled)
+- =/sys/devices/system/cpu/cpu*/topology/core_siblings_list= (CCD mapping)
+
+Primary reference: https://docs.kernel.org/admin-guide/pm/amd-pstate.html
+
+** What we are not doing
+
+- No =CONFIG_X86_INTEL_PSTATE= or =CONFIG_INTEL_IDLE=.
+- No Liquorix PDS scheduler.
+- No out-of-tree cpufreq drivers.
+
+* Discrete GPU (NVIDIA RTX 5070, Blackwell)
+
+| Field | Value |
+| GPU | ASUS GeForce RTX 5070 Dual 12 GB GDDR7 |
+| Architecture | Blackwell (GB205 class) |
+| Interface | PCIe 5.0 x16 |
+| Kernel driver | **Open GPU kernel modules** (=nvidia-open= on Arch) |
+| Userspace | =nvidia-utils= matching driver branch |
+| Firmware | GSP firmware loaded by driver (see NVIDIA README) |
+
+** Arch policy (primary source)
+
+ArchWiki documents Blackwell (GBXXX) and newer on =nvidia-open=:
+
+https://wiki.archlinux.org/title/NVIDIA
+
+NVIDIA's open kernel module transition blog (grade C vendor engineering):
+
+https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/
+
+** Kernel involvement (in-tree)
+
+linux-rg does not compile NVIDIA DRM in-tree. The custom kernel still must not
+break:
+
+- PCIe (=# CONFIG_PCIEASPM: policy choice documented at boot=)
+- =CONFIG_DRM_KMS_HELPER=, =CONFIG_DRM_EXEC=, =CONFIG_DRM_DISPLAY_HELPER= (Arch base)
+- =CONFIG_FRAMEBUFFER_CONSOLE= for early boot debugging if needed
+
+** Display / Wayland policy (userspace, tracked here for boot contract)
+
+- Prefer Wayland compositor with explicit NVIDIA support (Sway/Hyprland + nvidia
+  environment variables as needed).
+- Document whether early KMS requires =nvidia= / =nvidia_drm= in mkinitcpio
+  MODULES (see boot-safety).
+- GSP firmware requirement: verify =dmesg | rg -i gsp= after driver install.
+
+** What we are not doing
+
+- No =nouveau= for RTX 5070 daily driver (unsupported for Blackwell gaming).
+- No amdgpu display stack (no iGPU).
+- No in-tree NVIDIA patches.
+
+* Storage (WD BLACK SN850X 2 TB)
+
+| Field | Value |
+| Interface | PCIe Gen4 x4 NVMe |
+| Driver | =nvme=, =nvme_core= |
+| Expected PCI class | NVMe controller (exact ID at probe) |
+| Scheduler | BFQ default; ADIOS optional module |
+
+** Kernel config
+
+- =CONFIG_BLK_DEV_NVME=m= (must stay module-aligned with Arch for initramfs)
+- =CONFIG_NVME_HWMON=y= (thermal telemetry in SFF case)
+- =CONFIG_NVME_MULTIPATH=y= or =m= per Arch base (single drive; likely unused)
+
+** Power management (research notes)
+
+ArchWiki documents NVMe APST and NOPPM:
+
+https://wiki.archlinux.org/title/Solid_state_drive/NVMe
+
+- APST can save idle power on desktop but broken firmware paths exist; probe
+  =/sys/class/nvme/nvme0/power/autopm= and resume stability.
+- HOTSTORAGE 2023 motivates scheduler A/B (=bfq= / =adios= / =none=), not
+  assuming BFQ helps on ULL Gen4 SSD.
+
+** Planned checker
+
+Add =rgam5terra-nvme-check= mirroring =rgx1gen11-nvme-check= once hardware
+exists. Until then, manual:
+
+#+begin_example
+nvme list
+cat /sys/block/nvme0n1/queue/scheduler
+sensors | rg -i nvme
+#+end_example
+
+* Network -- wired (2.5 GbE)
+
+| Field | Value |
+| Expected chip | Realtek RTL8125BG (Dragon 2.5G per ASRock marketing) |
+| Driver | =r8169= kernel module |
+| Expected PCI | Realtek 8125 family (confirm =lspci -nn= at probe) |
+
+** Kernel config
+
+- =CONFIG_R8169=m=
+- Arch base includes Realtek PHY helpers; do not disable.
+
+** Postboot acceptance
+
+#+begin_example
+ip link
+ethtool enp*  # replace with actual iface
+dmesg | rg -i r8169
+#+end_example
+
+* Network -- wireless (Wi-Fi 6E)
+
+| Field | Value |
+| Expected chip | 802.11ax Wi-Fi 6E + Bluetooth 5.2 module; exact chipset probe-gated |
+| Driver | =rtw89_8852be= (rtw89 subsystem) |
+| Firmware | =rtw89/rtw8852b_fw.bin= via linux-firmware |
+
+** Status
+
+Exact USB/PCI ID **must be confirmed at first probe**. B650I Lightning WiFi is a
+mini-ITX board; update this table with =lspci -nn= / =lsusb= output after
+assembly.
+
+** Kernel config (hypothesis)
+
+- =CONFIG_RTW89=m=
+- =CONFIG_RTW89_8852BE=m=
+- =CONFIG_CFG80211=m=, =CONFIG_MAC80211=m= (Arch base)
+
+** Userspace
+
+- =linux-firmware=
+- =wireless-regdb=
+- iwd recommended (same as rgx1gen11 policy)
+
+** What we are not doing
+
+- No iwlwifi/CNVi stack.
+- No out-of-tree rtw88 DKMS unless kernel module gap appears on 7.0.12.
+
+* Bluetooth (combo module, if present)
+
+| Field | Value |
+| Expected | USB companion on Realtek Wi-Fi 6E module |
+| Driver | =btusb= + Realtek BT firmware |
+
+Probe =lsusb= and =hciconfig= at assembly. If absent, skip BT section in
+checkers.
+
+* Audio (Realtek ALC897)
+
+| Field | Value |
+| Codec | Realtek ALC897 (7.1 HD) |
+| Driver | =snd_hda_intel= (AMD HD Audio controller) |
+| Firmware | HD audio patch via kernel; no SOF path expected |
+
+** Kernel config
+
+- =CONFIG_SND_HDA_INTEL=m=
+- =CONFIG_SND_HDA_CODEC_REALTEK=m=
+- =CONFIG_SND_HDA_CODEC_HDMI=m= (if HDMI audio from GPU routed)
+
+** NVIDIA HDMI/DP audio
+
+Display audio may appear as NVIDIA HDA codec on the GPU HDMI/DP outputs. Probe
+=aplay -l= after driver load; PipeWire/Pulse handles routing.
+
+** Planned checker
+
+Add =rgam5terra-audio-check= after first boot (mirror SOF checker structure).
+
+* USB and input
+
+| Component | Driver |
+| Keyboard/mouse | =hid-generic=, =usbhid= |
+| Webcam (if added) | =uvcvideo= |
+| Storage docks | =usb_storage= (not boot-critical) |
+
+* Firmware summary
+
+| Package | Needed for |
+| linux-firmware | rtw89, Realtek BT, any ACPI-misc blobs |
+| amd-ucode | Ryzen 9 9950X microcode updates |
+| nvidia-open + nvidia-utils | RTX 5070 kernel module + GSP |
+| wireless-regdb | Wi-Fi regulatory domain |
+
+* Module parameters and policy files (planned)
+
+Evidence grades and rationale: =docs/rgam5terra-kernel.org= ("Hardware-specific
+tweaks"). Files below are **hypotheses** until live probe.
+
+** NVIDIA (=nvidia-open=)
+
+File: =/etc/modprobe.d/rgam5terra-nvidia.conf=
+
+#+begin_example
+# Grade B/C hypotheses; validate resume + Wayland before treating as contract
+options nvidia_drm modeset=1
+options nvidia NVreg_PreserveVideoMemoryAllocations=1
+#+end_example
+
+Userspace (grade C for SFF thermals):
+
+#+begin_example
+# Example: cap RTX 5070 to ~200 W until Terra thermals measured
+nvidia-smi -pl 200
+#+end_example
+
+** NVMe (WD SN850X)
+
+If APST resume fails after probe (grade B workaround path):
+
+#+begin_example
+# /etc/modprobe.d/rgam5terra-nvme.conf
+options nvme_core default_ps_max_latency_us=0
+#+end_example
+
+Or per-controller udev rule disabling APST (ArchWiki pattern) -- prefer the
+modprobe global only after =nvme id-ctrl= / =nvme get-feature= confirms APST is
+the failure mode.
+
+** Wi-Fi (rtw89)
+
+File: =/etc/modprobe.d/rgam5terra-rtw89.conf= (optional grade D latency trial)
+
+#+begin_example
+options rtw89_pci disable_ps_mode=1
+#+end_example
+
+** Audio (ALC897)
+
+File: =/etc/modprobe.d/rgam5terra-audio.conf= (fallback grade C)
+
+#+begin_example
+options snd_hda_intel power_save=0
+#+end_example
+
+** CPU (amd-pstate)
+
+Kernel driver is in-tree; tuning is primarily sysfs (grade B):
+
+#+begin_example
+# Example conservative desktop EPP (repeat per policy or use tuned/ppd)
+echo balance_performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference
+#+end_example
+
+PPT cap is **not** a kernel module param on AM5 -- use BIOS or =ryzenadj= (grade
+C tooling) before linux-rg scheduler benchmarks.
+
+* Safe improvement backlog (post-assembly)
+
+| Item | Type | Vissue |
+| Confirm Wi-Fi PCI ID + firmware file | live probe | =linux-rg-3up1= |
+| NVIDIA Wayland compositor matrix | userspace doc | =linux-rg-3up1= |
+| SN850X APST on/off resume test | policy | =linux-rg-3up1= |
+| NVMe scheduler A/B | benchmark | =linux-rg-rt1t= |
+| rtw89 power save vs latency | modprobe / iw | =linux-rg-3up1= |
+| PPT cap + NH-L9a thermal envelope | BIOS/ryzenadj | =linux-rg-3up1= |
+| pcie_aspm off vs powersave matrix | cmdline | =linux-rg-3up1= |
+| rgam5terra-nvme-check script | packaging | =linux-rg-3up1= |
+
+* Document index
+
+- =docs/rgam5terra-drivers.org= (this file)
+- =docs/rgam5terra-boot-safety.org=
+- =docs/rgam5terra-targets.org=
+- =docs/rgam5terra-kernel.org=

@@ -1,29 +1,41 @@
-#+title: linux-rg literature review (rgx1gen11)
+#+title: linux-rg literature review
 
 * Scope
 
-This document records research-grade sources used to evaluate kernel choices for
-the ThinkPad X1 Carbon Gen 11 profile. It complements the patch rationale in
-=docs/rgx1gen11-kernel.org= and candidate notes in =docs/candidates.org=.
-
-Hardware context:
-
-- Intel Core i7-1365U, Raptor Lake-P/U hybrid (P-cores and E-cores).
-- KIOXIA XG8 NVMe (ultra-low-latency class storage).
-- Intel Iris Xe integrated graphics (display version below Lunar Lake).
-- Intel CNVi Wi-Fi, Thunderbolt 4 docking.
+This document records research-grade sources used to evaluate kernel choices
+across linux-rg machine profiles. It is the shared evidence base. It complements
+per-profile patch rationale (e.g. =docs/rgx1gen11-kernel.org=) and candidate
+notes in =docs/candidates.org=.
 
 Sources are limited to peer-reviewed venues, IETF drafts, kernel.org and LWN
 primary coverage, USENIX/LPC proceedings, and vendor technical documentation.
 Downstream patch aggregators are not treated as evidence on their own.
 
-Companion: =docs/candidates.org= ecosystem survey and live hardware probe tables.
+Evidence in this file is evaluated for applicability per profile. A source may
+justify a patch for one profile (e.g. hybrid Intel laptop) while being
+inconclusive or irrelevant for another (e.g. Zen 5 desktop).
+
+Companion: =docs/candidates.org= (candidates + applicability map) and
+per-profile targets/kernel docs.
+
+** Example profile context (rgx1gen11)**
+
+- Intel Core i7-1365U, Raptor Lake-P/U hybrid.
+- KIOXIA XG8 NVMe.
+- Intel Iris Xe, CNVi Wi-Fi, Thunderbolt 4.
+
+See =docs/rgx1gen11-targets.org= for the full verified inventory. New profiles
+(e.g. rgam5terra) document their own context in their targets doc; literature
+entries here remain shared unless a profile-specific note says otherwise.
 
 * Citation workflow (OokCite MCP)
 
 All citable claims in this file should be validated through the =ookcite= MCP server
 before adding DOIs to the bibliography or citing papers in prose. Do **not** use web
 search for DOI/title/author metadata when OokCite is available.
+
+When adding a new entry, note which profiles it is expected to inform (use
+candidates.org to track the actual carry decision per profile).
 
 ** Tool sequence
 
@@ -118,14 +130,14 @@ reach patch READMEs or distro forums.
 
 ** Where kernel research *does* happen (map of venues)
 
-| Venue / channel | Typical topics | Peer review? | rgx1gen11 relevance |
+| Venue / channel | Typical topics | Peer review? | Profile relevance (examples) |
 | USENIX OSDI / SOSP / EuroSys | Isolation, new OS structures, sched frameworks in research kernels, memory offloading | Yes | Indirect; sets trends years before mainline |
 | USENIX ATC / NSDI | Storage, networking at scale, production kernel pathology, security | Yes | PSI/OOMD framing; NVMe datacenter studies (transfer carefully to laptop) |
 | ASPLOS | HW/SW co-design, memory tiering, TMO-style offloading | Yes | Memory pressure framing; not ThinkPad-specific |
 | HOTSTORAGE / SYSTOR / FAST | Block layer, NVMe, filesystems | Yes | **Direct** for KIOXIA XG8 scheduler question |
 | IMC / CoNEXT / SIGCOMM | TCP congestion, Wi-Fi cellular measurement | Yes | **Direct** for BBR on roaming CNVi paths |
 | PAM | Internet measurement, BBRv3 evaluation | Yes | BBR default justification |
-| Linux Plumbers / LPC | Scheduler, MM, power, driver maintainer sessions | Proceedings; not always journal | **Best source** for hybrid Intel, MGLRU, sched_ext |
+| Linux Plumbers / LPC | Scheduler, MM, power, driver maintainer sessions | Proceedings; not always journal | **Best source** for hybrid Intel, Zen scheduling, MGLRU, sched_ext |
 | LWN.net | Pre-merge design review of mainline patches | Editorial + primary quotes | **Best readable** source for EEVDF, sched_ext, MGLRU |
 | Kernel.org Documentation | Maintainer-intended semantics | B | Config and sysfs truth |
 | arXiv (systems) | sched_ext ecosystem preprints (e.g. ASA MoS), measurement preprints | Preprint | Prototype ideas; verify before carry |
@@ -134,29 +146,32 @@ reach patch READMEs or distro forums.
 
 ** The citation gap linux-rg sits in
 
-Mainline Linux 7.0 on a 2023 ultrabook is **post-CFS, post-MGLRU-merge, mid-sched_ext**,
-running **hybrid Intel** silicon that post-dates most classic scheduler papers.
-The published literature lags the patch queue by 2-5 years. Your distro choices
-therefore sit in a **known evidence desert**:
+Each profile has its own "known evidence desert". For the initial rgx1gen11
+profile (2023 ultrabook): mainline Linux 7.0 is post-CFS, post-MGLRU-merge,
+mid-sched_ext, on hybrid Intel silicon.
+
+The published literature lags the patch queue by 2-5 years. Distro choices
+therefore sit in a known evidence desert:
 
 - Carried fair-class tweaks (BORE, 0010-0013): engineering bets, grade D.
 - Carried zen MM/cpufreq cuts (0014-0016): Liquorix folklore, partially upstreamed.
 - Literature-backed choices: MGLRU, PSI, BBR family, BFQ *class*, HOTSTORAGE
   skepticism on ULL NVMe defaults, hybrid scheduling *problem statement*.
 
-That is why this repo grades patches A-D and separates *problem framing* (often A)
-from *patch implementation* (often D).
+This repo grades patches A-D and separates *problem framing* (often A) from
+*patch implementation* (often D). The same grading applies when evaluating
+patches for new profiles (e.g. Zen 5 + discrete GPU).
 
-** What would count as real science for this project
+** What would count as real science for a profile
 
-Minimum bar for promoting any candidate from D to B on this machine:
+Minimum bar for promoting any candidate from D to B on a given profile:
 
-1. Fixed hardware: 21HM002GUS, documented firmware and BIOS.
-2. Fixed workload scripts per =docs/rgx1gen11-targets.org= profiles.
-3. A/B: stock Arch kernel vs linux-rg; never compare against a moving upstream tip.
-4. Metrics: PSI averages, scheduler latency (perf sched), idle power (RAPL or
-   powertop), NVMe fio percentiles, s2idle success rate -- not a single FPS chart.
-5. Pre-declared success thresholds (already in targets.org acceptance tables).
+1. Fixed hardware + firmware/BIOS documented in the profile's targets.org.
+2. Fixed workload scripts defined for that profile.
+3. A/B: stock Arch kernel vs linux-rg on the target machine.
+4. Profile-appropriate metrics (e.g. for a desktop: build throughput + gaming
+   frame time consistency + thermals; for a laptop: s2idle, battery, wakeup).
+5. Pre-declared success thresholds in the profile's targets doc.
 6. Negative results recorded in =docs/candidates.org= decision gates.
 
 This is reproducible systems measurement, not a paper -- but it is **more honest**
@@ -172,7 +187,7 @@ than most patch-stack marketing.
 
 * Literature coverage by subsystem (what is studied vs not)
 
-| Subsystem | Studied well? | Representative work | Gap for rgx1gen11 |
+| Subsystem | Studied well? | Representative work | Gap example (rgx1gen11) |
 | CPU fair scheduling (mainline) | Medium | EEVDF design (LWN, kernel docs); decade-of-wasted-cores (EuroSys 2016) on server skew | Laptop hybrid 2P+8E under interactive load; few peer-reviewed A/B vs stock |
 | sched_ext / BPF schedulers | Growing | LPC 2024 maintainer sessions; userspace scx_* tools | Which expert wins on 1365U -- **local bench only** |
 | Downstream fair patches (BORE, PDS, MUQSS) | Poor | Design blogs; no independent eval | Entire linux-rg fair weld is grade D until bench-sched |
@@ -183,6 +198,9 @@ than most patch-stack marketing.
 | PSI + oomd | Good (production) | Meta OOMD; kernel PSI docs | Threshold tuning -- userspace, grade B/C |
 | cpuidle / intel_pstate | Medium | Loehle TEO upstream rationale; intel_pstate docs | TEO vs menu on s2idle ultrabook -- patch carried, bench pending |
 | Wi-Fi / iwlwifi | Driver-focused | 802.11 research; few "Linux desktop latency" studies | power_save, bt_coex -- module params, not papers |
+| AMD Zen 5 / amd-pstate | Medium (engineering) | kernel.org amd-pstate; AMD Zen 5 SW guide | 9950X EPP + SFF thermals -- local bench only |
+| NVIDIA open modules (Blackwell) | Vendor + distro docs | ArchWiki NVIDIA; NVIDIA open-kernel blog | RTX 5070 resume/Wayland -- driver version specific |
+| rtw89 Wi-Fi 6E | Driver-focused | Realtek upstream rtw89; few desktop latency papers | Wi-Fi 6E power save -- probe on B650I |
 | i915 / laptop display PM | Panel-specific | FOSDEM 2018 battery; mjg59 PSR analysis | Raptor Lake Iris Xe != Panther/Lunar PSR papers |
 | Rust in kernel | Safety narrative | USENIX ATC Android binder Rust eval; LF memory-safety reports | **Not a perf literature** for iwlwifi/i915 paths |
 | PREEMPT_RT | Strong for RT apps | OSAD workshop; driver lag documented | Explicitly wrong daily-driver choice here |
@@ -264,6 +282,28 @@ numbers to a 12-thread ultrabook.
   https://lwn.net/Articles/909611/
 
 Evidence grade: B.
+
+** AMD Zen 5 desktop topology (rgam5terra: Ryzen 9 9950X)
+
+- amd-pstate driver documentation (CPPC, EPP, preferred cores):
+  https://docs.kernel.org/admin-guide/pm/amd-pstate.html
+- AMD Software Optimization Guide for Zen 5 processors (vendor PDF; grade C):
+  https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/software-optimization-guides/58413_Software_Optimization_Guide_for_AMD_Zen5_Processors_1.00.pdf
+- Phoronix: Ryzen 9 9950X Linux scaling with amd-pstate (measurement journalism; grade C):
+  https://www.phoronix.com/review/ryzen-9950x-amd-pstate
+
+Evidence grade: B for kernel cpufreq/CPPC semantics; C for vendor optimization
+guide; C for Phoronix throughput curves.
+
+Research implication for rgam5terra:
+
+- 9950X is **not** Intel hybrid. Fair-class downstream patches aimed at P/E cluster
+  migration (linux-rg 0010-0011) lack the same problem statement.
+- Dual-CCD L3 topology makes **cache-aware placement** (0020) and sched_ext expert
+  policies more plausible than on a single-LLC laptop -- still grade D until
+  benchmarked on the Terra box.
+- Server load-balance papers (Lozi EuroSys 2016) are weakly transferable: 32
+  threads on one socket is neither a 12-thread ultrabook nor a dual-socket server.
 
 ** BORE (carried in linux-rg)
 
@@ -517,7 +557,7 @@ Evidence grade: B for governor choice on NO_HZ Intel laptops.
 - Practitioner analysis: https://mjg59.dreamwidth.org/34868.html
 
 Much 2025-2026 Panel Replay literature targets display version 20 and newer
-(Lunar Lake and Panther Lake). Raptor Lake Iris Xe on this machine is not in
+(Lunar Lake and Panther Lake). Raptor Lake Iris Xe on rgx1gen11 is not in
 that class. Evidence for external Thunderbolt displays is panel-specific.
 
 * Platform documentation
@@ -612,6 +652,27 @@ Contributions this repo can make without writing academic papers:
 Negative results (no improvement vs stock) are **first-class outcomes** and should
 be recorded in =docs/candidates.org= decision gates.
 
+* Discrete GPU (NVIDIA open stack, rgam5terra)
+
+** Arch and vendor policy
+
+- ArchWiki NVIDIA driver matrix (Blackwell and newer -> =nvidia-open=):
+  https://wiki.archlinux.org/title/NVIDIA
+- NVIDIA open GPU kernel modules transition (vendor engineering blog; grade C):
+  https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/
+- GSP firmware requirement documented in NVIDIA README (per driver branch).
+
+Evidence grade: B for distro packaging truth; C for vendor narrative; D for
+"gaming performance vs stock" without controlled bench on RTX 5070.
+
+Research implication:
+
+- linux-rg does not carry NVIDIA code in-tree. Profile risk is **ABI match**
+  (custom kernel headers vs =nvidia-open=) and **resume/modeset** stability in a
+  SFF chassis, not fair.c scheduler patches.
+- Wayland compositor + NVIDIA is a userspace contract; kernel choice matters for
+  PCIe ASPM and general stability, not for replacing =nvidia_drm=.
+
 * Synthesis for rgx1gen11
 
 Machine-specific targets and vissue map: =docs/rgx1gen11-targets.org=.
@@ -630,6 +691,60 @@ Machine-specific targets and vissue map: =docs/rgx1gen11-targets.org=.
 | zen 0014-0015 MM/cpufreq | Liquorix folklore (D) | Carried; low boot risk (=linux-rg-zen2=) |
 | Rust fw_loader + binder | Safety (B/C); not perf | Config pins only (=linux-rg-rust1=) |
 | i915 vs xe, SOF, TB4 dock | Platform docs (C) | Userspace/boot policy; see hardware targets (=linux-rg-i915=, =linux-rg-sof=, =linux-rg-tb4=) |
+
+* Synthesis for rgam5terra (research pass 2026-06-19)
+
+Machine-specific targets: =docs/rgam5terra-targets.org=. Kernel applicability:
+=docs/rgam5terra-kernel.org=.
+
+| Component | Literature support | Action |
+| amd-pstate + EPP | Kernel docs (B); vendor guide (C) | Plan overlay pins; **PPT cap first** (NH-L9a gate) |
+| NH-L9a vs 9950X TDP | Noctua (B) + AMD (B) | Mandatory userspace/BIOS cap; not a kernel patch |
+| NVIDIA open + GSP | ArchWiki (B); vendor blog (C) | Track =nvidia-open= ABI; SFF =nvidia-smi -pl= experiment |
+| PCIe ASPM + dGPU | Community (C) | Probe =off= vs laptop =powersave=; do not inherit rgx1gen11 |
+| SN850X APST | ArchWiki (B) + WD reports (C) | Probe-first; opposite default vs rgx1gen11 checker |
+| PSI/MGLRU/zswap/zram/DAMON | Strong (A/B) | Planned; tune for 48 GiB not laptop 32 GiB |
+| BFQ + block contention | BFQ (A); ULL benefit uncertain | SN850X A/B incl. =none= (=linux-rg-rt1t=) |
+| ADIOS module | No published eval (D) | Module only on SN850X |
+| BORE fair patch | No published eval (D) | Evaluate; do not carry hybrid 0010-0011 |
+| cache-aware SCHED_CACHE | Motivation stronger on dual-CCD (B/D) | Higher priority than laptop (=linux-rg-kr7t=) |
+| sched_ext + ASA | Infrastructure (B); prototype (D) | Desktop expert switching candidate |
+| BBRv3 default | Strong with fairness caveats (A) | Same carry hypothesis; VPN/tunnel RTT still applies |
+| Hybrid sched weld 0010-0013 | Intel hybrid problem (B) | **Blocked** for rgam5terra motivation |
+| cpuidle TEO 0016 | Intel idle (B/D) | **Blocked**; use AMD idle path |
+| DDCCI | External monitor (low) | Prefer userspace =ddcutil= |
+
+* SFF thermal coupling (rgam5terra-specific, grade B/C)
+
+The Terra + NH-L9a + 9950X + RTX 5070 stack is a **literature desert** for Linux
+kernel tuning: vendor specs bound the problem, but peer-reviewed "Linux on this
+chassis" studies do not exist.
+
+| Constraint | Evidence | Grade | Linux implication |
+| 9950X 170 W TDP | AMD Granite Ridge product spec | B | Default power exceeds cooler class |
+| NH-L9a ~95 W AM5 guidance | Noctua product compatibility | B | PPT cap before cpufreq/sched bench |
+| RTX 5070 ~250 W class TDP | NVIDIA board power spec | B/C | GPU =nvidia-smi -pl= pairs with CPU cap |
+| Closed SFF panel airflow | Fractal Terra mechanical design | C | Thermals trump scheduler patches |
+
+Research implication: grade-D kernel patches (BORE, cache-aware, ADIOS) must be
+benchmarked **only after** grade-B/C power caps are documented. Otherwise results
+confound thermal throttle with scheduler quality.
+
+* Research agenda (rgam5terra, post-assembly)
+
+| Question | Method | Fills literature gap? |
+| PPT cap vs stock on NH-L9a sustained load | ryzenadj/BIOS + sensors | Yes -- cooler class mismatch on Linux |
+| BORE vs stock on 9950X desktop-mixed | bench-sched + PSI (after PPT cap) | Yes -- unpublished A/B on Zen 5 32T |
+| cache-aware 0020 vs scx_loader on dual-CCD | sched bench + perf c2c | Yes -- CCD locality on Granite Ridge |
+| BFQ vs none vs ADIOS on SN850X | fio + HOTSTORAGE protocol | Yes -- ULL question on WD Gen4 |
+| SN850X APST on vs off resume | 5-cycle suspend + nvme-cli | Yes -- WD+Linux APST folklore vs data |
+| pcie_aspm off vs powersave + NVIDIA | cmdline A/B + resume | Yes -- laptop ASPM not transferable |
+| zram 16-24 GiB on 48 GiB RAM | memory-pressure + PSI | Yes -- sizing folklore vs measurement |
+| NVIDIA open resume on Terra | suspend cycles + journal | Yes -- SFF + Blackwell path |
+| amd-pstate EPP vs performance | powertop + thermals under panels | Partial -- SFF thermal policy |
+| znver5 ISA tuned kernel image | make -j32 at fixed PPT | Partial -- ISA folklore on Zen 5 |
+| gaming-sched cgroup_mode on 32T | PSI + cgroup CPU stats | Yes -- Cachy many-core desktop gap |
+| CachyOS fair CONFIG_CACHY vs BORE | A/B desktop-mixed | Yes -- downstream policy comparison |
 
 * Bibliography (OokCite-validated BibTeX)
 
@@ -735,13 +850,19 @@ Hock IMC 2019, Skarlatos TMO ASPLOS 2022, Li KBench ATC 2024).
 
 * Document index
 
-- =docs/literature-review.org= (this file) -- evidence grades, venue map, WTF section
-- =docs/candidates.org= -- patch decisions and ecosystem survey
-- =docs/rgx1gen11-targets.org= -- measurable acceptance thresholds
-- =docs/rgx1gen11-kernel.org= -- carried patch rationale
+- =docs/profiles.org= -- machine profiles + cross-profile patch map
+- =docs/literature-review.org= (this file) -- shared evidence grades, venue map
+- =docs/candidates.org= -- candidates + per-profile applicability
+- =docs/rgx1gen11-targets.org= -- rgx1gen11 measurable acceptance thresholds
+- =docs/rgx1gen11-kernel.org= -- rgx1gen11 carried patch rationale
+- =docs/rgam5terra-targets.org= -- rgam5terra planned inventory + bench gates
+- =docs/rgam5terra-kernel.org= -- rgam5terra patch applicability matrix
 
 Vissues: =linux-rg-g87u= (initial review), =linux-rg-lit2= (wide survey),
 =linux-rg-ook1= (OokCite validation pass), =linux-rg-e9fx= (live validation +
 literature pass 2).
 
 OokCite collection: =linux-rg= (fourteen DOI-verified entries as of 2026-06-18 pass 2).
+
+New profiles add their targets/kernel docs and update the applicability tables
+here and in candidates.org.

@@ -1,0 +1,315 @@
+#+title: linux-rg rgam5terra hardware targets
+#+date: [2026-06-19 Fri]
+
+* Purpose
+
+This file ties the linux-rg kernel package to the rgam5terra profile (Fractal
+Terra SFF desktop, AM5 + discrete NVIDIA). It records planned hardware facts
+(from build receipts and vendor documentation), workload profiles, measurable
+targets, and what to carry vs hold for this machine.
+
+Status: **researching**. Live inventory rows are marked =planned= until the
+assembled system is probed. Do not treat receipt-level specs as measured boot
+evidence.
+
+See =docs/profiles.org= for the parts list and cross-profile patch map.
+
+Companion docs:
+
+- =docs/rgam5terra-kernel.org= -- patch applicability for Zen 5 + RTX 5070
+- =docs/rgam5terra-drivers.org= -- driver and firmware map
+- =docs/rgam5terra-boot-safety.org= -- rollback and mkinitcpio contract
+- =docs/candidates.org= -- shared candidate registry with per-profile notes
+- =docs/literature-review.org= -- evidence grades and bibliography
+
+Related vissue: =linux-rg-3up1= ("linux-rg: rgam5terra AM5 RTX profile").
+
+* Full build listing (Micro Center receipts)
+
+Captured 2026-06-19 from Micro Center Product Station printouts (store 121,
+Cambridge MA). Price guarantee on printout: Monday 2026-06-08 (Cambridge).
+Associate on kiosk header: Andrew Sanchez. **Not yet verified on a running
+linux-rg boot** (receipt != assembled system).
+
+| # | Component | SKU | Qty | Unit $ | Line $ | Stock (Cambridge) |
+|---|-----------|-----|-----|--------|--------|-------------------|
+| 1 | AMD Ryzen 9 9950X Granite Ridge AM5 16-core (heatsink not included) | 721191 | 1 | 499.99 | 499.99 | 1, Aisle 30 |
+| 2 | T-Force Xtreem 48GB (2x24GB) DDR5-8000 CL38, FFXD548G8000HC38EDC01 Black | 655191 | 1 | 669.99 | 669.99 | 1, Aisle 37 |
+| 3 | ASRock B650I Lightning WiFi AMD AM5 Mini-ITX | 657478 | 1 | 169.99 | 169.99 | 2, Aisles 31-32 |
+| 4 | Lian Li SP850 V2 Gold 850W ATX 3.1 fully modular (White) | 911693 | 1 | 149.99 | 149.99 | 2, Aisle 33 |
+| 5 | ASUS NVIDIA GeForce RTX 5070 Dual Fan 12GB GDDR7 PCIe 5.0 | 956516 | 1 | 629.99 | 629.99 | 13, Aisle 36 |
+| 6 | Fractal Design Terra Mini-ITX case (Jade) | 591669 | 1 | 199.99 | 199.99 | 0 new in stock |
+| 7 | WD BLACK SN850X 2TB PCIe Gen4 x4 NVMe (112-layer BiCS5 TLC) | 691840 | 1 | 389.99 | 389.99 | 21, Aisles 30 / 27A |
+| 8 | Noctua NH-L9a-AM4 low-profile CPU cooler | 958454 | 1 | 64.99 | 64.99 | 4, Aisle 35 |
+| 9 | ARCTIC P12 Pro 120mm case fan (Black) | 953612 | 1 | 11.99 | 11.99 | 14, Aisle 35 |
+
+** Receipt totals (image 1, cart with all nine lines)**
+
+| Field | Amount |
+| Subtotal | $2,786.91 |
+| Instant 5% off (Insider card promo shown) | -$139.35 |
+| After discount | $2,647.56 |
+| Tax | $174.18 |
+| **Total** | **$2,961.09** |
+
+Line-item sum: $2,787.91 (nine parts); kiosk subtotal $2,786.91 (off by $1.00 --
+likely rounding or a kiosk display quirk; use SKU table as authoritative).
+
+** Receipt transcription notes**
+
+- Kiosk line 1 prints "Ryzen 9 8950X" at 4.2 GHz; SKU 721191 + 16-core Granite
+  Ridge + $499.99 price point match the catalog **Ryzen 9 9950X**. Confirm model
+  string on the retail box at unbox; profile docs use 9950X until then.
+- Cooler is the **AM4** NH-L9a SKU. Build state: the AM4 cooler is physically
+  mounted on AM5. Thermal plan is unchanged (low-profile air in Terra).
+- Case color **Jade**; GPU is **ASUS Dual** two-fan, not a generic board partner.
+- Motherboard is **B650I** (B650 chipset mini-ITX), matching the receipt crop
+  and ASRock product page.
+- Arctic P12 Pro is an extra 120 mm fan beyond the PSU/GPU/case fans -- document
+  airflow plan when Terra panels are on.
+
+* Planned hardware inventory (summary)
+
+Derived from receipt table above plus vendor spec sheets.
+
+| Component | Detail | Source grade |
+|-----------|--------|--------------|
+| Form factor | Fractal Design Terra mini-ITX SFF (Jade) | receipt |
+| CPU | AMD Ryzen 9 9950X, Zen 5 (Granite Ridge), 16 cores / 32 threads | receipt SKU 721191 |
+| CPU TDP | 170 W base; boost up to ~5.7 GHz (single-core class) | AMD spec sheet |
+| CPU topology | 2 CCDs x 8 cores (expected); single socket AM5 | AMD Zen 5 public topology |
+| Motherboard | ASRock B650I Lightning WiFi, AM5, mini-ITX | receipt |
+| Chipset | AMD B650 | ASRock spec |
+| dGPU | ASUS GeForce RTX 5070 Dual 12 GB GDDR7, PCIe 5.0 | receipt |
+| dGPU interface | RTX 5070 PCIe 5.0 card in B650I PCIe 4.0 x16 slot via Terra PCIe 4.0 riser | board + GPU specs |
+| Storage | WD BLACK SN850X 2 TB NVMe, PCIe Gen4 x4 | receipt |
+| RAM | T-Force Xtreem 48 GiB (2x24 GiB) DDR5-8000 CL38 | receipt |
+| Cooler | Noctua NH-L9a-AM4 low-profile, mounted on AM5 | receipt + build note |
+| Case airflow | ARCTIC P12 Pro 120 mm (Black) + stock Terra/PSU/GPU fans | receipt |
+| PSU | Lian Li SP850 V2 Gold 850 W, ATX 3.1, White | receipt |
+| Wi-Fi | Onboard Wi-Fi 6E (802.11ax); chip TBD at probe | ASRock spec |
+| LAN | 2.5 GbE Dragon; expect Realtek RTL8125BG class | ASRock spec |
+| Audio | Realtek ALC897 7.1 HD codec (onboard) | ASRock spec |
+| Retailer | Micro Center Cambridge (store 121) | receipt |
+| Status | Purchased per receipts; not yet live-probed | -- |
+| Config overlay | =rgam5terra.config= (not yet added) | -- |
+
+** Thermal constraint (primary research finding)**
+
+The Terra case plus NH-L9a-AM4 mounted on AM5 is a **low-profile air cooler on a
+170 W CPU** in a volume-constrained chassis, paired with a **~250 W-class
+discrete GPU**. Linux power/thermal policy is a first-class target here, not an
+afterthought. Expect userspace caps (EPP, PPT, fan curves, GPU power limits) to
+matter as much as kernel scheduler choices.
+
+** What this hardware is not (rgam5terra)
+
+| Class | Why skip |
+| Hybrid Intel sched weld (0010-0013) | No P/E clusters; Zen 5 is homogeneous per CCD |
+| intel_pstate / intel_idle / TEO 0016 | Wrong CPU vendor |
+| iwlwifi / CNVi / AX211 checkers | Wrong Wi-Fi stack |
+| i915 / xe / Iris Xe boot contract | Discrete NVIDIA primary display |
+| DDCCI in-tree backlight | No internal laptop panel; external monitor DDC is userspace |
+| ThinkPad ACPI / s2idle ultrabook path | Desktop AM5; different ACPI sleep story |
+| Panther Lake PSR patches | Wrong display IP |
+
+* Workload profiles
+
+Default daily driver once assembled: =desktop-mixed=. SFF thermals make
+=thermal-sustained= a mandatory validation profile alongside throughput work.
+
+| Profile | Typical load | Priority metrics |
+| desktop-mixed | Sway/Hyprland, browser, terminals, sync, light compile | frame pacing, UI latency, idle noise |
+| build-heavy | =make -j32=, containers, scientific builds, cosmolab remote compile | wall time, PSI memory/cpu, NVMe queue depth |
+| gaming-dgpu | RTX 5070 primary, compositor + games, voice chat | frametime consistency, GPU power state, audio glitching |
+| memory-pressure | browser + VM + build on 48 GiB | swap thrash, oomd reaction, zram ratio |
+| thermal-sustained | Combined CPU+GPU load in closed Terra panels | CPU/GPU throttle points, fan audibility, clock stability |
+
+* Subsystem targets
+
+** CPU and scheduler (Ryzen 9 9950X, Zen 5)
+
+| Target | Rationale | Kernel / userspace | Vissue |
+| Per-CCD locality on 32 threads | 2 CCDs; L3 is per-CCD on Granite Ridge | sched_ext, cache-aware 0020 eval, mainline topology | =linux-rg-3up1= |
+| amd-pstate EPP policy | Primary cpufreq path on Zen 4/5 | =CONFIG_X86_AMD_PSTATE=y=, EPP sysfs | =linux-rg-3up1= |
+| Preferred-core scheduling | CPPC highest-performance register semantics | amd-pstate preferred_core sysfs | =linux-rg-3up1= |
+| Fair-class desktop latency | Large core count, interactive desktop | BORE eval (not hybrid 0010-0013) | =linux-rg-h2e3= |
+| sched_ext expert policies | Literature grade B infrastructure | CONFIG_SCHED_CLASS_EXT, scx_loader, ASA | =linux-rg-tjsl=, =linux-rg-asa1= |
+| SMT idle (0012) | 2-way SMT per core; 32 threads | sched_ext SMT idle patch | =linux-rg-9k2m= |
+
+Primary sources:
+
+- amd-pstate driver documentation:
+  https://docs.kernel.org/admin-guide/pm/amd-pstate.html
+- AMD CPPC / preferred-core semantics (same doc; grade B)
+- Phoronix 9950X amd-pstate review (grade C; measurement journalism)
+
+Acceptance (post-assembly, bench plan TBD):
+
+- =make -j32= wall time within 5% of stock Arch kernel or faster on identical
+  thermal envelope (document fan profile).
+- No sustained CPU pressure stalls during desktop-mixed use
+  (=/proc/pressure/cpu=).
+- Record EPP profile (=performance= vs =balance_performance=) and whether
+  scx_loader expert beats BORE-only for desktop-mixed.
+
+** Discrete GPU (RTX 5070, Blackwell)
+
+| Target | Rationale | Driver stack | Vissue |
+| Stable modeset + Wayland | Daily driver compositor | =nvidia-open= + GSP firmware | =linux-rg-3up1= |
+| Open kernel modules default | Arch policy: Blackwell and newer use =nvidia-open= | https://wiki.archlinux.org/title/NVIDIA | =linux-rg-3up1= |
+| Power / clock gating | SFF thermals + idle desktop | NVIDIA driver + kernel PCIe ASPM policy | =linux-rg-3up1= |
+| No amdgpu display stack | No iGPU on 9950X | Skip amdgpu display; use NVIDIA for all outputs | -- |
+
+Acceptance:
+
+- Compositor starts on Wayland or documented X11 fallback without manual module
+  rebuild.
+- =nvidia-smi= and DRM modeset succeed after suspend cycle (once resume policy
+  is chosen).
+- Record driver branch (=nvidia-open= version) and GSP firmware load from journal.
+
+** NVMe and block I/O (WD SN850X 2 TB)
+
+| Target | Rationale | Kernel | Vissue |
+| Interactive I/O under build + browser | Desktop + compile share one Gen4 SSD | BFQ + contention patch (0007) | =linux-rg-6myb= |
+| ULL NVMe scheduler skepticism | HOTSTORAGE 2023 applies to SN850X class | ADIOS module A/B; compare =none= | =linux-rg-rt1t= |
+| APST / ASPM policy | Desktop idle vs latency tradeoff | nvme APST sysfs; PCIe ASPM | =linux-rg-3up1= |
+| Thermal telemetry | SFF airflow | CONFIG_NVME_HWMON=y | =linux-rg-wpdr= |
+
+Primary sources:
+
+- Whitaker et al., HOTSTORAGE 2023 (DOI 10.1145/3599691.3603400)
+- ArchWiki NVMe power saving (APST, NOPPM):
+  https://wiki.archlinux.org/title/Solid_state_drive/NVMe
+
+Acceptance (=linux-rg-rt1t= adapted for SN850X):
+
+- fio mixed randrw 70/30 on root NVMe with desktop load in background.
+- Compare =bfq=, =adios=, =none=; record latency percentiles and subjective
+  compile stutter.
+- Document APST on/off behavior; watch for broken APST resume (ArchWiki warning).
+
+** Memory (48 GiB DDR5)
+
+| Target | Rationale | Kernel / userspace | Vissue |
+| Pressure visibility | VM + browser + build headroom | CONFIG_PSI, memcg | =linux-rg-7f5e= |
+| Reclaim quality | MGLRU mainline | CONFIG_LRU_GEN_ENABLED | =linux-rg-7f5e= |
+| Compressed swap layer | Larger RAM than laptop; still want burst headroom | zswap + zram policy for 48 GiB | =linux-rg-zram= |
+| OOM before hard kill | Build.slice protection | systemd-oomd + PSI | =linux-rg-oomd= |
+| Reclaim floors | Avoid zram/file-cache thrash | 0018 ratio knobs | =linux-rg-7zwz= |
+| MGLRU weld | Scan mechanics | 0019 mglru dev-tree adapt | =linux-rg-5fxc= |
+| Access-aware reclaim | Stale browser mappings | DAMON (bounded) | =linux-rg-tm76= |
+
+Suggested starting zram policy (hypothesis until probed):
+
+- Size: ~16-24 GiB (ram/2 to ram/3), not the laptop's 15.5 GiB ram/2 default.
+- Keep zswap enabled as second layer; 48 GiB gives more anonymous headroom but
+  build-heavy + VM can still spike.
+- Literature framing: ElasticZRAM (DAC 2024), SWAM (arXiv 2023) -- see
+  =docs/literature-review.org=.
+
+** Network (onboard Wi-Fi 6E + 2.5G LAN)
+
+| Target | Rationale | Kernel | Vissue |
+| Stable Wi-Fi 6E | Mini-ITX onboard; expect rtw89 | =rtw89_8852be= or probe result | =linux-rg-3up1= |
+| Wired 2.5G default at desk | RTL8125 class | =r8169= (module) | =linux-rg-3up1= |
+| TCP on fixed LAN | Less roam than laptop; still variable RTT on VPN | BBRv3 + fq eval | =linux-rg-l5al= |
+
+Acceptance:
+
+- Record exact PCI/USB IDs at first probe; update =docs/rgam5terra-drivers.org=.
+- iwd association + DHCP on 6 GHz if available; document regulatory domain.
+
+** Audio and USB
+
+| Target | Rationale | Stack | Vissue |
+| ALC897 analog + digital | Desktop speakers/headset | =snd_hda_intel= + linux-firmware | =linux-rg-3up1= |
+| USB audio for headset/mic | Common desktop path | USB audio class | =linux-rg-3up1= |
+| BT if present on Wi-Fi module | Combo module dependent | btusb + rtw89 coexistence | =linux-rg-3up1= |
+
+** Power, thermal, and ACPI (AM5 desktop)
+
+| Target | Rationale | Layer | Vissue |
+| SFF sustained power | NH-L9a + Terra panels | EPP, PPT, fan curves; possibly GPU power cap | =linux-rg-3up1= |
+| ACPI sleep policy | Desktop vs laptop s2idle | S3 vs s0ix; NVIDIA resume quirks | =linux-rg-3up1= |
+| Platform profile | ASRock ACPI where exposed | platform_profile sysfs if present | =linux-rg-pwr= |
+
+Do not assume laptop cpuidle TEO results transfer. Measure idle power only after
+assembly with case panels on.
+
+* Hardware-specific tweaks (evidence-graded index)
+
+Full tweak table (T1-T26), grades, cmdline/module hypotheses, and "do not copy
+rgx1gen11" rules: =docs/rgam5terra-kernel.org= ("Hardware-specific tweaks").
+
+Planned modprobe/sysfs policy files: =docs/rgam5terra-drivers.org= ("Module
+parameters and policy files").
+
+| Priority | IDs | Why first |
+| 1 | T1, T8, T23 | NH-L9a 95 W class vs 170 W CPU + RTX 5070 in Terra |
+| 2 | T7, T9-T11, T24 | Bootable NVIDIA open stack + ASPM resume matrix |
+| 3 | T12-T15 | SN850X APST + HOTSTORAGE scheduler A/B |
+| 4 | T16-T17 | 48 GiB memory pressure policy |
+| 5 | T2-T6, T25 | amd-pstate EPP + sched_ext/cache-aware after thermals stable |
+| 6 | T18-T22 | Network/audio polish |
+
+** Critical thermal evidence (pre-assembly)**
+
+| Claim | Grade | Source |
+| 9950X 170 W default TDP | B | AMD Granite Ridge spec |
+| NH-L9a-AM4 mounted on AM5 is a 37 mm low-profile cooler class | B | Noctua compatibility guidance + build note |
+| Terra + low-profile cooler + 250 W-class GPU | C | SFF thermodynamics (engineering) |
+
+Kernel patches cannot fix a 170 W CPU in a 95 W cooler. **T1 (PPT cap) is a
+hard gate** before scheduler or ISA benchmarks.
+
+* Patch and policy priority (rgam5terra)
+
+Ordered by expected impact once the machine is running:
+
+1. Bootable package + stock Arch rollback (=linux-rg-3up1= boot-safety)
+2. NVIDIA open driver + mkinitcpio contract (nvme + nvidia modules)
+3. NVMe scheduler A/B on SN850X (=linux-rg-rt1t=)
+4. Memory policy for 48 GiB (=linux-rg-zram=, =linux-rg-7f5e=)
+5. sched_ext / ASA / cache-aware 0020 on dual-CCD topology (=linux-rg-tjsl=, =linux-rg-kr7t=)
+6. BORE-only fair eval (skip hybrid 0010-0013 unless evidence says otherwise)
+7. Zen5-specific carries: 0022 RDSEED (P0), btrfs 0023 if applicable (P1)
+8. Many-core cgroup fairness: sched_ext first; then 0025 gaming-sched vs 0026 newidle
+9. znver5 ISA 0024 only after PPT-stable bench
+10. Thermal-sustained validation under Terra airflow (=linux-rg-3up1=)
+
+Downstream patch survey: =docs/rgam5terra-kernel.org= ("Downstream kernel survey").
+
+* Measurement checklist (planned)
+
+| Benchmark | Tool / method | Baseline | linux-rg gate |
+| Desktop latency feel | compositor input, scroll, alt-tab | stock Arch kernel | no regression |
+| Build throughput | =time make -j32= in linux tree | stock | within 5% or document thermal cap |
+| Gaming frametime | mangohud / presentmon log | stock | no regression; document GPU driver |
+| Idle power (panels on) | powertop / RAPL sample | stock | document SFF tradeoff; no numeric gate yet |
+| NVMe mixed | fio + desktop load | bfq default | ADIOS only if win on SN850X |
+| Scheduler | =/proc/pressure/*=, perf sched | stock | no sustained some pressure |
+| Suspend/resume | chosen sleep state | stock | 0 hangs; NVIDIA modeset recovery |
+| Thermal sustained | CPU+GPU combined load | stock | throttle points documented |
+
+* Boot safety (mandatory before first linux-rg boot)
+
+See =docs/rgam5terra-boot-safety.org=:
+
+- Stock Arch =linux= kernel stays installed until basic resume and display are
+  verified.
+- mkinitcpio MODULES: at minimum =(nvme)=; NVIDIA early module policy documented
+  there.
+- =linux-firmware= required (Wi-Fi, BT if combo, NVIDIA GSP firmware via
+  nvidia-utils).
+- Driver stacks: =docs/rgam5terra-drivers.org=.
+
+* Document index
+
+- =docs/rgam5terra-targets.org= (this file)
+- =docs/rgam5terra-boot-safety.org=
+- =docs/rgam5terra-drivers.org=
+- =docs/rgam5terra-kernel.org=
+- =docs/candidates.org=
+- =docs/literature-review.org=

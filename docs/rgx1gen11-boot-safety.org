@@ -3,9 +3,14 @@
 
 * Rule zero
 
-linux-rg must boot to the same root filesystem as stock Arch. If linux-rg fails,
-rEFInd (or the firmware boot menu) must still start the stock =linux= kernel
-without manual recovery.
+linux-rg must boot to the same root filesystem as stock Arch for the active
+profile. If linux-rg fails on a given machine, the stock =linux= kernel must
+still start without manual recovery.
+
+See =docs/profiles.org= for the full profile list.
+
+This document records the boot contract for the rgx1gen11 profile. Other
+profiles will have (or already have) their own boot-safety.org.
 
 Vissue: =linux-rg-boot=. Parent: =linux-rg-mxx8=.
 
@@ -18,7 +23,7 @@ Vissue: =linux-rg-boot=. Parent: =linux-rg-mxx8=.
 | Scheduler patches | Compile-tested only | BORE/0010-0013 must not block early boot |
 | Firmware in kernel | =CONFIG_EXTRA_FIRMWARE=""= (Arch default) | Firmware stays in linux-firmware package |
 
-** Never do for this profile
+** Never do for rgx1gen11
 
 - Build =nvme=, =i915=, =xe=, or =iwlwifi= as built-in (=y=) unless Arch already does
   (it does not).

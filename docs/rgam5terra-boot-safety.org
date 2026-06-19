@@ -1,0 +1,160 @@
+#+title: linux-rg rgam5terra boot safety
+#+date: [2026-06-19 Fri]
+
+* Rule zero
+
+linux-rg must boot to the same root filesystem as stock Arch for the active
+profile. If linux-rg fails on rgam5terra, the stock =linux= kernel must still
+start without manual recovery.
+
+See =docs/profiles.org= for the profile list.
+
+This document records the **planned** boot contract for rgam5terra. It is
+research-grade until the machine is assembled and probed. Do not run installer
+scripts or change archiso profile selection based on this file alone.
+
+Related vissues: =linux-rg-3up1= (profile), =linux-rg-1xe1= (Archiso selector),
+=linux-rg-gdg7= (NixOS provisioning evaluation).
+
+* What must not change (boot-critical)
+
+| Item | Requirement | Why |
+| Root disk driver | =CONFIG_BLK_DEV_NVME=m= (match Arch) | Root on SN850X NVMe |
+| NVIDIA driver packaging | =nvidia-open= matches kernel headers ABI | Blackwell requires open modules on Arch |
+| Firmware in kernel | =CONFIG_EXTRA_FIRMWARE=""= (Arch default) | GSP + Wi-Fi firmware stay in packages |
+| Scheduler patches | Compile-tested only | BORE/sched_ext must not block early boot |
+| AMD microcode | Load via early initrd or builtin path per Arch | 9950X security/stability |
+
+** Never do for rgam5terra (pre-probe)
+
+- Build =nvme= as built-in (=y=) unless Arch already does (it does not).
+- Embed NVIDIA GSP or Wi-Fi firmware into =CONFIG_EXTRA_FIRMWARE=.
+- Enable =CONFIG_MQ_IOSCHED_DEFAULT_ADIOS= before SN850X bench wins.
+- Remove =CONFIG_FW_LOADER= or =CONFIG_FW_LOADER_COMPRESS=.
+- Drop stock =linux= package before display + resume are verified.
+
+* Before first linux-rg boot (checklist)
+
+1. Stock Arch kernel installed: =pacman -Q linux linux-headers=.
+2. =linux-firmware= installed (Wi-Fi, BT if combo).
+3. =amd-ucode= installed and early-load path active (mkinitcpio =microcode= hook).
+4. =nvidia-open= and matching =nvidia-utils= installed for RTX 5070.
+5. Successful =makepkg= for linux-rg (future =linux-rg-py5f= equivalent).
+6. mkinitcpio preset for linux-rg with probed MODULES contract (below).
+7. Bootloader entry for linux-rg is **non-default** until checks pass.
+8. Planned =rgam5terra-boot-check= (not yet implemented) passes --installed.
+
+* mkinitcpio: MODULES and hooks (planned)
+
+Root filesystem layout is **TBD at assembly** (encrypted btrfs vs ext4, LUKS or
+not). The MODULES contract below assumes NVMe root on =/dev/nvme0n1= similar to
+the laptop profile but **without** Intel graphics.
+
+** Minimum MODULES (conservative first boot)
+
+#+begin_example
+# /etc/mkinitcpio-linux-rg.conf (rgam5terra, conservative)
+MODULES=(nvme)
+# Do NOT add rtw89 btusb snd_hda_intel unless root unlock depends on them.
+#+end_example
+
+** NVIDIA early module policy (decision pending live probe)
+
+Two supported paths; pick one after assembly probing:
+
+| Policy | MODULES | When |
+| nvme-only | =(nvme)= | LUKS/text console unlock; NVIDIA loads at late-init |
+| nvme + nvidia early KMS | =(nvme nvidia nvidia_modeset nvidia_drm)= | Encrypted root needs visible prompt on DP/HDMI from dGPU |
+
+Arch mkinitcpio NVIDIA wiki pattern uses the open modules when on =nvidia-open=.
+Confirm module names with =modprobe -c | rg nvidia= on the target system.
+
+Do not copy rgx1gen11's =(nvme i915)= stanza.
+
+** Hooks (expected)
+
+Match host root layout. For encrypted btrfs (if chosen, mirroring laptop policy):
+
+#+begin_example
+HOOKS=(base udev microcode keyboard autodetect modconf kms keymap consolefont
+       block encrypt btrfs filesystems fsck)
+#+end_example
+
+Adjust =encrypt= / =btrfs= / =resume= hooks to the actual =/etc/fstab= and LUKS
+map. Resume hook is optional on desktop; do not enable hibernate wiring without
+swap capacity analysis on 48 GiB.
+
+* Bootloader expectations
+
+rgx1gen11 uses rEFInd with a Colemak LUKS keymap contract. rgam5terra may use:
+
+- rEFInd (if dual-boot / multi-kernel), or
+- systemd-boot, or
+- Limine
+
+** Requirements regardless of bootloader
+
+- Stock Arch entry remains present and default until linux-rg is verified.
+- linux-rg entry uses separate =vmlinuz-linux-rg= and =initramfs-linux-rg.img=
+  paths (same packaging pattern as rgx1gen11).
+- Kernel cmdline documents:
+  - root= / cryptdevice= if LUKS
+  - =pcie_aspm.policy= -- **probe** =off= vs =powersave=; do not copy rgx1gen11
+    laptop default without NVIDIA+SN850X resume matrix (see =docs/rgam5terra-kernel.org= T11)
+  - NVIDIA modeset (=nvidia-drm.modeset=1=) if early KMS chosen
+
+No Colemak requirement unless the user configures the same vconsole policy.
+
+** ASPM and NVMe APST (differs from rgx1gen11)
+
+rgx1gen11-boot-check requires =pcie_aspm.policy=powersave= and rgx1gen11-nvme-check
+can require APST enabled on KIOXIA XG8. rgam5terra has the **opposite research
+default** until live probe: SN850X APST and PCIe ASPM are probe-first, not
+mandatory in a future =rgam5terra-boot-check=.
+
+* ACPI sleep and resume (desktop AM5 + NVIDIA)
+
+Research notes (not yet validated):
+
+- AM5 desktop boards often expose S3 (suspend to RAM) but behavior varies with
+  USB power, RTC, and NVIDIA resume.
+- NVIDIA open driver resume has had regressions across versions; record journal
+  snippets on first suspend cycle.
+- s2idle (modern standby) is not the laptop ultrabook path; prefer S3 for early
+  bring-up unless firmware pushes s2idle only.
+
+Gate: zero hangs across 5 suspend/resume cycles with display recovery before
+promoting linux-rg to default boot.
+
+* Crash evidence policy
+
+Same shared contract as rgx1gen11 until profile-specific pstore backend is
+chosen:
+
+- =CONFIG_PSTORE=y=, compression on, EFI pstore disabled by default.
+- =ramoops= / =pstore-blk= modular for escalation after storage policy is fixed.
+
+* Rollback procedure
+
+1. At bootloader, select stock Arch =linux= entry.
+2. If boot menu unavailable: firmware boot manager -> EFI partition -> stock
+   =vmlinuz-linux=.
+3. If initramfs failure: boot stock kernel, chroot, regenerate initramfs with
+   stock preset only.
+4. If NVIDIA module mismatch: boot stock kernel, =pacman -S nvidia-open= to
+   matching versions, rebuild DKMS if any.
+
+* Research sources
+
+| Topic | Source |
+| Arch NVIDIA / mkinitcpio | https://wiki.archlinux.org/title/NVIDIA |
+| NVMe initramfs | https://wiki.archlinux.org/title/Mkinitcpio |
+| AMD microcode | https://wiki.archlinux.org/title/Microcode |
+| rgx1gen11 rollback pattern | =docs/rgx1gen11-boot-safety.org= (template only) |
+
+* Document index
+
+- =docs/rgam5terra-boot-safety.org= (this file)
+- =docs/rgam5terra-drivers.org=
+- =docs/rgam5terra-targets.org=
+- =docs/rgam5terra-kernel.org=

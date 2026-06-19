@@ -1,0 +1,121 @@
+#+title: linux-rg machine profiles
+
+* Purpose
+
+This is the index of machine profiles supported (or in development) for the
+linux-rg kernel package. It is the starting point for "which patches and areas
+apply to which profile".
+
+Shared assets (apply or are evaluated for all profiles unless noted):
+- Patch series at repo root (0001-*.patch and adaptation patches)
+- =docs/literature-review.org= (evidence grades, venue map)
+- =docs/candidates.org= (candidates + applicability table per entry)
+
+Per-profile assets:
+- =${slug}.config= overlay applied during prepare
+- =docs/${slug}-kernel.org= -- profile definition + why specific patches are carried
+- =docs/${slug}-targets.org= -- verified hardware, workload profiles, measurable targets, vissues
+- =docs/${slug}-drivers.org= -- driver map and firmware notes
+- =docs/${slug}-boot-safety.org= -- boot contract, mkinitcpio, rollback rules
+- Profile-specific check scripts (e.g. =rgx1gen11-*-check=)
+
+* Active profiles
+
+** rgx1gen11 (ThinkPad X1 Carbon Gen 11)
+
+| Attribute | Value |
+|-----------|-------|
+| Slug | rgx1gen11 |
+| Form | Ultrabook (Lenovo 21HM002GUS) |
+| CPU | Intel Core i7-1365U (Raptor Lake-P/U, 2P+8E, 12 threads) |
+| iGPU | Iris Xe (8086:a7a1) |
+| Storage | KIOXIA XG8 1 TB NVMe |
+| Network | Intel CNVi AX211-class Wi-Fi + USB BT |
+| I/O | Dual Thunderbolt 4 |
+| RAM | 32 GiB |
+| Status | Active daily driver |
+| Config overlay | =rgx1gen11.config= |
+
+Docs:
+- =docs/rgx1gen11-kernel.org=
+- =docs/rgx1gen11-targets.org=
+- =docs/rgx1gen11-drivers.org=
+- =docs/rgx1gen11-boot-safety.org=
+
+Vissues: epic =linux-rg-ln3w= (and children).
+
+** rgam5terra (AM5 RTX desktop)
+
+| Attribute | Value |
+|-----------|-------|
+| Slug | rgam5terra |
+| Form | Mini-ITX SFF desktop (Fractal Terra, Jade) |
+| CPU | AMD Ryzen 9 9950X (Zen 5, 16 cores / 32 threads; MC SKU 721191) |
+| dGPU | ASUS GeForce RTX 5070 Dual 12 GB GDDR7 (MC SKU 956516) |
+| Motherboard | ASRock B650I Lightning WiFi (AM5, MC SKU 657478) |
+| Storage | WD BLACK SN850X 2 TB NVMe (MC SKU 691840) |
+| Cooler | Noctua NH-L9a-AM4 low-profile, mounted on AM5 (MC SKU 958454) |
+| Case fan | ARCTIC P12 Pro 120 mm Black (MC SKU 953612) |
+| PSU | Lian Li SP850 V2 Gold 850W ATX 3.1 White (MC SKU 911693) |
+| RAM | T-Force Xtreem 48 GiB DDR5-8000 CL38 (MC SKU 655191) |
+| Retailer | Micro Center Cambridge (store 121); receipt total $2,961.09 |
+| Status | Receipts captured; docs populated, live probe pending |
+| Config overlay | (to be added) |
+
+Full line-item table with SKUs and prices: =docs/rgam5terra-targets.org=
+("Full build listing").
+
+Docs (populated 2026-06-19 from receipts + primary sources; live IDs TBD):
+- =docs/rgam5terra-kernel.org=
+- =docs/rgam5terra-targets.org=
+- =docs/rgam5terra-drivers.org=
+- =docs/rgam5terra-boot-safety.org=
+
+Related vissues:
+- =linux-rg-3up1= -- rgam5terra AM5 RTX profile
+- =linux-rg-1xe1= -- Archiso machine profile selector
+- =linux-rg-gdg7= -- evaluate NixOS provisioning for rgam5terra
+
+Research plan: gather primary sources for Zen 5 scheduling, AM5 power/thermal,
+NVIDIA firmware paths, NVMe (SN850X) behavior, and memory pressure on 48 GiB,
+then feed the profile contract into Archiso and NixOS provisioning work.
+
+* Patch and area discovery across profiles
+
+When evaluating a new patch or policy area:
+
+1. Start in =docs/literature-review.org= for evidence grade.
+2. Record motivation + measured risk in =docs/candidates.org=.
+3. Add an applicability row (or update existing) with the profiles it touches.
+4. For each profile that may carry it:
+   - Update that profile's targets.org (why it matters here, acceptance criteria).
+   - Update that profile's kernel.org (fit, tradeoffs, config impact).
+   - If hardware-specific validation exists, extend or add a checker.
+
+A patch can be:
+- Carried for all active profiles (rare for low-level hardware tweaks).
+- Carried for a subset (common).
+- Carried as a module for one profile, off for another.
+- Evaluated and blocked for a profile with a note.
+
+* Naming conventions
+
+- Profile slugs are short, lowercase, no separators when possible (rgx1gen11, rgam5terra).
+- All per-profile files in docs/ use the =${slug}-= prefix.
+- The machine overlay in the repo root is =${slug}.config=.
+- Checker / helper scripts that ship in the package are currently =${slug}-*= (this
+  will be generalized when the profile selector lands).
+
+* Status and process
+
+New profiles are added only after:
+- Primary-source research against the actual hardware (or credible public
+  documentation + reproducible behavior on the target).
+- A targets.org with verified inventory and workload definitions.
+- A kernel.org section explaining patch applicability for that silicon/family.
+- Vissue(s) tracking the work.
+
+Installer and Archiso selector work consumes the profile contract instead of
+guessing from receipt data alone.
+
+See also: README.md "Machine profiles" table.

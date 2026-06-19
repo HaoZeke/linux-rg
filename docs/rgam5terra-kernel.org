@@ -1,0 +1,486 @@
+#+title: linux-rg rgam5terra kernel profile
+#+date: [2026-06-19 Fri]
+
+* Document index
+
+See =docs/profiles.org= for the full profile list and cross-profile patch map.
+
+rgam5terra profile docs:
+
+- =docs/rgam5terra-kernel.org= (this file) -- profile definition + patch applicability
+- =docs/rgam5terra-boot-safety.org= -- rollback and mkinitcpio rules (read first)
+- =docs/rgam5terra-drivers.org= -- NVIDIA / AMD platform / NVMe / network stacks
+- =docs/rgam5terra-targets.org= -- hardware inventory, workloads, measurable targets
+
+Shared:
+
+- =docs/literature-review.org= -- evidence grades, venue map
+- =docs/candidates.org= -- candidates with per-profile applicability notes
+
+Related vissue: =linux-rg-3up1=.
+
+* Machine (rgam5terra profile)
+
+Target machine:
+
+- Fractal Design Terra mini-ITX SFF desktop.
+- CPU: AMD Ryzen 9 9950X, Zen 5 (Granite Ridge), 16 cores / 32 threads, AM5.
+- dGPU: ASUS GeForce RTX 5070 Dual 12 GB GDDR7 (Blackwell, GB205 class).
+- Motherboard: ASRock B650I Lightning WiFi (AMD B650).
+- Storage: WD BLACK SN850X 2 TB NVMe (PCIe Gen4).
+- RAM: 48 GiB DDR5-8000 (2x24 GiB).
+- Cooling: Noctua NH-L9a-AM4 low-profile mounted on AM5; ARCTIC P12 Pro 120 mm.
+- PSU: Lian Li SP850 V2 850 W (ATX 3.1).
+
+Planned inventory and acceptance thresholds: =docs/rgam5terra-targets.org=.
+
+The package starts from Arch's =linux= package (kernel.org + Arch
+=7.0.12.arch1= release). Per-profile overlay =rgam5terra.config= is **not yet
+added**. Until live probes exist, treat this file as the patch applicability
+research record only.
+
+* Platform expectations (Zen 5 + discrete NVIDIA)
+
+** CPU frequency and power
+
+- Default cpufreq driver on modern AM5: =amd-pstate= (CPPC), not
+  =acpi-cpufreq=.
+- Kernel documentation:
+  https://docs.kernel.org/admin-guide/pm/amd-pstate.html
+- EPP (Energy Performance Preference) and preferred-core ranking are exposed via
+  sysfs; desktop tuning is expected in userspace (EPP, PPT limits, fan curves).
+- =CONFIG_X86_AMD_PSTATE=y= is the baseline expectation for this overlay.
+
+** Scheduler topology
+
+- 9950X is **homogeneous within each CCD** but has **two CCDs** with separate
+  L3 caches. This is not Intel hybrid (P/E); the rgx1gen11 sched weld
+  (0010-0013) does not apply by motivation.
+- Cache-aware placement (0020) and sched_ext experts are **more relevant** here
+  than on the laptop profile. Mainline and LPC materials on sched_ext are grade
+  B; specific policy choice remains grade D until benchmarked.
+- Server-centric load-balance criticism (Lozi et al., EuroSys 2016) is weakly
+  relevant: 32 threads is large for a desktop but not a multi-socket server.
+
+** Graphics
+
+- No AMD iGPU on 9950X. Display and compute are NVIDIA-owned.
+- Arch Linux documents Blackwell-and-newer GPUs on the open kernel module stack
+  (=nvidia-open=), not the legacy proprietary-only path:
+  https://wiki.archlinux.org/title/NVIDIA
+- Early boot needs a policy for NVIDIA DRM in initramfs (see boot-safety doc).
+
+** Evidence desert (honest framing)
+
+Same grading as rgx1gen11: literature supports PSI/MGLRU/BBR/BFQ-class choices
+and questions default mq schedulers on ULL NVMe (HOTSTORAGE 2023). Downstream
+fair-class patches (BORE, 0010-0013) remain grade D until measured on this CPU.
+
+* Patch applicability matrix (shared 00xx series)
+
+Authoritative carry decisions live in =docs/candidates.org=. This table is the
+profile-specific interpretation as of 2026-06-19 research pass.
+
+| Patch / area | rgam5terra status | Notes |
+|--------------|-------------------|-------|
+| 0001 liquorix base / arch glue | inherit | Same Arch 7.0 base as rgx1gen11 |
+| 0002 BORE + arch adapt | evaluating | Desktop latency; no hybrid topology benefit argument |
+| 0003 BBRv3 + arch adapt | evaluating | Fixed LAN + VPN still variable RTT; same literature as laptop |
+| 0004 v4l2loopback | likely carry | Utility module; low risk |
+| 0005-0006 DDCCI | blocked / low | External monitor DDC via userspace unless in-tree needed |
+| 0007 block contention | evaluating | SN850X under build + desktop |
+| 0008 ADIOS (module) | evaluating | Per-profile NVMe A/B; do not default without bench |
+| 0009 ASA sched_ext router | evaluating | Strong desktop use case for expert switching |
+| 0010 hot-path inlines | skip | Hybrid Intel motivation |
+| 0011 detach_tasks fix | skip | Hybrid Intel motivation |
+| 0012 sched_ext SMT idle | evaluating | 32-thread SMT desktop |
+| 0013 migration_cost sysctl | evaluating | May help large-thread desktop migration |
+| 0014 kswapd_waiters MM | evaluating | Liquorix MM cut; low boot risk if carried |
+| 0015 schedutil DL limits | evaluating | cpufreq path differs (amd-pstate) |
+| 0016 cpuidle TEO default | skip | Intel idle governor path |
+| 0018 Cachy MM ratios | planned | 48 GiB memory-pressure framing |
+| 0019 MGLRU dev-tree weld | planned | Pairs with 0018 |
+| 0020 cache-aware SCHED_CACHE | evaluating | **Higher priority** on dual-CCD Zen 5 |
+| 0021 MM bulk-free | evaluating | Large-RAM reclaim hot paths |
+| 0022 znver5 RDSEED warn | **planned carry** | cachyos-fixes #19; staged patch file |
+| 0023 btrfs DIO parallel | candidate | If btrfs root; cachyos-fixes #38 |
+| 0024 MZEN5 znver5 ISA | candidate | graysky cpu-patches; after PPT gate |
+| 0025 gaming-sched cgroup_mode | candidate | 32T cgroup shares; BORE conflict risk |
+| 0026 newidle balance revert | candidate | Cachy desktop; mutually exclusive w/ 0025 |
+
+** Default network stack hypothesis
+
+Same as rgx1gen11 until bench says otherwise:
+
+- =CONFIG_TCP_CONG_BBR=y=, =CONFIG_DEFAULT_BBR=y=
+- =CONFIG_NET_SCH_FQ=y=, =CONFIG_DEFAULT_FQ=y=
+
+Desktop fixed Ethernet reduces roam urgency but VPN/tunnel RTT still benefits
+from BBR literature (grade A/B). Record Cubic fallback if LAN bufferbloat appears.
+
+** Memory management hypothesis
+
+Carry the same PSI/MGLRU/zswap/zram/DAMON pins as rgx1gen11 unless 48 GiB probing
+shows headroom makes zram sizing redundant:
+
+- MGLRU, PSI, memcg: literature-backed (grade A/B).
+- 0018 + 0019 weld: downstream (grade D) but addresses same pressure problem
+  framing as laptop.
+- zram size target: start ~16-24 GiB (see targets doc); not copy-paste laptop 15.5 GiB.
+
+** Block layer
+
+- BFQ default + 0007 contention patch: same HOTSTORAGE-motivated skepticism.
+- ADIOS module only; compare =none= on SN850X before any default change.
+
+* Config overlay rationale (planned =rgam5terra.config=)
+
+When the overlay is added, expect these **differences from =rgx1gen11.config=**:
+
+| Area | rgx1gen11 | rgam5terra (planned) |
+| CPU freq | =CONFIG_X86_INTEL_PSTATE=y= | =CONFIG_X86_AMD_PSTATE=y= |
+| CPU idle | =CONFIG_INTEL_IDLE=y=, TEO/menu | AMD idle driver defaults; no 0016 |
+| Graphics | =CONFIG_DRM_I915=m=, =CONFIG_DRM_XE=m= | NVIDIA out-of-tree; kernel enables PCIe, ACPI, no i915 |
+| Wi-Fi | =CONFIG_IWLWIFI=m= | =CONFIG_RTW89=m= (or probe result) |
+| Platform | ThinkPad ACPI, Thunderbolt, DPTF | B650 ACPI, USB4 if exposed, no ThinkPad drivers |
+| DDCCI | =CONFIG_DDCCI=m= | omit unless needed |
+| Hibernate | swapfile resume pins | defer; desktop policy TBD |
+
+Pins likely **unchanged** from shared linux-rg policy:
+
+- =CONFIG_SCHED_BORE=y=, =CONFIG_SCHED_CLASS_EXT=y=, =CONFIG_SCHED_ASA=y=
+- =CONFIG_SCHED_CACHE=y= (evaluate hard on dual-CCD)
+- =CONFIG_LRU_GEN_ENABLED=y=, ratio Kconfig defaults from 0018
+- =CONFIG_PSI=y=, DAMON modules, zswap/zram/zstd
+- =CONFIG_MQ_IOSCHED_BFQ=y=, =CONFIG_MQ_IOSCHED_ADIOS=m=
+- BBR + fq defaults
+- pstore contract (EFI disabled by default)
+
+** Planned =rgam5terra.config= hardware pins (draft)**
+
+Not yet committed as a file. Compile-time enables for the receipt hardware:
+
+#+begin_example
+# CPU / SoC (Zen 5 AM5)
+CONFIG_X86_AMD_PSTATE=y
+CONFIG_AMD_PSTATE=y
+# Mode selected at boot via cmdline (grade B: kernel.org amd-pstate doc):
+# amd_pstate=guided  # hypothesis for desktop EPP control; A/B vs active
+
+# Platform
+CONFIG_ACPI=y
+CONFIG_ACPI_PROCESSOR=y
+CONFIG_PINCTRL_AMD=y
+CONFIG_AMD_IOMMU=y
+CONFIG_AMD_MEM_ENCRYPT=y
+
+# Networking (B650I Lightning WiFi hypothesis)
+CONFIG_R8169=m
+CONFIG_RTW89=m
+CONFIG_RTW89_8852BE=m
+CONFIG_WLAN_VENDOR_REALTEK=y
+
+# Audio (ALC897)
+CONFIG_SND_HDA_INTEL=m
+CONFIG_SND_HDA_CODEC_REALTEK=m
+CONFIG_SND_HDA_CODEC_HDMI=m
+
+# Storage (SN850X)
+CONFIG_BLK_DEV_NVME=m
+CONFIG_NVME_HWMON=y
+
+# Explicit disables (rgx1gen11 laptop paths)
+# CONFIG_X86_INTEL_PSTATE is not set
+# CONFIG_DRM_I915 is not set
+# CONFIG_DRM_XE is not set
+# CONFIG_IWLWIFI is not set
+# CONFIG_THINKPAD_ACPI is not set
+# CONFIG_DDCCI is not set
+#+end_example
+
+=amd_pstate=guided= vs =active= is a **hypothesis** (grade D until idle/load
+probe). Kernel documentation describes active, passive, and guided-autonomous
+modes via cmdline; pick after measuring latency vs power with T1 PPT cap in
+place.
+
+** Prune list (rgam5terra compile-time)**
+
+Mirror rgx1gen11 overlay pruning but inverted for vendor:
+
+| Disable | Why |
+| =CONFIG_DRM_I915= / =CONFIG_DRM_XE= | No Intel iGPU |
+| =CONFIG_IWLWIFI= / =CONFIG_BT_INTEL_PCIE= | No CNVi |
+| =CONFIG_THINKPAD_ACPI= / =CONFIG_INTEL_WMI_THUNDERBOLT= | No ThinkPad |
+| =CONFIG_SND_SOC_SOF_INTEL_*= | No SOF laptop audio |
+| =CONFIG_DDCCI= | No internal panel DDC |
+| =CONFIG_PCIEASPM_POWER_SUPERSAVE= as cmdline default | See T11; not laptop battery path |
+
+* Hardware-specific tweaks (evidence-graded)
+
+This section records **per-component** kernel, firmware, and userspace tweaks for
+the Terra build. Grades follow =docs/literature-review.org= (A peer-reviewed /
+standards, B kernel.org/LWN/LPC, C vendor/Phoronix, D folklore until bench).
+
+** Do not copy rgx1gen11 defaults blindly**
+
+| rgx1gen11 policy | rgam5terra difference |
+| =pcie_aspm.policy=powersave= on cmdline | dGPU + Gen5 slot: measure; ASPM off is common NVIDIA stability fix |
+| =make -j9= build cap | =make -j32= thermally gated in SFF |
+| 15.5 GiB zram (ram/2 on 32 GiB) | 16-24 GiB hypothesis on 48 GiB |
+| APST enabled + required on XG8 | SN850X: probe first; disable if resume fails |
+| intel_pstate performance governor | amd-pstate EPP + **PPT cap** for NH-L9a |
+
+** Master tweak table (pre-assembly hypotheses)
+
+| # | Subsystem | Tweak | Layer | Grade | Status | Notes |
+|---|-----------|-------|-------|-------|--------|-------|
+| T1 | CPU thermals | Cap PPT to 95-120 W (BIOS or ryzenadj) | firmware/userspace | B/C | planned | NH-L9a rated ~95 W AM5; 9950X is 170 W TDP |
+| T2 | CPU freq | amd-pstate + EPP =balance_performance=; cmdline =amd_pstate=guided= | kernel + sysfs | B | planned | Start conservative; =performance= only for short benches |
+| T3 | CPU freq | Preferred-core CPPC enabled | kernel | B | probe | =amd_pstate_prefcore= sysfs per kernel.org |
+| T4 | CPU ISA | =x86-64-v3= Arch generic vs znver5/v4 tuned build | Kconfig/Makefile | D | evaluating | Cachy znver4 path wrong CPU gen; znver5 needs bench |
+| T5 | Scheduler | cache-aware 0020 on dual-CCD | kernel patch | D/B | evaluating | Higher priority than laptop; mainline topology is grade B |
+| T6 | Scheduler | Skip 0010-0013 hybrid weld | policy | B | blocked | Intel P/E problem statement does not apply |
+| T7 | GPU | =nvidia-open= + GSP firmware load | distro + firmware | B | planned | ArchWiki Blackwell row |
+| T8 | GPU thermals | =nvidia-smi= power limit ~200 W (Terra SFF) | userspace | C | planned | Phoronix/Arch anecdote; mandatory experiment in Terra |
+| T9 | GPU display | =nvidia-drm.modeset=1= | cmdline/module | B | planned | Standard modeset enable |
+| T10 | GPU suspend | =NVreg_PreserveVideoMemoryAllocations=1= | module param | C | probe | Arch NVIDIA tips; resume stability |
+| T11 | PCIe | ASPM policy: test =off= vs =powersave= | cmdline | C | probe | Laptop powersave not automatic here |
+| T12 | NVMe | APST: enable then 5-cycle suspend test | nvme + nvme-cli | B | probe | ArchWiki broken-APST section |
+| T13 | NVMe | If T12 fails: =nvme_core.default_ps_max_latency_us=0= or udev APST disable | cmdline/udev | B | fallback | Standard Linux APST workaround |
+| T14 | NVMe | Queue scheduler A/B: bfq vs none vs adios | sysfs + bench | A/D | evaluating | HOTSTORAGE 2023 (A) motivates =none= trial |
+| T15 | NVMe | =CONFIG_NVME_HWMON=y=; alert if composite > 70 C in Terra | kernel + sensors | B | planned | SFF airflow constraint |
+| T16 | RAM/VM | zram 16-24 GiB + zswap on; oomd PSI thresholds | userspace | B/A | planned | ElasticZRAM/SWAM framing in lit review |
+| T17 | RAM/VM | 0018 ratio knobs + 0019 MGLRU weld | kernel patch | D/B | planned | Same problem framing as laptop |
+| T18 | LAN | RTL8125 via =r8169=; watch 2.5G downshift to 100M | driver + ethtool | C | probe | ArchWiki r8169 downshift reports |
+| T19 | Wi-Fi | =rtw89_8852be= + linux-firmware; iwd | kernel + fw | B | probe | In-tree rtw89; chip ID at probe |
+| T20 | Wi-Fi | rtw89 power save off for desktop latency | modprobe/iw | D | optional | No paper; measure bufferbloat |
+| T21 | Audio | =snd_hda_intel= + ALC897; GPU HDMI via NVIDIA | kernel | B | probe | Standard HDA path |
+| T22 | Audio | =snd_hda_intel power_save=0= if pop after resume | module param | C | fallback | Common desktop workaround |
+| T23 | SFF airflow | Arctic P12 Pro as intake/exhaust; fan curve in BIOS | hardware | C | planned | Receipt item; kernel agnostic |
+| T24 | Microcode | =amd-ucode= early in initramfs | mkinitcpio | B | planned | Arch wiki microcode |
+| T25 | TCP | BBRv3 + fq default (shared linux-rg) | kernel config | A | evaluating | Less roam urgency than laptop |
+| T26 | Rust | Keep =CONFIG_RUST_FW_LOADER_ABSTRACTIONS=; skip Nova DRM | config | B/C | planned | Safety pins only; RTX uses nvidia-open |
+
+** Subsystem detail
+
+*** T1-T3: 9950X + NH-L9a in Fractal Terra (critical)
+
+| Fact | Source | Grade |
+| 9950X default TDP 170 W | AMD product spec | B |
+| NH-L9a-AM4 mounted on AM5 remains a 37 mm low-profile cooler class | Noctua product guidance + build note | B |
+| Terra volume + RTX 5070 heat dump | build geometry | C (engineering) |
+
+**Implication:** Linux scheduler or compiler wins are irrelevant if the CPU runs
+uncapped and thermally throttles in a 95 W-rated cooler inside a closed SFF case.
+**First tweak** is power (PPT/EDC/TDC in BIOS or =ryzenadj=), not another fair.c
+patch.
+
+Probe commands (post-assembly):
+
+#+begin_src sh
+# cpufreq driver and EPP
+cat /sys/devices/system/cpu/cpufreq/policy0/scaling_driver
+cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference
+# preferred cores (if present)
+cat /sys/devices/system/cpu/amd_pstate_prefcore/status 2>/dev/null || true
+# thermal throttle visibility
+journalctl -k -b --no-pager -g 'thermal|Hardware Error|THRM'
+#+end_src
+
+Acceptance: sustained all-core load holds >= 4.0 GHz **or** documented intentional
+PPT cap with stable temps under 95 C CPU / documented noise budget.
+
+*** T7-T11: ASUS RTX 5070 Dual + PCIe on B650I
+
+| Tweak | Rationale | Grade |
+| nvidia-open only | ArchWiki assigns Blackwell to open modules | B |
+| GSP firmware | Required for RTX 40/50 class on open stack | B (NVIDIA README) |
+| Power limit in SFF | 250 W-class GPU in Terra: reduce heat dump to CPU cooler zone | C |
+| ASPM not copied from laptop | rgx1gen11 =powersave= optimizes iGPU/AX211 idle on battery | C |
+
+Cmdline/module hypotheses to A/B after first boot:
+
+#+begin_example
+# /etc/modprobe.d/rgam5terra-nvidia.conf (hypothesis)
+options nvidia_drm modeset=1
+options nvidia NVreg_PreserveVideoMemoryAllocations=1
+#+end_example
+
+#+begin_example
+# kernel cmdline candidates (pick one after resume test)
+pcie_aspm.policy=off
+# vs
+pcie_aspm.policy=powersave
+#+end_example
+
+Wayland: document compositor env vars per chosen stack (Hyprland/Sway + nvidia).
+Grade C vendor/community matrix until bench on ASUS Dual 5070.
+
+*** T12-T15: WD SN850X 2 TB
+
+Primary sources: ArchWiki NVMe APST/NOPPM (B); Whitaker HOTSTORAGE 2023 (A).
+
+rgx1gen11-nvme-check pattern (APST feature 0x0c, =default_ps_max_latency_us=,
+=pcie_aspm.policy=) should be cloned as =rgam5terra-nvme-check= with SN850X
+model/firmware constants after first =nvme list=.
+
+WD-specific community reports of APST/resume quirks (grade C) justify **measure
+first, require second**: do not hard-require APST enabled like rgx1gen11 until
+SN850X passes five suspend cycles.
+
+If APST is disabled, idle power rises (acceptable on AC desktop); latency on wake
+may improve (HOTSTORAGE-style skepticism applies to scheduler, not APST alone).
+
+*** T18-T20: B650I Lightning WiFi networking
+
+ASRock B650I specs list Realtek Dragon RTL8125BG 2.5G LAN and Realtek ALC897
+audio. The Wi-Fi/Bluetooth module still needs exact PCI/USB IDs from first
+probe.
+
+| Component | Expected driver | Config pin |
+| 2.5G LAN | =r8169= | =CONFIG_R8169=m= |
+| Wi-Fi 6E | =rtw89_8852be= | =CONFIG_RTW89_8852BE=m= |
+
+#+begin_example
+# /etc/modprobe.d/rgam5terra-rtw89.conf (optional latency trial)
+options rtw89_pci disable_ps_mode=1
+#+end_example
+
+*** T4: Compiler ISA (znver5 / x86-64-v4)
+
+| Option | Evidence | rgam5terra |
+| Arch generic x86-64-v3 | Distro default; safe | baseline |
+| Cachy znver4 / x86-64-v3 patches | Grade D; wrong gen for Zen 5 | **blocked znver4** |
+| znver5 / v4 tuned =-march= | Phoronix kernel ISA posts (C) | evaluate after thermal caps |
+
+Decision: no ISA patch carry until =make -j32= A/B on **identical PPT cap** shows
+>1% win. Thermal honesty gate from T1 applies.
+
+* Downstream kernel survey (CachyOS, sirlucjan, Liquorix)
+
+Survey date: 2026-06-19. Sources: CachyOS =linux-cachyos-bore/PKGBUILD= (7.1),
+=sirlucjan/kernel-patches= 7.0 tree, =cachyos-fixes-patches-v27=,
+=gaming-sched=, =cpu-patches= (graysky MZEN5), Liquorix notes in
+=docs/candidates.org=.
+
+** What CachyOS actually ships (relevant to this build)
+
+CachyOS does **not** use one giant public patch queue on 7.1; it ships a
+prebuilt source tar plus scheduler patch, then toggles via PKGBUILD:
+
+| CachyOS knob | Default / script | rgam5terra take |
+| BORE scheduler | =_cpusched=bore= | Same family as linux-rg (already carried) |
+| =CONFIG_CACHY= fair | =_cachy_config=yes= lowers slice/migration | **Blocked** -- conflicts with BORE (see candidates.org) |
+| CPU ISA | =zen4= / =native= in scripts; graysky adds **MZEN5** in sirlucjan | Evaluate **znver5** after PPT thermal gate (T4) |
+| =-O3= kbuild | optional | Grade D until compile+runtime bench |
+| ThinLTO | optional dist backend | Skip unless remote builder exists |
+| HZ | 100/250/500/1000 selectable | 1000 Hz grade D; default stay Arch |
+| Governor | optional performance default | **Reject** on SFF -- use amd-pstate EPP |
+| BBRv3 | =_tcp_bbr3=no= in bore PKGBUILD | linux-rg already carries BBRv3 |
+| NVIDIA open in package | =_build_nvidia_open=yes= in build scripts | **Packaging idea** for rgam5terra; not in-tree DRM |
+| r8125 DKMS | =_build_r8125=yes= (aravance/r8125) | **Evaluate** if =r8169= downshifts on B650I 2.5G |
+| ZFS in tree | optional | Out of scope unless user wants ZFS root |
+
+Build scripts (=script.sh=, =script-znver4.sh=) enable **nvidia-open + r8125 + ZFS**
+for AMD desktop repos -- this is the closest CachyOS "profile" to rgam5terra.
+
+** sirlucjan / CachyOS fix bundle (v27) -- per-hunk map for rgam5terra
+
+| # | Subject | rgam5terra | Grade | linux-rg status |
+|---|---------|------------|-------|-----------------|
+| 05 | Revert proportional newidle balance | **evaluate** (32T, not hybrid) | D | not carried |
+| 06-08 | TLB/sched hot-path inlines | shared win | D | carried =0010= |
+| 09 | detach_tasks loop_max | blocked w/ hybrid weld | B | carried =0011= (rgx1gen11); blocked group on Zen |
+| 16-17 | mm bulk-free | shared | D | carried =0021= |
+| 18 | sched_ext SMT idle | **evaluate** 32T | D | carried =0012= |
+| **19** | **znver5 RDSEED microcode warn** | **carry** 9950X | B | staged =0022= (profile-only) |
+| 38 | btrfs DIO not serialized | **carry if btrfs root** | B/C | candidate =0023= |
+| 03-04 | BT USB quirks (B650 board) | probe B650I VID/PID | C | candidate if BT broken |
+| 01-02,12-29 | i915/Panther PSR/FRED | skip | -- | wrong hardware |
+| 40-46 | AMD PMC laptop quirks | skip | C | ThinkPad/Lenovo laptops |
+
+** gaming-sched (sirlucjan 7.0) -- high-value for 32-thread desktop**
+
+Intel maintainer series adding =cgroup_mode= sysfs for fair group scheduling:
+
+| Mode | Behavior | Fit for 9950X + browser/build slices |
+| smp | stock proportional shares per CPU | baseline |
+| up | each CPU gets full tg->shares (ignore 1/n_cpus shrink) | **browser.slice / build.slice on 32 CPUs** |
+| max | variant for max share accounting | bench after up |
+| concur | concurrent group accounting | gaming + background compile |
+
+Default in patch series: **up** mode. Touches =kernel/sched/fair.c= heavily;
+**conflicts with BORE** same as newidle revert. Grade D until bench.
+
+**Recommendation:** try **sched_ext** + ASA + cgroup slices first (already in
+linux-rg). If PSI shows build.slice starvation on 32 CPUs, trial gaming-sched OR
+newidle revert, **not both**, and only without adding CONFIG_CACHY fair.
+
+** graysky cpu-patches (MZEN5 / znver5)**
+
+Adds =CONFIG_MZEN5= with =-march=znver5= and =-Ctarget-cpu=znver5= for Rust.
+Cachy cpu-cachyos-patches stops at **znver4** -- outdated for 9950X.
+
+| Option | Evidence | Decision |
+| Arch generic v3 | distro safe | baseline |
+| MZEN5 graysky patch | Phoronix folklore (C) | candidate =0024= after T1 PPT gate |
+| MZEN4 Cachy | wrong CPU gen | **blocked** |
+
+** Liquorix / XanMod (summary)
+
+| Ecosystem | AMD desktop relevance | linux-rg overlap |
+| Liquorix zen | HZ 1000, PDS option, MM hunks | 0014-0015 partial; PDS not carried |
+| XanMod | MuQSS/BORE-era tweaks, custom configs | Mostly superseded by BORE+sched_ext |
+| tkg / pf-kernel | gaming patches, win32k | Not applicable to Arch base |
+
+** Proposed rgam5terra patch queue (beyond shared 00xx)
+
+Ordered for implementation when =rgam5terra.config= lands:
+
+| ID | Patch | Source | Priority | Gate |
+| 0022 | amd znver5 RDSEED warn-only | cachyos-fixes #19 | P0 | Zen 5 boot; file staged in repo |
+| 0023 | btrfs DIO parallel writes | cachyos-fixes #38 | P1 | btrfs root only |
+| 0024 | graysky MZEN5 Kconfig/=-march= | cpu-patches | P2 | >1% bench @ fixed PPT |
+| 0025 | gaming-sched cgroup_mode | gaming-sched | P3 | Only if cgroup starvation measured |
+| 0026 | newidle balance revert | cachyos-fixes #05 | P3 | Alternative to 0025; not with BORE+0025 |
+| -- | r8125 DKMS package | CachyOS packaging | P1 | r8169 link instability |
+| -- | out-of-tree nvidia-open bind | CachyOS packaging | P2 | ABI match linux-rg-headers |
+
+P0/P1 patches are small and hardware-specific; P2+ require Terra bench harness.
+
+* Research sources consulted (2026-06-19)
+
+| Topic | Source | Grade |
+| amd-pstate / CPPC | kernel.org admin-guide | B |
+| Arch NVIDIA open for Blackwell | ArchWiki NVIDIA page | B |
+| ULL NVMe scheduler doubt | Whitaker HOTSTORAGE 2023 | A |
+| sched_ext infrastructure | LWN LPC 2024 coverage | B |
+| BORE / ADIOS implementations | firelzrd GitHub | D |
+| ASA mixture-of-schedulers | arXiv:2511.11628 | preprint / D until bench |
+| 9950X amd-pstate measurements | Phoronix review | C |
+| NH-L9a TDP class | Noctua product page | B |
+| NVMe APST failures | ArchWiki + community reports | B/C |
+| RTL8125 r8169 downshift | ArchWiki Ethernet | C |
+| NVIDIA SFF power limits | ArchWiki NVIDIA tips | C |
+
+* Decision gates (do not carry blindly)
+
+1. **No hybrid sched weld** (0010-0011) without new evidence on Zen 5.
+2. **No ADIOS default** without SN850X bench wins vs BFQ and =none=.
+3. **No NVIDIA initramfs change** without encrypted-root and early-KMS probe on
+   the actual display path.
+4. **No zram shrink** below measured pressure needs on 48 GiB.
+5. **Thermal caps trump scheduler wins**: a faster fair patch that raises sustained
+   power in Terra is a regression for this profile.
+6. **No laptop pcie_aspm=powersave** default without NVIDIA+SN850X resume matrix.
+7. **No APST required** on SN850X until five clean suspend cycles with APST on.
+8. **PPT cap before scheduler bench**: T1 must be stable before T5/T25 comparisons.
+
+* Document index
+
+- =docs/rgam5terra-kernel.org= (this file)
+- =docs/rgam5terra-targets.org=
+- =docs/rgam5terra-drivers.org=
+- =docs/rgam5terra-boot-safety.org=
+- =docs/candidates.org=
+- =docs/literature-review.org=

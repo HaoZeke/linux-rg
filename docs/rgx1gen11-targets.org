@@ -3,15 +3,17 @@
 
 * Purpose
 
-This file ties the linux-rg kernel package to the actual ThinkPad X1 Carbon Gen 11
-(21HM002GUS) on the bench. It records verified hardware facts, workload profiles,
+This file ties the linux-rg kernel package to the rgx1gen11 profile (ThinkPad X1
+Carbon Gen 11, 21HM002GUS). It records verified hardware facts, workload profiles,
 measurable targets, and what to carry vs hold for this machine.
+
+See =docs/profiles.org= for other profiles and the shared patch applicability map.
 
 Companion docs:
 
-- =docs/rgx1gen11-kernel.org= -- carried patches and config rationale
-- =docs/candidates.org= -- candidate evaluation and welding map
-- =docs/literature-review.org= -- evidence grades and bibliography
+- =docs/rgx1gen11-kernel.org= -- carried patches and config rationale for this profile
+- =docs/candidates.org= -- candidate evaluation (shared, with per-profile notes)
+- =docs/literature-review.org= -- shared evidence grades and bibliography
 
 Vissues epic: =linux-rg-ln3w=. Hardware parent: =linux-rg-wpdr=.
 
@@ -63,10 +65,10 @@ linux-rg carries both =CONFIG_DRM_I915=m= and =CONFIG_DRM_XE=m= so either path
 can be selected at boot without rebuilding. Document the chosen default in
 =linux-rg-i915= after first linux-rg boot.
 
-** What this hardware is not
+** What this hardware is not (rgx1gen11)
 
 | Class | Why skip |
-| AMD znver / x86-64-v3 ISA patches | Intel Raptor Lake-U, not AMD |
+| AMD znver / x86-64-v3 ISA patches | Intel Raptor Lake-U, not AMD (rgam5terra will evaluate Zen 5 paths separately) |
 | Panther Lake PSR / Panel Replay hunks | Wrong display IP generation |
 | Handheld / Steam Deck patches | Wrong form factor |
 | Large-server SMT throughput tuning | 2-thread SMT on one socket; laptop latency matters more |
@@ -213,7 +215,7 @@ Minimum module set to verify in mkinitcpio preset:
 - =snd_soc_sof_pci_intel_tgl=, =snd_sof_intel_hda_generic=
 - =thunderbolt= (if root-on-NVMe needs no TB, still needed for dock resume)
 
-* Patch and policy priority (this machine)
+* Patch and policy priority (rgx1gen11)
 
 Ordered by expected impact on daily =undocked-mixed= profile:
 

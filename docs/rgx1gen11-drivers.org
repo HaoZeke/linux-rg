@@ -3,8 +3,14 @@
 
 * Purpose
 
-Kernel driver stacks for 21HM002GUS, verified on the bench 2026-06-18. Use with
-=docs/rgx1gen11-boot-safety.org= before first boot.
+Kernel driver stacks for the rgx1gen11 profile (21HM002GUS), verified on the
+bench 2026-06-18. Use with =docs/rgx1gen11-boot-safety.org= before first boot
+on this hardware.
+
+See =docs/profiles.org= for the full profile list.
+
+Other profiles have (or will have) their own drivers.org. Shared driver-related
+research lives in =docs/literature-review.org= and =docs/candidates.org=.
 
 * Wi-Fi (Intel CNVi AX211 class)
 
