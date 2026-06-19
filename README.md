@@ -131,8 +131,14 @@ Validate S2idle/S0ix diagnostic prerequisites before running Intel's root-only
 S0ixSelftestTool:
 
 ```sh
+rgx1gen11-s0ix-tool-sync
 rgx1gen11-s0ix-preflight
 ```
+
+The sync helper clones or updates Intel's S0ixSelftestTool under
+`${XDG_CACHE_HOME:-$HOME/.cache}/rg-kernel/S0ixSelftestTool` and prints the
+root commands for suspend and runtime PC10 checks. The preflight also accepts
+`S0IX_TOOL=/path/to/s0ix-selftest-tool.sh` for an existing checkout.
 
 ## Install for rEFInd
 

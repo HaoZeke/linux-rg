@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_url=${S0IX_TOOL_REPO_URL:-https://github.com/intel/S0ixSelftestTool.git}
+cache_home=${XDG_CACHE_HOME:-${HOME:-}/.cache}
+tool_dir=${S0IX_TOOL_DIR:-$cache_home/rg-kernel/S0ixSelftestTool}
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-s0ix-tool-sync
+
+Clone or update Intel's S0ixSelftestTool into the managed linux-rg cache and
+print the root commands used for S2idle/S0ix diagnosis.
+
+Environment:
+  S0IX_TOOL_DIR       Checkout directory
+  S0IX_TOOL_REPO_URL  Git repository URL
+  XDG_CACHE_HOME      Cache root when S0IX_TOOL_DIR is unset
+USAGE
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  exit 1
+}
+
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+  usage
+  exit 0
+fi
+
+[[ -n $tool_dir ]] || fail 'S0IX_TOOL_DIR or XDG_CACHE_HOME/HOME is required'
+command -v git >/dev/null 2>&1 || fail 'git is required'
+
+if [[ -d $tool_dir/.git ]]; then
+  git -C "$tool_dir" pull --ff-only
+else
+  mkdir -p "$(dirname "$tool_dir")"
+  git clone --depth=1 "$repo_url" "$tool_dir"
+fi
+
+tool=$tool_dir/s0ix-selftest-tool.sh
+if [[ -f $tool && ! -x $tool ]]; then
+  chmod +x "$tool"
+fi
+
+[[ -x $tool ]] || fail "S0ixSelftestTool checkout lacks executable $tool"
+
+printf 'S0ixSelftestTool: %s\n' "$tool"
+printf '\nPreflight:\n'
+printf '  S0IX_TOOL=%q rgx1gen11-s0ix-preflight\n' "$tool"
+printf '\nS0ix commands:\n'
+printf '  sudo bash %q -s\n' "$tool"
+printf '  sudo bash %q -r on\n' "$tool"
+printf '  sudo bash %q -r off\n' "$tool"

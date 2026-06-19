@@ -2,7 +2,7 @@
 set -euo pipefail
 
 sys_root=${RGX1GEN11_SYS_ROOT:-/sys}
-tool=${S0IX_TOOL:-s0ix-selftest-tool.sh}
+tool=${S0IX_TOOL:-}
 failures=0
 
 pass() {
@@ -31,14 +31,36 @@ want_command() {
 }
 
 want_tool() {
-  if [[ -x $tool ]]; then
-    pass "S0ixSelftestTool executable $tool"
-  elif command -v "$tool" >/dev/null 2>&1; then
-    tool=$(command -v "$tool")
-    pass "S0ixSelftestTool executable $tool"
+  local candidate resolved
+  local cache_home=${XDG_CACHE_HOME:-${HOME:-}/.cache}
+  local -a candidates=()
+
+  if [[ -n $tool ]]; then
+    candidates+=("$tool")
   else
-    fail "S0ixSelftestTool missing; set S0IX_TOOL=/path/to/s0ix-selftest-tool.sh"
+    candidates+=("s0ix-selftest-tool.sh")
+    if [[ -n ${HOME:-} ]]; then
+      candidates+=("$HOME/Git/Github/Tools/S0ixSelftestTool/s0ix-selftest-tool.sh")
+    fi
+    if [[ -n $cache_home ]]; then
+      candidates+=("$cache_home/rg-kernel/S0ixSelftestTool/s0ix-selftest-tool.sh")
+    fi
   fi
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -x $candidate ]]; then
+      tool=$candidate
+      pass "S0ixSelftestTool executable $tool"
+      return
+    fi
+    if [[ $candidate != */* ]] && resolved=$(command -v "$candidate" 2>/dev/null); then
+      tool=$resolved
+      pass "S0ixSelftestTool executable $tool"
+      return
+    fi
+  done
+
+  fail "S0ixSelftestTool missing; run rgx1gen11-s0ix-tool-sync or set S0IX_TOOL=/path/to/s0ix-selftest-tool.sh"
 }
 
 want_power_state() {
@@ -63,8 +85,16 @@ want_mem_sleep() {
 
 want_pmc_counter() {
   local counter=$sys_root/kernel/debug/pmc_core/slp_s0_residency_usec
+  local debug_dir=$sys_root/kernel/debug
+  local pmc_dir=$debug_dir/pmc_core
   if [[ -r $counter ]]; then
     pass "pmc_core SLP_S0 residency counter readable"
+  elif [[ -e $counter ]]; then
+    fail "pmc_core SLP_S0 residency counter present but not readable: $counter"
+  elif [[ -d $debug_dir && ! -x $debug_dir ]]; then
+    fail "pmc_core debugfs present but not searchable as this user: $debug_dir"
+  elif [[ -d $pmc_dir && ! -x $pmc_dir ]]; then
+    fail "pmc_core debugfs present but not searchable as this user: $pmc_dir"
   else
     fail "pmc_core SLP_S0 residency counter unavailable: $counter"
   fi

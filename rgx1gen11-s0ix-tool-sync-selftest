@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+syncer="$repo/rgx1gen11-s0ix-tool-sync"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$syncer" || fail "missing executable S0ix tool sync helper"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+mkdir -p "$tmpdir/bin" "$tmpdir/home" "$tmpdir/cache"
+
+cat >"$tmpdir/bin/git" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$GIT_LOG"
+
+if [[ $1 == clone ]]; then
+  dest=${@: -1}
+  mkdir -p "$dest/.git"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$dest/s0ix-selftest-tool.sh"
+  chmod +x "$dest/s0ix-selftest-tool.sh"
+  exit 0
+fi
+
+if [[ $1 == -C && $3 == pull && $4 == --ff-only ]]; then
+  exit 0
+fi
+
+printf 'unexpected git invocation: %s\n' "$*" >&2
+exit 2
+SH
+chmod +x "$tmpdir/bin/git"
+
+output=$(
+  GIT_LOG="$tmpdir/git.log" \
+    XDG_CACHE_HOME="$tmpdir/cache" \
+    HOME="$tmpdir/home" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$syncer"
+)
+
+rg -q 'clone --depth=1 https://github.com/intel/S0ixSelftestTool.git .*/rg-kernel/S0ixSelftestTool' "$tmpdir/git.log" \
+  || fail "sync helper should clone the Intel tool into the managed cache"
+printf '%s\n' "$output" | rg -q 'S0IX_TOOL=.*rg-kernel/S0ixSelftestTool/s0ix-selftest-tool.sh rgx1gen11-s0ix-preflight' \
+  || fail "sync helper should print the preflight command"
+printf '%s\n' "$output" | rg -q 'sudo bash .*s0ix-selftest-tool.sh -s' \
+  || fail "sync helper should print the suspend selftest command"
+
+output=$(
+  GIT_LOG="$tmpdir/git.log" \
+    XDG_CACHE_HOME="$tmpdir/cache" \
+    HOME="$tmpdir/home" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$syncer"
+)
+
+rg -q -- '-C .*/rg-kernel/S0ixSelftestTool pull --ff-only' "$tmpdir/git.log" \
+  || fail "sync helper should update an existing managed checkout"
+
+printf 'ok\n'

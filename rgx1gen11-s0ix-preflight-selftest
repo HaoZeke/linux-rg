@@ -44,6 +44,30 @@ printf '%s\n' "$output" | rg -q 'sudo bash .*s0ix-selftest-tool.sh -r on' \
 printf '%s\n' "$output" | rg -q 'sudo bash .*s0ix-selftest-tool.sh -r off' \
   || fail "preflight should print runtime PC10 screen-off command"
 
+mkdir -p "$tmpdir/cache/rg-kernel/S0ixSelftestTool"
+cp "$tmpdir/tool/s0ix-selftest-tool.sh" "$tmpdir/cache/rg-kernel/S0ixSelftestTool/s0ix-selftest-tool.sh"
+output=$(
+  env -u S0IX_TOOL \
+    XDG_CACHE_HOME="$tmpdir/cache" \
+    HOME="$tmpdir/home" \
+    RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$checker"
+)
+printf '%s\n' "$output" | rg -q 'ok: S0ixSelftestTool executable .*/rg-kernel/S0ixSelftestTool/s0ix-selftest-tool.sh' \
+  || fail "preflight should discover the managed S0ixSelftestTool checkout"
+
+chmod 000 "$tmpdir/sys/kernel/debug/pmc_core/slp_s0_residency_usec"
+if RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
+  S0IX_TOOL="$tmpdir/tool/s0ix-selftest-tool.sh" \
+  PATH="$tmpdir/bin:$PATH" \
+  "$checker" >/tmp/rgx1gen11-s0ix-preflight.pmc 2>&1; then
+  fail "preflight should fail when the PMC counter exists but is not readable"
+fi
+chmod 600 "$tmpdir/sys/kernel/debug/pmc_core/slp_s0_residency_usec"
+rg -q 'fail: pmc_core SLP_S0 residency counter present but not readable' /tmp/rgx1gen11-s0ix-preflight.pmc \
+  || fail "preflight should distinguish root-only PMC debugfs access"
+
 printf 'deep\n' >"$tmpdir/sys/power/mem_sleep"
 if RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
   S0IX_TOOL="$tmpdir/tool/s0ix-selftest-tool.sh" \
