@@ -274,7 +274,7 @@ _package() {
     'ddcutil: userspace DDC/CI monitor controls'
     'linux-firmware: AX211 Wi-Fi/BT and SOF firmware (also in depends)'
     'scx-scheds: to use sched-ext schedulers'
-    'scx_loader: ASA router expert scheduler switching'
+    'scx-tools: ASA router expert scheduler switching with scx_loader'
     'v4l2loopback-utils: utilities to control v4l2loopback devices'
     'wireless-regdb: to set the correct wireless channels of your country'
   )

@@ -52,6 +52,7 @@ mkinitcpio_preset=${MKINITCPIO_PRESET:-/etc/mkinitcpio.d/linux-rg.preset}
 boot_kernel=${BOOT_KERNEL:-/boot/vmlinuz-linux-rg}
 boot_initramfs=${BOOT_INITRAMFS:-/boot/initramfs-linux-rg.img}
 module_list=${LINUX_RG_INITRAMFS_MODULES:-"nvme i915"}
+console_font=${LINUX_RG_CONSOLE_FONT:-Lat2-Terminus16}
 proc_mounts=${LINUX_RG_PROC_MOUNTS:-/proc/mounts}
 vconsole_conf=${LINUX_RG_VCONSOLE_CONF:-/etc/vconsole.conf}
 boot_check=${LINUX_RG_BOOT_CHECK:-/tmp/rgx1gen11-boot-check}
@@ -88,6 +89,23 @@ package_kver() {
     head -n 1
 }
 
+package_has_path() {
+  local pkg=$1 path=$2
+  bsdtar -tf "$pkg" | rg -qx "$path"
+}
+
+validate_package_payload() {
+  local path
+  for path in \
+    usr/bin/rgx1gen11-hibernate-image-size \
+    usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service; do
+    if ! package_has_path "$kernel_pkg" "$path"; then
+      printf 'error: package payload missing: %s\n' "$path" >&2
+      exit 1
+    fi
+  done
+}
+
 module_array_literal() {
   local first=1 module out="MODULES=("
   for module in $module_list; do
@@ -115,6 +133,26 @@ base_modules_line() {
 
 base_hooks_line() {
   grep -E '^[[:space:]]*HOOKS=' "$mkinitcpio_base" | tail -n 1 || true
+}
+
+hook_line_with_microcode() {
+  local line hooks out=() hook inserted=0
+  line=$(base_hooks_line)
+  hooks=$(line_words "$line")
+  for hook in $hooks; do
+    if [[ $hook == microcode ]]; then
+      continue
+    fi
+    out+=("$hook")
+    if [[ $hook == autodetect ]]; then
+      out+=(microcode)
+      inserted=1
+    fi
+  done
+  if (( ! inserted )); then
+    out=(microcode "${out[@]}")
+  fi
+  printf 'HOOKS=(%s)\n' "${out[*]}"
 }
 
 vconsole_keymap() {
@@ -201,20 +239,42 @@ probe_boot_contract() {
 }
 
 write_mkinitcpio_config() {
-  local tmp modules_line
+  local tmp modules_line hooks_line font_line
   tmp=$(mktemp)
   modules_line=$(module_array_literal)
-  awk -v modules_line="$modules_line" '
-    BEGIN { replaced = 0 }
+  hooks_line=$(hook_line_with_microcode)
+  font_line="FONT=$console_font"
+  awk -v modules_line="$modules_line" -v hooks_line="$hooks_line" -v font_line="$font_line" '
+    BEGIN {
+      replaced_modules = 0
+      replaced_hooks = 0
+      replaced_font = 0
+    }
     /^MODULES=/ {
       print modules_line
-      replaced = 1
+      replaced_modules = 1
+      next
+    }
+    /^HOOKS=/ {
+      print hooks_line
+      replaced_hooks = 1
+      next
+    }
+    /^FONT=/ {
+      print font_line
+      replaced_font = 1
       next
     }
     { print }
     END {
-      if (!replaced) {
+      if (!replaced_modules) {
         print modules_line
+      }
+      if (!replaced_hooks) {
+        print hooks_line
+      }
+      if (!replaced_font) {
+        print font_line
       }
     }
   ' "$mkinitcpio_base" > "$tmp"
@@ -237,7 +297,6 @@ write_mkinitcpio_preset() {
 
 ALL_config="$mkinitcpio_config"
 ALL_kver="$boot_kernel"
-ALL_microcode=(/boot/*-ucode.img)
 
 PRESETS=('default')
 
@@ -454,6 +513,7 @@ main() {
   need_file "$headers_pkg"
   need_file "$mkinitcpio_base"
   need_file "$refind_conf"
+  validate_package_payload
 
   local kver options
   kver=$(package_kver)

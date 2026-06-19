@@ -3,6 +3,8 @@ set -euo pipefail
 
 repo=${1:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}
 installer="$repo/scripts/rgx1gen11-install-refind-root"
+pkgbuild="$repo/PKGBUILD"
+srcinfo="$repo/.SRCINFO"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -10,6 +12,8 @@ fail() {
 }
 
 test -x "$installer" || fail "missing installer: $installer"
+test -r "$pkgbuild" || fail "missing package build: $pkgbuild"
+test -r "$srcinfo" || fail "missing package metadata: $srcinfo"
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
@@ -19,8 +23,21 @@ pkgroot="$tmpdir/pkgroot"
 mkdir -p "$artifact_dir" "$pkgroot/usr/lib/modules/9.9.9-rg"
 touch "$pkgroot/usr/lib/modules/9.9.9-rg/vmlinuz"
 printf 'linux-rg\n' >"$pkgroot/usr/lib/modules/9.9.9-rg/pkgbase"
+mkdir -p "$pkgroot/usr/bin" "$pkgroot/usr/lib/systemd/system"
+touch "$pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
+touch "$pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
 bsdtar -cf "$artifact_dir/linux-rg-9.9.9-x86_64.pkg.tar.zst" -C "$pkgroot" usr
 touch "$artifact_dir/linux-rg-headers-9.9.9-x86_64.pkg.tar.zst"
+
+bad_pkgroot="$tmpdir/bad-pkgroot"
+bad_artifact_dir="$tmpdir/bad-artifacts"
+mkdir -p "$bad_artifact_dir" "$bad_pkgroot/usr/lib/modules/9.9.8-rg"
+touch "$bad_pkgroot/usr/lib/modules/9.9.8-rg/vmlinuz"
+printf 'linux-rg\n' >"$bad_pkgroot/usr/lib/modules/9.9.8-rg/pkgbase"
+mkdir -p "$bad_pkgroot/usr/bin"
+touch "$bad_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
+bsdtar -cf "$bad_artifact_dir/linux-rg-9.9.8-x86_64.pkg.tar.zst" -C "$bad_pkgroot" usr
+touch "$bad_artifact_dir/linux-rg-headers-9.9.8-x86_64.pkg.tar.zst"
 
 refind_conf="$tmpdir/refind.conf"
 cat >"$refind_conf" <<'EOF'
@@ -73,5 +90,33 @@ rg -Fq "initramfs modules: MODULES=(nvme i915)" "$out" \
   || fail "dry run should keep nvme and early i915 in initramfs modules"
 rg -Fq 'refind options:  cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=12345 i915 pcie_aspm.policy=powersave quiet' "$out" \
   || fail "dry run should read encrypted btrfs rEFInd options"
+rg -q 'microcode' "$installer" \
+  || fail "installer should add the mkinitcpio microcode hook"
+if rg -q 'ALL_microcode' "$installer"; then
+  fail "installer should not emit deprecated ALL_microcode preset syntax"
+fi
+rg -q 'console_font=.*Lat2-Terminus16' "$installer" \
+  || fail "installer should default the linux-rg console font"
+rg -Fq 'font_line="FONT=$console_font"' "$installer" \
+  || fail "installer should write the configured console font into linux-rg mkinitcpio"
+
+bad_out="$tmpdir/bad-dry-run.out"
+if LINUX_RG_ARTIFACT_DIR="$bad_artifact_dir" \
+  LINUX_RG_PROC_MOUNTS="$proc_mounts" \
+  LINUX_RG_VCONSOLE_CONF="$vconsole_conf" \
+  REFIND_CONF="$refind_conf" \
+  MKINITCPIO_BASE="$mkinitcpio_base" \
+  "$installer" --dry-run >"$bad_out" 2>&1; then
+  fail "dry run should reject a stale package without the hibernate image-size unit"
+fi
+rg -Fq 'package payload missing: usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service' "$bad_out" \
+  || fail "stale package rejection should name the missing hibernate image-size unit"
+rg -q "'scx-tools:.*scx_loader" "$pkgbuild" \
+  || fail "PKGBUILD should name the Arch package that provides scx_loader"
+if rg -q 'scx_loader: ASA router expert scheduler switching' "$pkgbuild" "$srcinfo"; then
+  fail "package metadata should not name scx_loader as an Arch package"
+fi
+rg -q 'optdepends = scx-tools: ASA router expert scheduler switching' "$srcinfo" \
+  || fail ".SRCINFO should publish the scx-tools optional dependency"
 
 printf 'ok\n'
