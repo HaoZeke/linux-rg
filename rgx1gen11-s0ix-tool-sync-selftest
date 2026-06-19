@@ -19,6 +19,7 @@ mkdir -p "$tmpdir/bin" "$tmpdir/home" "$tmpdir/cache"
 cat >"$tmpdir/bin/git" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+printf 'GIT_CONFIG_GLOBAL=%s\n' "${GIT_CONFIG_GLOBAL:-}" >>"$GIT_LOG"
 printf '%s\n' "$*" >>"$GIT_LOG"
 
 if [[ $1 == clone ]]; then
@@ -48,6 +49,8 @@ output=$(
 
 rg -q 'clone --depth=1 https://github.com/intel/S0ixSelftestTool.git .*/rg-kernel/S0ixSelftestTool' "$tmpdir/git.log" \
   || fail "sync helper should clone the Intel tool into the managed cache"
+rg -q '^GIT_CONFIG_GLOBAL=/dev/null$' "$tmpdir/git.log" \
+  || fail "sync helper should ignore global Git URL rewrites by default"
 printf '%s\n' "$output" | rg -q 'S0IX_TOOL=.*rg-kernel/S0ixSelftestTool/s0ix-selftest-tool.sh rgx1gen11-s0ix-preflight' \
   || fail "sync helper should print the preflight command"
 printf '%s\n' "$output" | rg -q 'sudo bash .*s0ix-selftest-tool.sh -s' \

@@ -4,6 +4,7 @@ set -euo pipefail
 repo_url=${S0IX_TOOL_REPO_URL:-https://github.com/intel/S0ixSelftestTool.git}
 cache_home=${XDG_CACHE_HOME:-${HOME:-}/.cache}
 tool_dir=${S0IX_TOOL_DIR:-$cache_home/rg-kernel/S0ixSelftestTool}
+git_config_global=${S0IX_TOOL_GIT_CONFIG_GLOBAL:-/dev/null}
 
 usage() {
   cat <<'USAGE'
@@ -15,6 +16,7 @@ print the root commands used for S2idle/S0ix diagnosis.
 Environment:
   S0IX_TOOL_DIR       Checkout directory
   S0IX_TOOL_REPO_URL  Git repository URL
+  S0IX_TOOL_GIT_CONFIG_GLOBAL  Git global config path for clone/pull
   XDG_CACHE_HOME      Cache root when S0IX_TOOL_DIR is unset
 USAGE
 }
@@ -32,11 +34,15 @@ fi
 [[ -n $tool_dir ]] || fail 'S0IX_TOOL_DIR or XDG_CACHE_HOME/HOME is required'
 command -v git >/dev/null 2>&1 || fail 'git is required'
 
+run_git() {
+  GIT_CONFIG_GLOBAL=$git_config_global git "$@"
+}
+
 if [[ -d $tool_dir/.git ]]; then
-  git -C "$tool_dir" pull --ff-only
+  run_git -C "$tool_dir" pull --ff-only
 else
   mkdir -p "$(dirname "$tool_dir")"
-  git clone --depth=1 "$repo_url" "$tool_dir"
+  run_git clone --depth=1 "$repo_url" "$tool_dir"
 fi
 
 tool=$tool_dir/s0ix-selftest-tool.sh
