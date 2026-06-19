@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+checker="$repo/rgx1gen11-nvme-check"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$checker" || fail "missing executable NVMe checker"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+sys_root="$tmpdir/sys"
+mkdir -p \
+  "$tmpdir/bin" \
+  "$sys_root/class/nvme/nvme-test/device/power" \
+  "$sys_root/module/nvme_core/parameters" \
+  "$sys_root/block/nvme-testn1/queue"
+
+cat >"$tmpdir/config" <<'EOF'
+CONFIG_BLK_DEV_NVME=m
+CONFIG_NVME_HWMON=y
+CONFIG_PCIEASPM=y
+CONFIG_PCIEASPM_POWERSAVE=y
+CONFIG_PCIEASPM_POWER_SUPERSAVE=y
+CONFIG_PM_ADVANCED_DEBUG=y
+EOF
+
+printf 'KXG8AZNV1T02 LA KIOXIA\n' >"$sys_root/class/nvme/nvme-test/model"
+printf '5108APLA\n' >"$sys_root/class/nvme/nvme-test/firmware_rev"
+printf 'auto\n' >"$sys_root/class/nvme/nvme-test/device/power/control"
+printf '100000\n' >"$sys_root/module/nvme_core/parameters/default_ps_max_latency_us"
+printf 'none [bfq]\n' >"$sys_root/block/nvme-testn1/queue/scheduler"
+
+cmdline="$tmpdir/cmdline"
+printf 'root=/dev/mapper/luks pcie_aspm.policy=powersave quiet\n' >"$cmdline"
+
+cat >"$tmpdir/bin/lspci" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+cat <<'EOF'
+0000:04:00.0 Non-Volatile memory controller [0108]: KIOXIA Corporation NVMe SSD Controller XG8 [1e0f:0010]
+	Kernel driver in use: nvme
+	Kernel modules: nvme
+EOF
+SH
+chmod +x "$tmpdir/bin/lspci"
+
+cat >"$tmpdir/bin/nvme" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $1 == get-feature && $3 == -f && $4 == 0x0c ]]; then
+  printf '%s\n' "${NVME_FEATURE_OUTPUT:?}"
+  exit 0
+fi
+exit 2
+SH
+chmod +x "$tmpdir/bin/nvme"
+
+output=$(
+  NVME_FEATURE_OUTPUT='Autonomous Power State Transition Enable (APSTE): Enabled' \
+    PATH="$tmpdir/bin:$PATH" \
+    "$checker" \
+      --config "$tmpdir/config" \
+      --sys-root "$sys_root" \
+      --cmdline "$cmdline" \
+      --nvme nvme-test \
+      --block nvme-testn1 \
+      --feature-device /dev/fake-nvme \
+      --live \
+      --require-feature
+)
+
+printf '%s\n' "$output" | rg -q 'ok: /dev/fake-nvme APST feature is enabled' \
+  || fail "checker should accept enabled APST feature output"
+printf '%s\n' "$output" | rg -q 'ok: nvme_core default_ps_max_latency_us 100000' \
+  || fail "checker should read nvme_core latency from injected sysfs"
+printf '%s\n' "$output" | rg -q 'ok: cmdline token pcie_aspm.policy=powersave' \
+  || fail "checker should read the injected cmdline"
+
+if NVME_FEATURE_OUTPUT='Autonomous Power State Transition Enable (APSTE): Disabled' \
+  PATH="$tmpdir/bin:$PATH" \
+  "$checker" \
+    --config "$tmpdir/config" \
+    --sys-root "$sys_root" \
+    --cmdline "$cmdline" \
+    --nvme nvme-test \
+    --block nvme-testn1 \
+    --feature-device /dev/fake-nvme \
+    --live \
+    --require-feature >/tmp/rgx1gen11-nvme-check.apst-disabled 2>&1; then
+  fail "checker should fail when APST is disabled"
+fi
+rg -q 'fail: /dev/fake-nvme APST feature output did not report enabled' /tmp/rgx1gen11-nvme-check.apst-disabled \
+  || fail "disabled APST failure should be explicit"
+
+printf 'ok\n'

@@ -2,6 +2,8 @@
 set -euo pipefail
 
 config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
+sys_root=${RGX1GEN11_SYS_ROOT:-/sys}
+cmdline_path=${RGX1GEN11_CMDLINE:-/proc/cmdline}
 nvme_name=nvme0
 block_name=nvme0n1
 pci_id=1e0f:0010
@@ -23,6 +25,8 @@ Validate the rgx1gen11 KIOXIA XG8 NVMe/APST kernel and live policy contract.
 
 Options:
   --config PATH             Kconfig file to inspect (default: rgx1gen11.config)
+  --sys-root PATH           sysfs root to inspect (default: /sys)
+  --cmdline PATH            kernel command line path (default: /proc/cmdline)
   --nvme NAME               NVMe controller sysfs name (default: nvme0)
   --block NAME              Block device sysfs name (default: nvme0n1)
   --pci-id ID               NVMe PCI ID for lspci (default: 1e0f:0010)
@@ -43,6 +47,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
       config_path=$2
+      shift 2
+      ;;
+    --sys-root)
+      sys_root=$2
+      shift 2
+      ;;
+    --cmdline)
+      cmdline_path=$2
       shift 2
       ;;
     --nvme)
@@ -164,7 +176,7 @@ want_readable_value() {
 }
 
 want_model_prefix() {
-  local path="/sys/class/nvme/$nvme_name/model"
+  local path="$sys_root/class/nvme/$nvme_name/model"
   local got
 
   [[ $live -eq 1 ]] || return 0
@@ -182,7 +194,7 @@ want_model_prefix() {
 }
 
 want_scheduler() {
-  local path="/sys/block/$block_name/queue/scheduler"
+  local path="$sys_root/block/$block_name/queue/scheduler"
   local got
 
   [[ $live -eq 1 ]] || return 0
@@ -204,12 +216,12 @@ want_cmdline_token() {
   local cmdline
 
   [[ $live -eq 1 ]] || return 0
-  if [[ ! -r /proc/cmdline ]]; then
-    fail "/proc/cmdline is not readable"
+  if [[ ! -r $cmdline_path ]]; then
+    fail "$cmdline_path is not readable"
     return
   fi
 
-  cmdline=$(</proc/cmdline)
+  cmdline=$(<"$cmdline_path")
   if [[ " $cmdline " == *" $token "* ]]; then
     pass "cmdline token $token"
   else
@@ -259,7 +271,7 @@ want_apst_feature() {
   fi
 
   if grep -Eiq 'Autonomous Power State Transition|APST|APSTE' <<<"$output" &&
-    grep -Eiq 'Enable|Enabled|true|1' <<<"$output"; then
+    grep -Eiq '(:|=)[[:space:]]*(Enabled|true|1)\b|Current value:.*0x0*1\b' <<<"$output"; then
     pass "$feature_device APST feature is enabled"
   else
     fail "$feature_device APST feature output did not report enabled: $output"
@@ -275,9 +287,9 @@ want_config CONFIG_PM_ADVANCED_DEBUG 'CONFIG_PM_ADVANCED_DEBUG=y'
 
 want_lspci_driver
 want_model_prefix
-want_readable_value "/sys/class/nvme/$nvme_name/firmware_rev" "$expected_firmware" "$nvme_name firmware"
-want_readable_value "/sys/class/nvme/$nvme_name/device/power/control" "$expected_power_control" "$nvme_name runtime PM control"
-want_readable_value /sys/module/nvme_core/parameters/default_ps_max_latency_us "$expected_latency_us" "nvme_core default_ps_max_latency_us"
+want_readable_value "$sys_root/class/nvme/$nvme_name/firmware_rev" "$expected_firmware" "$nvme_name firmware"
+want_readable_value "$sys_root/class/nvme/$nvme_name/device/power/control" "$expected_power_control" "$nvme_name runtime PM control"
+want_readable_value "$sys_root/module/nvme_core/parameters/default_ps_max_latency_us" "$expected_latency_us" "nvme_core default_ps_max_latency_us"
 want_scheduler
 want_cmdline_token pcie_aspm.policy=powersave
 want_apst_feature
