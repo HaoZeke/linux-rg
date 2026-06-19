@@ -1,0 +1,315 @@
+diff -ruN a/evdi-1.14.7/evdi_connector.c b/evdi-1.14.7/evdi_connector.c
+--- a/evdi-1.14.7/evdi_connector.c	2024-11-08 05:04:52.000000000 -0600
++++ b/evdi-1.14.7/evdi_connector.c	2026-06-19 06:59:02.613084733 -0500
+@@ -63,7 +63,7 @@
+ }
+ 
+ static bool is_lowest_frequency_mode_of_given_resolution(
+-	struct drm_connector *connector, struct drm_display_mode *mode)
++	struct drm_connector *connector, const struct drm_display_mode *mode)
+ {
+ 	struct drm_display_mode *modeptr;
+ 
+@@ -78,7 +78,11 @@
+ }
+ 
+ static enum drm_mode_status evdi_mode_valid(struct drm_connector *connector,
++#if KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE
++					    const struct drm_display_mode *mode)
++#else
+ 					    struct drm_display_mode *mode)
++#endif
+ {
+ 	struct evdi_device *evdi = connector->dev->dev_private;
+ 	uint32_t area_limit = mode->hdisplay * mode->vdisplay;
+diff -ruN a/evdi-1.14.7/evdi_drm_drv.c b/evdi-1.14.7/evdi_drm_drv.c
+--- a/evdi-1.14.7/evdi_drm_drv.c	2024-11-08 05:04:52.000000000 -0600
++++ b/evdi-1.14.7/evdi_drm_drv.c	2026-06-19 06:57:36.887359781 -0500
+@@ -143,7 +143,9 @@
+ 
+ 	.name = DRIVER_NAME,
+ 	.desc = DRIVER_DESC,
++#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+ 	.date = DRIVER_DATE,
++#endif
+ 	.major = DRIVER_MAJOR,
+ 	.minor = DRIVER_MINOR,
+ 	.patchlevel = DRIVER_PATCH,
+@@ -185,11 +187,11 @@
+ 		goto err_free;
+ 
+ 	evdi_modeset_init(dev);
+-#ifdef CONFIG_FB
++#ifdef EVDI_ENABLE_FBDEV
+ 	ret = evdi_fbdev_init(dev);
+ 	if (ret)
+ 		goto err_init;
+-#endif /* CONFIG_FB */
++#endif /* EVDI_ENABLE_FBDEV */
+ 
+ 	ret = drm_vblank_init(dev, 1);
+ 	if (ret)
+@@ -205,9 +207,9 @@
+ 	return 0;
+ 
+ err_init:
+-#ifdef CONFIG_FB
++#ifdef EVDI_ENABLE_FBDEV
+ 	evdi_fbdev_cleanup(dev);
+-#endif /* CONFIG_FB */
++#endif /* EVDI_ENABLE_FBDEV */
+ err_free:
+ 	EVDI_ERROR("Failed to setup drm device %d\n", ret);
+ 	evdi_cursor_free(evdi->cursor);
+@@ -276,10 +278,10 @@
+ static void evdi_drm_device_deinit(struct drm_device *dev)
+ {
+ 	drm_kms_helper_poll_fini(dev);
+-#ifdef CONFIG_FB
++#ifdef EVDI_ENABLE_FBDEV
+ 	evdi_fbdev_unplug(dev);
+ 	evdi_fbdev_cleanup(dev);
+-#endif /* CONFIG_FB */
++#endif /* EVDI_ENABLE_FBDEV */
+ 	evdi_modeset_cleanup(dev);
+ 	drm_atomic_helper_shutdown(dev);
+ }
+@@ -295,4 +297,3 @@
+ 	drm_dev_put(dev);
+ 	return 0;
+ }
+-
+diff -ruN a/evdi-1.14.7/evdi_drm_drv.h b/evdi-1.14.7/evdi_drm_drv.h
+--- a/evdi-1.14.7/evdi_drm_drv.h	2024-11-08 05:04:52.000000000 -0600
++++ b/evdi-1.14.7/evdi_drm_drv.h	2026-06-19 06:57:07.192454677 -0500
+@@ -40,6 +40,10 @@
+ #include "evdi_debug.h"
+ #include "tests/evdi_test.h"
+ 
++#if defined(CONFIG_FB) && LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
++#define EVDI_ENABLE_FBDEV
++#endif
++
+ struct evdi_fbdev;
+ struct evdi_painter;
+ 
+@@ -98,14 +102,17 @@
+ #endif
+ 
+ 
+-#ifdef CONFIG_FB
++#ifdef EVDI_ENABLE_FBDEV
+ int evdi_fbdev_init(struct drm_device *dev);
+ void evdi_fbdev_cleanup(struct drm_device *dev);
+ void evdi_fbdev_unplug(struct drm_device *dev);
+-#endif /* CONFIG_FB */
++#endif /* EVDI_ENABLE_FBDEV */
+ struct drm_framebuffer *evdi_fb_user_fb_create(
+ 				struct drm_device *dev,
+ 				struct drm_file *file,
++#if KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE
++				const struct drm_format_info *info,
++#endif
+ 				const struct drm_mode_fb_cmd2 *mode_cmd);
+ 
+ int evdi_dumb_create(struct drm_file *file_priv,
+diff -ruN a/evdi-1.14.7/evdi_fb.c b/evdi-1.14.7/evdi_fb.c
+--- a/evdi-1.14.7/evdi_fb.c	2024-11-08 05:04:52.000000000 -0600
++++ b/evdi-1.14.7/evdi_fb.c	2026-06-19 06:58:02.462277945 -0500
+@@ -85,7 +85,7 @@
+ 	return rect;
+ }
+ 
+-#ifdef CONFIG_FB
++#ifdef EVDI_ENABLE_FBDEV
+ static int evdi_handle_damage(struct evdi_framebuffer *fb,
+ 		       int x, int y, int width, int height)
+ {
+@@ -218,7 +218,7 @@
+ 	.fb_open = evdi_fb_open,
+ 	.fb_release = evdi_fb_release,
+ };
+-#endif /* CONFIG_FB */
++#endif /* EVDI_ENABLE_FBDEV */
+ 
+ #if KERNEL_VERSION(5, 0, 0) <= LINUX_VERSION_CODE || defined(EL8)
+ #else
+@@ -339,16 +339,23 @@
+ 
+ static int
+ evdi_framebuffer_init(struct drm_device *dev,
+-		      struct evdi_framebuffer *efb,
+-		      const struct drm_mode_fb_cmd2 *mode_cmd,
+-		      struct evdi_gem_object *obj)
++			      struct evdi_framebuffer *efb,
++#if KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE
++			      const struct drm_format_info *info,
++#endif
++			      const struct drm_mode_fb_cmd2 *mode_cmd,
++			      struct evdi_gem_object *obj)
+ {
+ 	efb->obj = obj;
++#if KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE
++	drm_helper_mode_fill_fb_struct(dev, &efb->base, info, mode_cmd);
++#else
+ 	drm_helper_mode_fill_fb_struct(dev, &efb->base, mode_cmd);
++#endif
+ 	return drm_framebuffer_init(dev, &efb->base, &evdifb_funcs);
+ }
+ 
+-#ifdef CONFIG_FB
++#ifdef EVDI_ENABLE_FBDEV
+ static int evdifb_create(struct drm_fb_helper *helper,
+ 			 struct drm_fb_helper_surface_size *sizes)
+ {
+@@ -574,7 +581,7 @@
+ #endif
+ 	}
+ }
+-#endif /* CONFIG_FB */
++#endif /* EVDI_ENABLE_FBDEV */
+ 
+ int evdi_fb_get_bpp(uint32_t format)
+ {
+@@ -588,13 +595,20 @@
+ struct drm_framebuffer *evdi_fb_user_fb_create(
+ 					struct drm_device *dev,
+ 					struct drm_file *file,
++#if KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE
++					const struct drm_format_info *info,
++#endif
+ 					const struct drm_mode_fb_cmd2 *mode_cmd)
+ {
+ 	struct drm_gem_object *obj;
+ 	struct evdi_framebuffer *efb;
+ 	int ret;
+ 	uint32_t size;
++#if KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE
++	int bpp = info ? info->cpp[0] * 8 : 0;
++#else
+ 	int bpp = evdi_fb_get_bpp(mode_cmd->pixel_format);
++#endif
+ 
+ 	if (bpp != 32) {
+ 		EVDI_ERROR("Unsupported bpp (%d)\n", bpp);
+@@ -609,7 +623,7 @@
+ 	size = ALIGN(size, PAGE_SIZE);
+ 
+ 	if (size > obj->size) {
+-		DRM_ERROR("object size not sufficient for fb %d %zu %u %d %d\n",
++		EVDI_ERROR("object size not sufficient for fb %d %zu %u %d %d\n",
+ 			  size, obj->size, mode_cmd->offsets[0],
+ 			  mode_cmd->pitches[0], mode_cmd->height);
+ 		goto err_no_mem;
+@@ -620,7 +634,11 @@
+ 		goto err_no_mem;
+ 	efb->base.obj[0] = obj;
+ 
+-	ret = evdi_framebuffer_init(dev, efb, mode_cmd, to_evdi_bo(obj));
++	ret = evdi_framebuffer_init(dev, efb,
++#if KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE
++				    info,
++#endif
++				    mode_cmd, to_evdi_bo(obj));
+ 	if (ret)
+ 		goto err_inval;
+ 	return &efb->base;
+diff -ruN a/evdi-1.14.7/evdi_gem.c b/evdi-1.14.7/evdi_gem.c
+--- a/evdi-1.14.7/evdi_gem.c	2024-11-08 05:04:52.000000000 -0600
++++ b/evdi-1.14.7/evdi_gem.c	2026-06-19 06:58:19.801222412 -0500
+@@ -29,7 +29,7 @@
+ #include <linux/vmalloc.h>
+ 
+ #if KERNEL_VERSION(5, 16, 0) <= LINUX_VERSION_CODE || defined(EL9)
+-MODULE_IMPORT_NS(DMA_BUF);
++MODULE_IMPORT_NS("DMA_BUF");
+ #endif
+ 
+ #if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE || defined(EL8)
+@@ -391,7 +391,9 @@
+ 	struct drm_gem_object *obj;
+ 	int ret = 0;
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+ 	mutex_lock(&dev->struct_mutex);
++#endif
+ 	obj = drm_gem_object_lookup(file, handle);
+ 	if (obj == NULL) {
+ 		ret = -ENOENT;
+@@ -419,7 +421,9 @@
+  out:
+ 	drm_gem_object_put(&gobj->base);
+  unlock:
++#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+ 	mutex_unlock(&dev->struct_mutex);
++#endif
+ 	return ret;
+ }
+ 
+@@ -439,7 +443,7 @@
+ 		return ERR_CAST(obj);
+ 
+ 	npages = DIV_ROUND_UP(attach->dmabuf->size, PAGE_SIZE);
+-	DRM_DEBUG_PRIME("Importing %d pages\n", npages);
++	EVDI_DEBUG("Importing %d pages\n", npages);
+ 	obj->pages = kvmalloc_array(npages, sizeof(struct page *), GFP_KERNEL);
+ 	if (!obj->pages) {
+ 		evdi_gem_free_object(&obj->base);
+@@ -482,4 +486,3 @@
+ 	return drm_prime_pages_to_sg(bo->pages, bo->base.size >> PAGE_SHIFT);
+ #endif
+ }
+-
+diff -ruN a/evdi-1.14.7/evdi_modeset.c b/evdi-1.14.7/evdi_modeset.c
+--- a/evdi-1.14.7/evdi_modeset.c	2024-11-08 05:04:52.000000000 -0600
++++ b/evdi-1.14.7/evdi_modeset.c	2026-06-19 06:58:34.269176037 -0500
+@@ -134,13 +134,17 @@
+ 
+ 	EVDI_CHECKPT();
+ 	if (handle) {
++#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+ 		mutex_lock(&dev->struct_mutex);
++#endif
+ 		obj = drm_gem_object_lookup(file, handle);
+ 		if (obj)
+ 			eobj = to_evdi_bo(obj);
+ 		else
+ 			EVDI_ERROR("Failed to lookup gem object.\n");
++#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+ 		mutex_unlock(&dev->struct_mutex);
++#endif
+ 	}
+ 
+ 	evdi_cursor_set(evdi->cursor,
+@@ -343,7 +347,9 @@
+ 		int32_t cursor_position_x = 0;
+ 		int32_t cursor_position_y = 0;
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+ 		mutex_lock(&plane->dev->struct_mutex);
++#endif
+ 
+ 		evdi_cursor_position(evdi->cursor, &cursor_position_x,
+ 		&cursor_position_y);
+@@ -369,7 +375,9 @@
+ 			cursor_changed = true;
+ 		}
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+ 		mutex_unlock(&plane->dev->struct_mutex);
++#endif
+ 		if (!evdi->cursor_events_enabled) {
+ 			if (fb != NULL) {
+ 				if (efb->obj->allow_sw_cursor_rect_updates) {
+diff -ruN a/evdi-1.14.7/evdi_painter.c b/evdi-1.14.7/evdi_painter.c
+--- a/evdi-1.14.7/evdi_painter.c	2024-11-08 05:04:52.000000000 -0600
++++ b/evdi-1.14.7/evdi_painter.c	2026-06-19 06:58:24.687206754 -0500
+@@ -36,7 +36,7 @@
+ #endif
+ 
+ #if KERNEL_VERSION(5, 16, 0) <= LINUX_VERSION_CODE || defined(EL9)
+-MODULE_IMPORT_NS(DMA_BUF);
++MODULE_IMPORT_NS("DMA_BUF");
+ #endif
+ 
+ #if KERNEL_VERSION(5, 1, 0) <= LINUX_VERSION_CODE || defined(EL8)

@@ -1,0 +1,152 @@
+diff -ruN a/rtl88xxau-r1298.b44d288/Makefile b/rtl88xxau-r1298.b44d288/Makefile
+--- a/rtl88xxau-r1298.b44d288/Makefile	2024-05-28 06:05:14.000000000 -0500
++++ b/rtl88xxau-r1298.b44d288/Makefile	2026-06-19 06:49:28.660897181 -0500
+@@ -1661,6 +1661,8 @@
+ ifneq ($(KERNELRELEASE),)
+ 
+ ########### this part for *.mk ############################
++ccflags-y += $(EXTRA_CFLAGS)
++
+ include $(src)/hal/phydm/phydm.mk
+ 
+ rtk_core :=	core/rtw_cmd.o \
+diff -ruN a/rtl88xxau-r1298.b44d288/include/osdep_service_linux.h b/rtl88xxau-r1298.b44d288/include/osdep_service_linux.h
+--- a/rtl88xxau-r1298.b44d288/include/osdep_service_linux.h	2024-05-28 06:05:14.000000000 -0500
++++ b/rtl88xxau-r1298.b44d288/include/osdep_service_linux.h	2026-06-19 06:52:21.018360701 -0500
+@@ -57,6 +57,7 @@
+ #include <linux/ip.h>
+ #include <linux/kthread.h>
+ #include <linux/list.h>
++#include <linux/timer.h>
+ #include <linux/vmalloc.h>
+ 
+ #if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 5, 41))
+@@ -356,7 +357,11 @@
+ #endif
+ {
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0))
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	_timer *ptimer = timer_container_of(ptimer, in_timer, timer);
++#else
+ 	_timer *ptimer = from_timer(ptimer, in_timer, timer);
++#endif
+ #else
+ 	_timer *ptimer = (_timer *)cntx;
+ #endif
+@@ -385,7 +390,11 @@
+ 
+ __inline static void _cancel_timer(_timer *ptimer, u8 *bcancelled)
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	*bcancelled = timer_delete_sync(&ptimer->timer) == 1 ? 1 : 0;
++#else
+ 	*bcancelled = del_timer_sync(&ptimer->timer) == 1 ? 1 : 0;
++#endif
+ }
+ 
+ static inline void _init_workitem(_workitem *pwork, void *pfunc, void *cntx)
+diff -ruN a/rtl88xxau-r1298.b44d288/os_dep/linux/ioctl_cfg80211.c b/rtl88xxau-r1298.b44d288/os_dep/linux/ioctl_cfg80211.c
+--- a/rtl88xxau-r1298.b44d288/os_dep/linux/ioctl_cfg80211.c	2024-05-28 06:05:14.000000000 -0500
++++ b/rtl88xxau-r1298.b44d288/os_dep/linux/ioctl_cfg80211.c	2026-06-19 06:54:06.721028097 -0500
+@@ -3363,8 +3363,15 @@
+ 	return ret;
+ }
+ 
+-static int cfg80211_rtw_set_wiphy_params(struct wiphy *wiphy, u32 changed)
++static int cfg80211_rtw_set_wiphy_params(struct wiphy *wiphy,
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	int radio_idx,
++#endif
++	u32 changed)
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	(void)radio_idx;
++#endif
+ #if 0
+ 	struct iwm_priv *iwm = wiphy_to_iwm(wiphy);
+ 
+@@ -4265,12 +4272,18 @@
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	struct wireless_dev *wdev,
+ #endif
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	int radio_idx,
++#endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)) || defined(COMPAT_KERNEL_RELEASE)
+ 	enum nl80211_tx_power_setting type, int mbm)
+ #else
+ 	enum tx_power_setting type, int dbm)
+ #endif
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	(void)radio_idx;
++#endif
+ 
+ _adapter *padapter = wiphy_to_adapter(wiphy);
+ HAL_DATA_TYPE   *pHalData = GET_HAL_DATA(padapter);
+@@ -4326,8 +4339,16 @@
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	struct wireless_dev *wdev,
+ #endif
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	int radio_idx,
++	unsigned int link_id,
++#endif
+ 	int *dbm)
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	(void)radio_idx;
++	(void)link_id;
++#endif
+ 	_adapter *padapter = wiphy_to_adapter(wiphy);
+ 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
+ 
+@@ -6306,6 +6327,9 @@
+ }
+ 
+ static int cfg80211_rtw_set_monitor_channel(struct wiphy *wiphy
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	, struct net_device *ndev
++#endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	, struct cfg80211_chan_def *chandef
+ #else
+@@ -6314,6 +6338,9 @@
+ #endif
+ )
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0))
++	(void)ndev;
++#endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	struct ieee80211_channel *chan = chandef->chan;
+ #endif
+diff -ruN a/rtl88xxau-r1298.b44d288/os_dep/linux/usb_intf.c b/rtl88xxau-r1298.b44d288/os_dep/linux/usb_intf.c
+--- a/rtl88xxau-r1298.b44d288/os_dep/linux/usb_intf.c	2024-05-28 06:05:14.000000000 -0500
++++ b/rtl88xxau-r1298.b44d288/os_dep/linux/usb_intf.c	2026-06-19 06:53:50.620078936 -0500
+@@ -1641,7 +1641,7 @@
+ }
+ 
+ #ifdef MODULE_IMPORT_NS
+-MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
+ #endif
+ 
+ module_init(rtw_drv_entry);
+diff -ruN a/rtl88xxau-r1298.b44d288/os_dep/osdep_service.c b/rtl88xxau-r1298.b44d288/os_dep/osdep_service.c
+--- a/rtl88xxau-r1298.b44d288/os_dep/osdep_service.c	2024-05-28 06:05:14.000000000 -0500
++++ b/rtl88xxau-r1298.b44d288/os_dep/osdep_service.c	2026-06-19 06:53:45.831094046 -0500
+@@ -27,7 +27,7 @@
+ #endif /* DBG_MEMORY_LEAK */
+ 
+ #if defined(MODULE_IMPORT_NS)
+-MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
+ #endif
+ 
+ #if defined(PLATFORM_LINUX)
+@@ -2956,4 +2956,3 @@
+ 	}
+ 	return 0;
+ }
+-

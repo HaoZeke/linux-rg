@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=${RG_LINUX_RG_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}
+
+require_file() {
+  local path=$1
+  test -f "$root/$path" || {
+    printf 'missing file: %s\n' "$path" >&2
+    return 1
+  }
+}
+
+require_executable() {
+  local path=$1
+  test -x "$root/$path" || {
+    printf 'missing executable: %s\n' "$path" >&2
+    return 1
+  }
+}
+
+require_text() {
+  local path=$1
+  local pattern=$2
+  rg -q --fixed-strings "$pattern" "$root/$path" || {
+    printf 'missing marker in %s: %s\n' "$path" "$pattern" >&2
+    return 1
+  }
+}
+
+dry_run_patch() {
+  local patch_path=$1
+  local src_name=$2
+  local src_root=/usr/src/$src_name
+
+  if [[ ! -d $src_root ]]; then
+    printf 'skip dry-run: %s not present\n' "$src_root"
+    return 0
+  fi
+
+  local tmp
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  cp -a "$src_root" "$tmp/$src_name"
+  patch -d "$tmp/$src_name" -p2 --dry-run --forward --silent < "$root/$patch_path"
+}
+
+require_executable scripts/rgx1gen11-dkms-overlay-apply
+
+require_file dkms-overlays/ddcci-0.4.5-linux-7.0.patch
+require_file dkms-overlays/rtl88xxau-r1298-linux-7.0.patch
+require_file dkms-overlays/evdi-1.14.7-linux-7.0.patch
+
+require_text dkms-overlays/ddcci-0.4.5-linux-7.0.patch 'I2C_CLASS_HWMON'
+require_text dkms-overlays/ddcci-0.4.5-linux-7.0.patch 'controls_device'
+require_text dkms-overlays/rtl88xxau-r1298-linux-7.0.patch 'timer_container_of'
+require_text dkms-overlays/rtl88xxau-r1298-linux-7.0.patch 'timer_delete_sync'
+require_text dkms-overlays/rtl88xxau-r1298-linux-7.0.patch 'radio_idx'
+require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'EVDI_ENABLE_FBDEV'
+require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'const struct drm_format_info *info'
+require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'MODULE_IMPORT_NS("DMA_BUF")'
+
+dry_run_patch dkms-overlays/ddcci-0.4.5-linux-7.0.patch ddcci-0.4.5
+dry_run_patch dkms-overlays/rtl88xxau-r1298-linux-7.0.patch rtl88xxau-r1298.b44d288
+dry_run_patch dkms-overlays/evdi-1.14.7-linux-7.0.patch evdi-1.14.7
+
+printf 'ok: dkms overlays are present and apply cleanly\n'
