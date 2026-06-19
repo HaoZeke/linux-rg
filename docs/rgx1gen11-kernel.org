@@ -206,13 +206,12 @@ Source: mainline Linux configuration.
 
 Why: PSI gives userspace a direct pressure signal for memory, CPU, and I/O. It
 is the kernel-side foundation needed by pressure-aware userspace policy such as
-`oomd`. The profile pins PSI, memcg, memcg swap accounting, cgroups, and BPF.
+`oomd`. The profile pins PSI, memcg, cgroups, and BPF.
 
 Fit:
 
 - `CONFIG_PSI=y`
 - `CONFIG_MEMCG=y`
-- `CONFIG_MEMCG_SWAP=y`
 - `CONFIG_CGROUP_BPF=y`
 
 Mechanical check:
