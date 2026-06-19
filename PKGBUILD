@@ -321,7 +321,7 @@ _package() {
 
   echo "Installing modules..."
   ZSTD_CLEVEL=19 make INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 \
-    DEPMOD=/doesnt/exist modules_install  # Suppress depmod
+    DEPMOD=/usr/bin/true modules_install  # Pacman hooks regenerate module indices.
 
   install -Dm755 "$srcdir/asa-router" "$pkgdir/usr/bin/asa-router"
   install -Dm755 "$srcdir/rgx1gen11-ax211-check" "$pkgdir/usr/bin/rgx1gen11-ax211-check"
