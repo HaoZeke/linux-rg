@@ -76,4 +76,18 @@ printf '%s\n' "$output" | rg -q 'pstore mount: unavailable' \
 printf '%s\n' "$output" | rg -q 'systemd-pstore active: active' \
   || fail "checker should continue after missing pstore mount"
 
+mkdir -p "$tmpdir/sys/fs/pstore"
+chmod 000 "$tmpdir/sys/fs/pstore"
+output=$(
+  RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$checker"
+)
+chmod 700 "$tmpdir/sys/fs/pstore"
+
+printf '%s\n' "$output" | rg -q 'pstore mount: present but not readable' \
+  || fail "checker should report unreadable pstore mount distinctly"
+printf '%s\n' "$output" | rg -q 'systemd-pstore active: active' \
+  || fail "checker should continue after unreadable pstore mount"
+
 printf 'ok\n'

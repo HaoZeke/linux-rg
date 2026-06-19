@@ -32,8 +32,14 @@ print_pstore_records() {
   local files=()
   local file
 
-  if [[ ! -d $pstore_root || ! -r $pstore_root ]]; then
+  if [[ ! -d $pstore_root ]]; then
     printf 'pstore mount: unavailable\n'
+    printf 'pstore files: unavailable\n'
+    return 0
+  fi
+
+  if [[ ! -r $pstore_root ]]; then
+    printf 'pstore mount: present but not readable\n'
     printf 'pstore files: unavailable\n'
     return 0
   fi
