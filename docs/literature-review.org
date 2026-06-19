@@ -722,7 +722,7 @@ chassis" studies do not exist.
 
 | Constraint | Evidence | Grade | Linux implication |
 | 9950X 170 W TDP | AMD Granite Ridge product spec | B | Default power exceeds cooler class |
-| NH-L9a ~95 W AM5 guidance | Noctua product compatibility | B | PPT cap before cpufreq/sched bench |
+| NH-L9a-AM4 low-profile cooler class | Noctua product guidance + build note | B | PPT cap before cpufreq/sched bench |
 | RTX 5070 ~250 W class TDP | NVIDIA board power spec | B/C | GPU =nvidia-smi -pl= pairs with CPU cap |
 | Closed SFF panel airflow | Fractal Terra mechanical design | C | Thermals trump scheduler patches |
 

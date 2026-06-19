@@ -86,7 +86,7 @@ Derived from receipt table above plus vendor spec sheets.
 | dGPU interface | RTX 5070 PCIe 5.0 card in B650I PCIe 4.0 x16 slot via Terra PCIe 4.0 riser | board + GPU specs |
 | Storage | WD BLACK SN850X 2 TB NVMe, PCIe Gen4 x4 | receipt |
 | RAM | T-Force Xtreem 48 GiB (2x24 GiB) DDR5-8000 CL38 | receipt |
-| Cooler | Noctua NH-L9a-AM4 low-profile, mounted on AM5 | receipt + build note |
+| Cooler | Noctua NH-L9a-AM4 low-profile, physically mounted on AM5; no separate mounting kit assumed | receipt + build note |
 | Case airflow | ARCTIC P12 Pro 120 mm (Black) + stock Terra/PSU/GPU fans | receipt |
 | PSU | Lian Li SP850 V2 Gold 850 W, ATX 3.1, White | receipt |
 | Wi-Fi | Onboard Wi-Fi 6E (802.11ax); chip TBD at probe | ASRock spec |
@@ -98,7 +98,7 @@ Derived from receipt table above plus vendor spec sheets.
 
 ** Thermal constraint (primary research finding)
 
-The Terra case plus NH-L9a-AM4 mounted on AM5 is a **low-profile air cooler on a
+The Terra case plus NH-L9a-AM4 physically mounted on AM5 is a **low-profile air cooler on a
 170 W CPU** in a volume-constrained chassis, paired with a **~250 W-class
 discrete GPU**. Linux power/thermal policy is a first-class target here, not an
 afterthought. Expect userspace caps (EPP, PPT, fan curves, GPU power limits) to
@@ -389,7 +389,7 @@ Kernel patches (BORE, znver5, gaming-sched) are *layer 7*; only after layers
 
 | Claim | Grade | Source |
 | 9950X 170 W default TDP | B | AMD Granite Ridge spec |
-| NH-L9a-AM4 mounted on AM5 is a 37 mm low-profile cooler class | B | Noctua compatibility guidance + build note |
+| NH-L9a-AM4 physically mounted on AM5 is a 37 mm low-profile cooler class | B | Noctua product guidance + build note |
 | Terra + low-profile cooler + 250 W-class GPU | C | SFF thermodynamics (engineering) |
 
 Kernel patches cannot fix a 170 W CPU in a 95 W cooler. **T1 (PPT cap) is a

@@ -54,7 +54,7 @@ Vissues: epic =linux-rg-ln3w= (and children).
 | dGPU | ASUS GeForce RTX 5070 Dual 12 GB GDDR7 (MC SKU 956516) |
 | Motherboard | ASRock B650I Lightning WiFi (AM5, MC SKU 657478) |
 | Storage | WD BLACK SN850X 2 TB NVMe (MC SKU 691840) |
-| Cooler | Noctua NH-L9a-AM4 low-profile, mounted on AM5 (MC SKU 958454) |
+| Cooler | Noctua NH-L9a-AM4 low-profile, physically mounted on AM5; no separate mounting kit assumed (MC SKU 958454) |
 | Case fan | ARCTIC P12 Pro 120 mm Black (MC SKU 953612) |
 | PSU | Lian Li SP850 V2 Gold 850W ATX 3.1 White (MC SKU 911693) |
 | RAM | T-Force Xtreem 48 GiB DDR5-8000 CL38 (MC SKU 655191) |

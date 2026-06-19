@@ -30,7 +30,7 @@ Target machine:
 - Motherboard: ASRock B650I Lightning WiFi (AMD B650).
 - Storage: WD BLACK SN850X 2 TB NVMe (PCIe Gen4).
 - RAM: 48 GiB DDR5-8000 (2x24 GiB).
-- Cooling: Noctua NH-L9a-AM4 low-profile mounted on AM5; ARCTIC P12 Pro 120 mm.
+- Cooling: Noctua NH-L9a-AM4 low-profile physically mounted on AM5; no separate mounting kit assumed; ARCTIC P12 Pro 120 mm.
 - PSU: Lian Li SP850 V2 850 W (ATX 3.1).
 
 Planned inventory and acceptance thresholds: =docs/rgam5terra-targets.org=.
@@ -238,7 +238,7 @@ standards, B kernel.org/LWN/LPC, C vendor/Phoronix, D folklore until bench).
 
 | # | Subsystem | Tweak | Layer | Grade | Status | Notes |
 |---|-----------|-------|-------|-------|--------|-------|
-| T1 | CPU thermals | Cap PPT to 95-120 W (BIOS or ryzenadj) | firmware/userspace | B/C | planned | NH-L9a rated ~95 W AM5; 9950X is 170 W TDP |
+| T1 | CPU thermals | Cap PPT to 95-120 W (BIOS or ryzenadj) | firmware/userspace | B/C | planned | NH-L9a 95 W-class cooler; 9950X is 170 W TDP |
 | T2 | CPU freq | amd-pstate + EPP =balance_performance=; cmdline =amd_pstate=guided= | kernel + sysfs | B | planned | Start conservative; =performance= only for short benches |
 | T3 | CPU freq | Preferred-core CPPC enabled | kernel | B | probe | =amd_pstate_prefcore= sysfs per kernel.org |
 | T4 | CPU ISA | =x86-64-v3= Arch generic vs znver5/v4 tuned build | Kconfig/Makefile | D | evaluating | Cachy znver4 path wrong CPU gen; znver5 needs bench |
@@ -282,7 +282,7 @@ standards, B kernel.org/LWN/LPC, C vendor/Phoronix, D folklore until bench).
 
 | Fact | Source | Grade |
 | 9950X default TDP 170 W | AMD product spec | B |
-| NH-L9a-AM4 mounted on AM5 remains a 37 mm low-profile cooler class | Noctua product guidance + build note | B |
+| NH-L9a-AM4 physically mounted on AM5 remains a 37 mm low-profile cooler class | Noctua product guidance + build note | B |
 | Terra volume + RTX 5070 heat dump | build geometry | C (engineering) |
 
 **Implication:** Linux scheduler or compiler wins are irrelevant if the CPU runs
@@ -394,7 +394,7 @@ prebuilt source tar plus scheduler patch, then toggles via PKGBUILD:
 | BBRv3 | =_tcp_bbr3=no= in bore PKGBUILD | linux-rg already carries BBRv3 |
 | NVIDIA open in package | =_build_nvidia_open=yes= in build scripts | **Packaging idea** for rgam5terra; not in-tree DRM |
 | r8125 DKMS | =_build_r8125=yes= (aravance/r8125) | **Evaluate** if =r8169= downshifts on B650I 2.5G |
-| ZFS in tree | optional | Out of scope unless user wants ZFS root |
+| ZFS in tree | optional | Separate storage profile unless user wants ZFS root |
 
 Build scripts (=script.sh=, =script-znver4.sh=) enable **nvidia-open + r8125 + ZFS**
 for AMD desktop repos -- this is the closest CachyOS "profile" to rgam5terra.
