@@ -113,10 +113,24 @@ mkinitcpio preset, and add a non-default rEFInd stanza:
 sudo bash scripts/rgx1gen11-install-refind-root
 ```
 
+By default the installer discovers the newest `linux-rg` and
+`linux-rg-headers` packages under
+`~/.local/share/rg-kernel/artifacts/linux-rg`. Under `sudo`, it resolves that
+path from `SUDO_USER` rather than root's home directory. Override with
+`LINUX_RG_ARTIFACT_DIR`, `LINUX_RG_KERNEL_PKG`, or `LINUX_RG_HEADERS_PKG` when
+testing a different build output.
+
 The script keeps the stock Arch entry intact and inserts `Arch Linux linux-rg`
 after it. It copies `/usr/lib/modules/*-rg/vmlinuz` to `/boot/vmlinuz-linux-rg`
 and writes `/boot/initramfs-linux-rg.img` from a separate mkinitcpio config with
 `MODULES=(nvme i915)`.
+
+Validate the installer dry-run and package discovery path without root:
+
+```sh
+bash scripts/rgx1gen11-install-refind-root-selftest
+scripts/rgx1gen11-install-refind-root --dry-run
+```
 
 For the current built package, copy the source checker before running the root
 installer so the install can verify the rEFInd and mkinitcpio state. The

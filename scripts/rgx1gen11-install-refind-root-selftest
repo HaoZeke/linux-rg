@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=${1:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}
+installer="$repo/scripts/rgx1gen11-install-refind-root"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$installer" || fail "missing installer: $installer"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+artifact_dir="$tmpdir/artifacts"
+pkgroot="$tmpdir/pkgroot"
+mkdir -p "$artifact_dir" "$pkgroot/usr/lib/modules/9.9.9-rg"
+touch "$pkgroot/usr/lib/modules/9.9.9-rg/vmlinuz"
+printf 'linux-rg\n' >"$pkgroot/usr/lib/modules/9.9.9-rg/pkgbase"
+bsdtar -cf "$artifact_dir/linux-rg-9.9.9-x86_64.pkg.tar.zst" -C "$pkgroot" usr
+touch "$artifact_dir/linux-rg-headers-9.9.9-x86_64.pkg.tar.zst"
+
+refind_conf="$tmpdir/refind.conf"
+cat >"$refind_conf" <<'EOF'
+menuentry "Arch Linux" {
+    loader /vmlinuz-linux
+    initrd /initramfs-linux.img
+    options "root=/dev/mapper/luks rw quiet"
+}
+EOF
+
+mkinitcpio_base="$tmpdir/mkinitcpio.conf"
+cat >"$mkinitcpio_base" <<'EOF'
+MODULES=()
+BINARIES=()
+FILES=()
+HOOKS=(base udev autodetect modconf block filesystems keyboard fsck)
+EOF
+
+out="$tmpdir/dry-run.out"
+LINUX_RG_ARTIFACT_DIR="$artifact_dir" \
+  REFIND_CONF="$refind_conf" \
+  MKINITCPIO_BASE="$mkinitcpio_base" \
+  "$installer" --dry-run >"$out"
+
+rg -q "kernel package:  $artifact_dir/linux-rg-9.9.9-x86_64.pkg.tar.zst" "$out" \
+  || fail "dry run should discover linux-rg package from artifact dir"
+rg -q "headers package: $artifact_dir/linux-rg-headers-9.9.9-x86_64.pkg.tar.zst" "$out" \
+  || fail "dry run should discover linux-rg-headers package from artifact dir"
+rg -q "kernel release:  9.9.9-rg" "$out" \
+  || fail "dry run should read kernel release from package"
+rg -q 'refind options:  root=/dev/mapper/luks rw quiet' "$out" \
+  || fail "dry run should read stock rEFInd options"
+
+printf 'ok\n'

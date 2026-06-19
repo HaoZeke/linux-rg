@@ -1,8 +1,50 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-kernel_pkg=${LINUX_RG_KERNEL_PKG:-/home/rgoswami/.local/share/chezmoi/.kernel-build/pkgdest/linux-rg-7.0.12.arch1-1-x86_64.pkg.tar.zst}
-headers_pkg=${LINUX_RG_HEADERS_PKG:-/home/rgoswami/.local/share/chezmoi/.kernel-build/pkgdest/linux-rg-headers-7.0.12.arch1-1-x86_64.pkg.tar.zst}
+default_artifact_home() {
+  local home user
+  if [[ -n ${LINUX_RG_ARTIFACT_HOME:-} ]]; then
+    printf '%s\n' "$LINUX_RG_ARTIFACT_HOME"
+    return
+  fi
+
+  user=${SUDO_USER:-}
+  if [[ -n $user && $user != root ]] && command -v getent >/dev/null 2>&1; then
+    home=$(getent passwd "$user" | cut -d: -f6 || true)
+    if [[ -n $home ]]; then
+      printf '%s\n' "$home"
+      return
+    fi
+  fi
+
+  if [[ -n ${HOME:-} ]]; then
+    printf '%s\n' "$HOME"
+  else
+    printf '/root\n'
+  fi
+}
+
+default_artifact_dir() {
+  printf '%s/.local/share/rg-kernel/artifacts/linux-rg\n' "$(default_artifact_home)"
+}
+
+latest_package() {
+  local dir=$1 pattern=$2 description=$3
+  local candidates=() sorted=()
+  if [[ -d $dir ]]; then
+    mapfile -d '' -t candidates < <(find "$dir" -maxdepth 1 -type f -name "$pattern" -print0)
+  fi
+  if (( ${#candidates[@]} == 0 )); then
+    printf 'error: no %s found under %s\n' "$description" "$dir" >&2
+    return 1
+  fi
+  mapfile -d '' -t sorted < <(printf '%s\0' "${candidates[@]}" | sort -z)
+  printf '%s\n' "${sorted[-1]}"
+}
+
+artifact_dir=${LINUX_RG_ARTIFACT_DIR:-$(default_artifact_dir)}
+kernel_pkg=${LINUX_RG_KERNEL_PKG:-$(latest_package "$artifact_dir" 'linux-rg-[0-9]*-x86_64.pkg.tar.zst' 'linux-rg package')}
+headers_pkg=${LINUX_RG_HEADERS_PKG:-$(latest_package "$artifact_dir" 'linux-rg-headers-[0-9]*-x86_64.pkg.tar.zst' 'linux-rg-headers package')}
 refind_conf=${REFIND_CONF:-/boot/EFI/refind/refind.conf}
 mkinitcpio_base=${MKINITCPIO_BASE:-/etc/mkinitcpio.conf}
 mkinitcpio_config=${MKINITCPIO_CONFIG:-/etc/mkinitcpio-linux-rg.conf}
