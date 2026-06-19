@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=${RG_LINUX_RG_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+checkout_root=$(cd -- "$script_dir/.." && pwd)
+if [[ -n ${RG_LINUX_RG_ROOT:-} ]]; then
+  root=$RG_LINUX_RG_ROOT
+elif [[ -d $script_dir/dkms-overlays ]]; then
+  root=$script_dir
+elif [[ -d $checkout_root/dkms-overlays ]]; then
+  root=$checkout_root
+else
+  root=/usr/share/linux-rg
+fi
 backup_root=${RG_DKMS_OVERLAY_BACKUP_ROOT:-/tmp/rg-linux-rg-dkms-overlay-backups}
 jobs=${RG_DKMS_JOBS:-}
 target_kver=${1:-${RG_DKMS_KVER:-}}
@@ -21,7 +31,7 @@ if [[ -z $target_kver ]]; then
   target_kver=$(
     find /usr/lib/modules -maxdepth 2 -type d -path '*/build' -printf '%h\n' |
       sed 's|.*/||' |
-      rg -- '-rg$' |
+      grep -- '-rg$' |
       sort -V |
       tail -n 1
   )

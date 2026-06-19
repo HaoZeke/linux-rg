@@ -45,7 +45,7 @@ dry_run_patch() {
   patch -d "$tmp/$src_name" -p2 --dry-run --forward --silent < "$root/$patch_path"
 }
 
-require_executable scripts/rgx1gen11-dkms-overlay-apply
+require_executable rgx1gen11-dkms-overlay-apply
 
 require_file dkms-overlays/ddcci-0.4.5-linux-7.0.patch
 require_file dkms-overlays/rtl88xxau-r1298-linux-7.0.patch

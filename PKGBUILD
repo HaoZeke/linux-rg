@@ -76,8 +76,12 @@ source=(
   rgx1gen11-s0ix-preflight
   rgx1gen11-s0ix-tool-sync
   rgx1gen11-boot-check
+  rgx1gen11-dkms-overlay-apply
   rgx1gen11-iwlwifi.conf
   rgx1gen11-btusb.conf
+  ddcci-0.4.5-linux-7.0.patch
+  rtl88xxau-r1298-linux-7.0.patch
+  evdi-1.14.7-linux-7.0.patch
 )
 source_x86_64=(config.x86_64)
 validpgpkeys=(
@@ -125,8 +129,12 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             '4fc1a92f7340561c70240ccf504950d7b389a59b9a4f888b0b91104417cd55d4'
             'd1b63c17576b26243c9c0cd9350679c22dbd2175e5af3612de977c3cf60ee286'
             '619d43e497595f4d30007082c24ba708d5a2828c277d4fdbb66de830b80e506a'
+            '0b7bd84abab1334845c6ed9181dc82415add396c2cfaed419bce6f870bf5320f'
             '134551c9ab2a33011cd2cdf366e66da4cc9297011146a8abe8840f5b7a3f7408'
-            '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74')
+            '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74'
+            '7332851854410e619113de8ea64bc0b917ee74d7edefa807626cadbc3850a37c'
+            '3f2e0bc333e1fd3a8727714fcd4e574edc4d875884a972cdd61cbcbe25fed0b5'
+            '91dd3f39a7204db4dbc8c288dbf199120d4ce796f00c67cf1911ee57715e202b')
 sha256sums_x86_64=('0ed8c43b4ad6c3c3f3affe1317581992ba0eac6697d421a5c6d8210bf1e29ad7')
 b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b9681b9130b14e3c790d31208eb244d123249a93e35e8e6165f3d858c9'
         'SKIP'
@@ -168,8 +176,12 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         '822dfb13f40bbde8f0df940bc2b002bc2ef3d544ca27abe7717bff17ac366afa36bcdb4132cb106dd64c7bb707a03395b7dd681ffe3eb35d494d06e80fbc6da1'
         '8d2e3012b1148a2b6fa29e1a805847a76c74d85c997baf141f30760380e4bb78b10b5cb2e7c2491333a22c338426ace920738a6165dcb5f25c64c0af2e4cfd50'
         '6138aee47dcdf5f16864e64e43462d98fcaa518eb27ce45b4166ab6f55d42a44614130209857d6c527c0e4203aa5be7c2589bc6995443c8af7886f9bb2edb0b3'
+        '8cdbdcc2ee94574aa0a70dc6e13b312487c670f22cc9fc9a7e3a672f27bad365d790fba3051f9526b4bd1582fa3bcd0fc3faa90c1373ade9e492cf652526e5a7'
         '9baa113f8982af04ffafd26096c48c0a099e7aebeafc635c97e79fd5c70da2c348d7b40e05110d01a5f2e2c2ebf5750bab37ebe6b080b5e6c27520aec6dffc82'
-        '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a')
+        '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a'
+        '687e4c74aba0e69a5f6a8f8989d62ca38cceaadd5100f5c7773c010c84efece4968ffed9e7cf429571ee934c09f5fc5cc7835771ee62e7cdd5998561427c8e70'
+        '0731dbc14f9b3cf1023d7d35382c221b95eb44b4a18f883e47d1b537a81d81e588edcf401f5a1b958035ab3ed3305bd4929baa66123f90c9796243baa65645b3'
+        '7b9c5e5e3d3393d2ae1cc2c2cd55c1896c5e6ecc0c7a71178ebb297f9426b11cb7c5f98efc610e09cbaf808ea172375242d38d00bad81a7c08968f499e3869a6')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
 
 # https://www.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc
@@ -193,6 +205,9 @@ prepare() {
     [[ $src = *.patch ]] || continue
     [[ $src = 0002-bore-fair-arch-adapt.patch ]] && continue
     [[ $src = 0004-bbr3-arch7-adapt.patch ]] && continue
+    [[ $src = ddcci-0.4.5-linux-7.0.patch ]] && continue
+    [[ $src = rtl88xxau-r1298-linux-7.0.patch ]] && continue
+    [[ $src = evdi-1.14.7-linux-7.0.patch ]] && continue
     echo "Applying patch $src..."
     if [[ $src = 0001-bore-cachy.patch ]]; then
       if ! patch -Np1 < "../$src"; then
@@ -272,7 +287,9 @@ _package() {
   optdepends=(
     "$pkgbase-headers: headers and scripts for building modules"
     'ddcutil: userspace DDC/CI monitor controls'
+    'dkms: rebuild external module overlays for linux-rg'
     'linux-firmware: AX211 Wi-Fi/BT and SOF firmware (also in depends)'
+    'patch: apply DKMS compatibility overlays'
     'scx-scheds: to use sched-ext schedulers'
     'scx-tools: ASA router expert scheduler switching with scx_loader'
     'v4l2loopback-utils: utilities to control v4l2loopback devices'
@@ -321,8 +338,15 @@ _package() {
   install -Dm755 "$srcdir/rgx1gen11-s0ix-preflight" "$pkgdir/usr/bin/rgx1gen11-s0ix-preflight"
   install -Dm755 "$srcdir/rgx1gen11-s0ix-tool-sync" "$pkgdir/usr/bin/rgx1gen11-s0ix-tool-sync"
   install -Dm755 "$srcdir/rgx1gen11-boot-check" "$pkgdir/usr/bin/rgx1gen11-boot-check"
+  install -Dm755 "$srcdir/rgx1gen11-dkms-overlay-apply" "$pkgdir/usr/bin/rgx1gen11-dkms-overlay-apply"
   install -Dm644 "$srcdir/rgx1gen11-iwlwifi.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf"
   install -Dm644 "$srcdir/rgx1gen11-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-btusb.conf"
+  install -Dm644 "$srcdir/ddcci-0.4.5-linux-7.0.patch" \
+    "$pkgdir/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
+  install -Dm644 "$srcdir/rtl88xxau-r1298-linux-7.0.patch" \
+    "$pkgdir/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+  install -Dm644 "$srcdir/evdi-1.14.7-linux-7.0.patch" \
+    "$pkgdir/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
 
   # remove build link
   rm "$modulesdir"/build
