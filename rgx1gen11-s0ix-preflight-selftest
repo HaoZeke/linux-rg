@@ -58,15 +58,25 @@ printf '%s\n' "$output" | rg -q 'ok: S0ixSelftestTool executable .*/rg-kernel/S0
   || fail "preflight should discover the managed S0ixSelftestTool checkout"
 
 chmod 000 "$tmpdir/sys/kernel/debug/pmc_core/slp_s0_residency_usec"
-if RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
+output=$(
+  RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
+    S0IX_TOOL="$tmpdir/tool/s0ix-selftest-tool.sh" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$checker"
+)
+printf '%s\n' "$output" | rg -q 'ok: pmc_core SLP_S0 residency counter present; root required to read' \
+  || fail "preflight should treat non-root PMC debugfs permission as root-required"
+
+if RGX1GEN11_STRICT_PMC=1 \
+  RGX1GEN11_SYS_ROOT="$tmpdir/sys" \
   S0IX_TOOL="$tmpdir/tool/s0ix-selftest-tool.sh" \
   PATH="$tmpdir/bin:$PATH" \
   "$checker" >/tmp/rgx1gen11-s0ix-preflight.pmc 2>&1; then
-  fail "preflight should fail when the PMC counter exists but is not readable"
+  fail "strict preflight should fail when the PMC counter exists but is not readable"
 fi
 chmod 600 "$tmpdir/sys/kernel/debug/pmc_core/slp_s0_residency_usec"
 rg -q 'fail: pmc_core SLP_S0 residency counter present but not readable' /tmp/rgx1gen11-s0ix-preflight.pmc \
-  || fail "preflight should distinguish root-only PMC debugfs access"
+  || fail "strict preflight should distinguish root-only PMC debugfs access"
 
 printf 'deep\n' >"$tmpdir/sys/power/mem_sleep"
 if RGX1GEN11_SYS_ROOT="$tmpdir/sys" \

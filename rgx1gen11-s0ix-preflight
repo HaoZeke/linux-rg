@@ -3,6 +3,7 @@ set -euo pipefail
 
 sys_root=${RGX1GEN11_SYS_ROOT:-/sys}
 tool=${S0IX_TOOL:-}
+strict_pmc=${RGX1GEN11_STRICT_PMC:-0}
 failures=0
 
 pass() {
@@ -90,11 +91,23 @@ want_pmc_counter() {
   if [[ -r $counter ]]; then
     pass "pmc_core SLP_S0 residency counter readable"
   elif [[ -e $counter ]]; then
-    fail "pmc_core SLP_S0 residency counter present but not readable: $counter"
+    if (( strict_pmc || EUID == 0 )); then
+      fail "pmc_core SLP_S0 residency counter present but not readable: $counter"
+    else
+      pass "pmc_core SLP_S0 residency counter present; root required to read"
+    fi
   elif [[ -d $debug_dir && ! -x $debug_dir ]]; then
-    fail "pmc_core debugfs present but not searchable as this user: $debug_dir"
+    if (( strict_pmc || EUID == 0 )); then
+      fail "pmc_core debugfs present but not searchable as this user: $debug_dir"
+    else
+      pass "pmc_core debugfs present; root required to inspect"
+    fi
   elif [[ -d $pmc_dir && ! -x $pmc_dir ]]; then
-    fail "pmc_core debugfs present but not searchable as this user: $pmc_dir"
+    if (( strict_pmc || EUID == 0 )); then
+      fail "pmc_core debugfs present but not searchable as this user: $pmc_dir"
+    else
+      pass "pmc_core debugfs present; root required to inspect"
+    fi
   else
     fail "pmc_core SLP_S0 residency counter unavailable: $counter"
   fi

@@ -144,8 +144,13 @@ rgx1gen11-s0ix-preflight
 
 The sync helper clones or updates Intel's S0ixSelftestTool under
 `${XDG_CACHE_HOME:-$HOME/.cache}/rg-kernel/S0ixSelftestTool` and prints the
-root commands for suspend and runtime PC10 checks. The preflight also accepts
-`S0IX_TOOL=/path/to/s0ix-selftest-tool.sh` for an existing checkout.
+root commands for suspend and runtime PC10 checks. If the user cache is not
+writable, it falls back to `/tmp/rg-kernel/S0ixSelftestTool`; set
+`S0IX_TOOL_FALLBACK_ROOT=/path` to choose another writable root. The preflight
+also accepts `S0IX_TOOL=/path/to/s0ix-selftest-tool.sh` for an existing
+checkout. Non-root preflight treats root-only PMC debugfs access as an
+actionable root-required state; use `RGX1GEN11_STRICT_PMC=1` when a caller
+needs unreadable PMC counters to fail.
 
 ## Install for rEFInd
 

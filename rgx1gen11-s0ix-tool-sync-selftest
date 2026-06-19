@@ -67,4 +67,23 @@ output=$(
 rg -q -- '-C .*/rg-kernel/S0ixSelftestTool pull --ff-only' "$tmpdir/git.log" \
   || fail "sync helper should update an existing managed checkout"
 
+readonly_cache="$tmpdir/readonly-cache"
+fallback_root="$tmpdir/fallback-cache"
+mkdir -p "$readonly_cache"
+chmod 500 "$readonly_cache"
+rm -f "$tmpdir/git.log"
+output=$(
+  GIT_LOG="$tmpdir/git.log" \
+    XDG_CACHE_HOME="$readonly_cache" \
+    S0IX_TOOL_FALLBACK_ROOT="$fallback_root" \
+    HOME="$tmpdir/home" \
+    PATH="$tmpdir/bin:$PATH" \
+    "$syncer"
+)
+chmod 700 "$readonly_cache"
+rg -q "clone --depth=1 https://github.com/intel/S0ixSelftestTool.git $fallback_root/S0ixSelftestTool" "$tmpdir/git.log" \
+  || fail "sync helper should fall back when cache is not writable"
+printf '%s\n' "$output" | rg -q "S0ixSelftestTool: $fallback_root/S0ixSelftestTool/s0ix-selftest-tool.sh" \
+  || fail "sync helper should report the fallback checkout path"
+
 printf 'ok\n'

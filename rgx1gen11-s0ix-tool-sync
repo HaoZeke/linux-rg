@@ -3,7 +3,8 @@ set -euo pipefail
 
 repo_url=${S0IX_TOOL_REPO_URL:-https://github.com/intel/S0ixSelftestTool.git}
 cache_home=${XDG_CACHE_HOME:-${HOME:-}/.cache}
-tool_dir=${S0IX_TOOL_DIR:-$cache_home/rg-kernel/S0ixSelftestTool}
+fallback_root=${S0IX_TOOL_FALLBACK_ROOT:-/tmp/rg-kernel}
+tool_dir=${S0IX_TOOL_DIR:-}
 git_config_global=${S0IX_TOOL_GIT_CONFIG_GLOBAL:-/dev/null}
 
 usage() {
@@ -16,6 +17,7 @@ print the root commands used for S2idle/S0ix diagnosis.
 Environment:
   S0IX_TOOL_DIR       Checkout directory
   S0IX_TOOL_REPO_URL  Git repository URL
+  S0IX_TOOL_FALLBACK_ROOT  Writable fallback root when cache is read-only
   S0IX_TOOL_GIT_CONFIG_GLOBAL  Git global config path for clone/pull
   XDG_CACHE_HOME      Cache root when S0IX_TOOL_DIR is unset
 USAGE
@@ -29,6 +31,15 @@ fail() {
 if [[ ${1:-} == -h || ${1:-} == --help ]]; then
   usage
   exit 0
+fi
+
+if [[ -z $tool_dir ]]; then
+  cache_root=$cache_home/rg-kernel
+  if mkdir -p "$cache_root" 2>/dev/null; then
+    tool_dir=$cache_root/S0ixSelftestTool
+  else
+    tool_dir=$fallback_root/S0ixSelftestTool
+  fi
 fi
 
 [[ -n $tool_dir ]] || fail 'S0IX_TOOL_DIR or XDG_CACHE_HOME/HOME is required'
