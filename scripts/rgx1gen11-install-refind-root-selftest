@@ -27,31 +27,43 @@ cat >"$refind_conf" <<'EOF'
 menuentry "Arch Linux" {
     loader /vmlinuz-linux
     initrd /initramfs-linux.img
-    options "root=/dev/mapper/luks rw quiet"
+    options "cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=12345 i915 pcie_aspm.policy=powersave quiet"
 }
 EOF
 
 mkinitcpio_base="$tmpdir/mkinitcpio.conf"
 cat >"$mkinitcpio_base" <<'EOF'
-MODULES=()
+MODULES=(i915)
 BINARIES=()
 FILES=()
-HOOKS=(base udev autodetect modconf block filesystems keyboard fsck)
+HOOKS=(base udev plymouth modconf keyboard autodetect kms keymap consolefont block encrypt btrfs resume filesystems fsck)
+EOF
+
+proc_mounts="$tmpdir/mounts"
+cat >"$proc_mounts" <<'EOF'
+/dev/mapper/luks / btrfs rw,relatime,ssd,space_cache=v2,subvolid=256,subvol=/@ 0 0
 EOF
 
 out="$tmpdir/dry-run.out"
 LINUX_RG_ARTIFACT_DIR="$artifact_dir" \
+  LINUX_RG_PROC_MOUNTS="$proc_mounts" \
   REFIND_CONF="$refind_conf" \
   MKINITCPIO_BASE="$mkinitcpio_base" \
   "$installer" --dry-run >"$out"
 
-rg -q "kernel package:  $artifact_dir/linux-rg-9.9.9-x86_64.pkg.tar.zst" "$out" \
+rg -Fq "kernel package:  $artifact_dir/linux-rg-9.9.9-x86_64.pkg.tar.zst" "$out" \
   || fail "dry run should discover linux-rg package from artifact dir"
-rg -q "headers package: $artifact_dir/linux-rg-headers-9.9.9-x86_64.pkg.tar.zst" "$out" \
+rg -Fq "headers package: $artifact_dir/linux-rg-headers-9.9.9-x86_64.pkg.tar.zst" "$out" \
   || fail "dry run should discover linux-rg-headers package from artifact dir"
-rg -q "kernel release:  9.9.9-rg" "$out" \
+rg -Fq "kernel release:  9.9.9-rg" "$out" \
   || fail "dry run should read kernel release from package"
-rg -q 'refind options:  root=/dev/mapper/luks rw quiet' "$out" \
-  || fail "dry run should read stock rEFInd options"
+rg -Fq "boot contract: root=/dev/mapper/luks fstype=btrfs modules=MODULES=(nvme i915)" "$out" \
+  || fail "dry run should probe encrypted btrfs boot contract"
+rg -Fq "base mkinitcpio modules: MODULES=(i915)" "$out" \
+  || fail "dry run should report base early graphics module"
+rg -Fq "initramfs modules: MODULES=(nvme i915)" "$out" \
+  || fail "dry run should keep nvme and early i915 in initramfs modules"
+rg -Fq 'refind options:  cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=12345 i915 pcie_aspm.policy=powersave quiet' "$out" \
+  || fail "dry run should read encrypted btrfs rEFInd options"
 
 printf 'ok\n'

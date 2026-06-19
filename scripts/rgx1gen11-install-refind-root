@@ -52,6 +52,7 @@ mkinitcpio_preset=${MKINITCPIO_PRESET:-/etc/mkinitcpio.d/linux-rg.preset}
 boot_kernel=${BOOT_KERNEL:-/boot/vmlinuz-linux-rg}
 boot_initramfs=${BOOT_INITRAMFS:-/boot/initramfs-linux-rg.img}
 module_list=${LINUX_RG_INITRAMFS_MODULES:-"nvme i915"}
+proc_mounts=${LINUX_RG_PROC_MOUNTS:-/proc/mounts}
 boot_check=${LINUX_RG_BOOT_CHECK:-/tmp/rgx1gen11-boot-check}
 boot_check_install=${LINUX_RG_BOOT_CHECK_INSTALL:-/usr/local/bin/rgx1gen11-boot-check}
 stamp=$(date +%Y%m%d-%H%M%S)
@@ -97,6 +98,90 @@ module_array_literal() {
     fi
   done
   printf '%s)\n' "$out"
+}
+
+line_words() {
+  local line=$1
+  line=${line#*=}
+  line=${line#\(}
+  line=${line%\)}
+  printf '%s\n' "$line"
+}
+
+base_modules_line() {
+  grep -E '^[[:space:]]*MODULES=' "$mkinitcpio_base" | tail -n 1 || true
+}
+
+base_hooks_line() {
+  grep -E '^[[:space:]]*HOOKS=' "$mkinitcpio_base" | tail -n 1 || true
+}
+
+has_word() {
+  local haystack=$1 needle=$2
+  [[ " $haystack " == *" $needle "* ]]
+}
+
+want_word() {
+  local haystack=$1 needle=$2 description=$3
+  if ! has_word "$haystack" "$needle"; then
+    printf 'error: %s lacks %s: %s\n' "$description" "$needle" "$haystack" >&2
+    exit 1
+  fi
+}
+
+want_prefix_word() {
+  local haystack=$1 prefix=$2 description=$3
+  local word
+  for word in $haystack; do
+    if [[ $word == "$prefix"* ]]; then
+      return
+    fi
+  done
+  printf 'error: %s lacks %s*: %s\n' "$description" "$prefix" "$haystack" >&2
+  exit 1
+}
+
+probe_boot_contract() {
+  local modules hooks options root_fstype root_source root_line
+  modules=$(line_words "$(base_modules_line)")
+  hooks=$(line_words "$(base_hooks_line)")
+  options=$(stock_options)
+  root_line=$(awk '$2 == "/" { print; exit }' "$proc_mounts" 2>/dev/null || true)
+  root_source=$(awk '$2 == "/" { print $1; exit }' "$proc_mounts" 2>/dev/null || true)
+  root_fstype=$(awk '$2 == "/" { print $3; exit }' "$proc_mounts" 2>/dev/null || true)
+
+  want_word "$(module_array_literal | sed -E 's/^MODULES=\((.*)\)$/\1/')" nvme "linux-rg initramfs MODULES"
+  want_word "$(module_array_literal | sed -E 's/^MODULES=\((.*)\)$/\1/')" i915 "linux-rg initramfs MODULES"
+  want_word "$hooks" block "$mkinitcpio_base HOOKS"
+  want_word "$hooks" encrypt "$mkinitcpio_base HOOKS"
+  want_word "$hooks" btrfs "$mkinitcpio_base HOOKS"
+  want_word "$hooks" resume "$mkinitcpio_base HOOKS"
+  want_word "$hooks" keyboard "$mkinitcpio_base HOOKS"
+  want_prefix_word "$options" cryptdevice= "$refind_conf options"
+  want_word "$options" root=/dev/mapper/luks "$refind_conf options"
+  want_word "$options" rootflags=subvol=@ "$refind_conf options"
+  want_word "$options" resume=/dev/mapper/luks "$refind_conf options"
+  want_prefix_word "$options" resume_offset= "$refind_conf options"
+  want_word "$options" i915 "$refind_conf options"
+  want_word "$options" pcie_aspm.policy=powersave "$refind_conf options"
+
+  if [[ -n $root_line ]]; then
+    if [[ $root_source != /dev/mapper/luks ]]; then
+      printf 'error: root source is not /dev/mapper/luks: %s\n' "$root_line" >&2
+      exit 1
+    fi
+    if [[ $root_fstype != btrfs ]]; then
+      printf 'error: root filesystem is not btrfs: %s\n' "$root_line" >&2
+      exit 1
+    fi
+  fi
+
+  printf 'boot contract: root=%s fstype=%s modules=%s hooks=%s\n' \
+    "${root_source:-unknown}" "${root_fstype:-unknown}" \
+    "$(module_array_literal)" "$hooks"
+  if [[ -n $modules ]]; then
+    printf 'base mkinitcpio modules: MODULES=(%s)\n' "$modules"
+  fi
 }
 
 write_mkinitcpio_config() {
@@ -346,6 +431,7 @@ main() {
     echo "error: could not extract stock Arch Linux options from $refind_conf" >&2
     exit 1
   fi
+  probe_boot_contract
   if (( dry_run )); then
     print_plan "$kver" "$options"
     exit 0
