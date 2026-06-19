@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+sys_root=${RGX1GEN11_SYS_ROOT:-/sys}
+tool=${S0IX_TOOL:-s0ix-selftest-tool.sh}
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+read_file() {
+  local path=$1
+  if [[ -r $path ]]; then
+    cat "$path"
+  fi
+}
+
+want_command() {
+  local command_name=$1 package_hint=$2
+  if command -v "$command_name" >/dev/null 2>&1; then
+    pass "command $command_name"
+  else
+    fail "command unavailable: $command_name (install $package_hint)"
+  fi
+}
+
+want_tool() {
+  if [[ -x $tool ]]; then
+    pass "S0ixSelftestTool executable $tool"
+  elif command -v "$tool" >/dev/null 2>&1; then
+    tool=$(command -v "$tool")
+    pass "S0ixSelftestTool executable $tool"
+  else
+    fail "S0ixSelftestTool missing; set S0IX_TOOL=/path/to/s0ix-selftest-tool.sh"
+  fi
+}
+
+want_power_state() {
+  local value
+  value=$(read_file "$sys_root/power/state")
+  if [[ " $value " == *" mem "* ]]; then
+    pass "power/state exposes mem"
+  else
+    fail "power/state lacks mem: $value"
+  fi
+}
+
+want_mem_sleep() {
+  local value
+  value=$(read_file "$sys_root/power/mem_sleep")
+  if [[ " $value " == *"s2idle"* ]]; then
+    pass "mem_sleep exposes s2idle"
+  else
+    fail "mem_sleep lacks s2idle: $value"
+  fi
+}
+
+want_pmc_counter() {
+  local counter=$sys_root/kernel/debug/pmc_core/slp_s0_residency_usec
+  if [[ -r $counter ]]; then
+    pass "pmc_core SLP_S0 residency counter readable"
+  else
+    fail "pmc_core SLP_S0 residency counter unavailable: $counter"
+  fi
+}
+
+want_tool
+want_power_state
+want_mem_sleep
+want_pmc_counter
+want_command gawk gawk
+want_command xxd vim-common
+want_command turbostat linux-tools
+want_command powertop powertop
+want_command acpidump acpica
+
+if ((failures == 0)); then
+  printf '\nS0ix commands:\n'
+  printf '  sudo bash %q -s\n' "$tool"
+  printf '  sudo bash %q -r on\n' "$tool"
+  printf '  sudo bash %q -r off\n' "$tool"
+else
+  exit 1
+fi

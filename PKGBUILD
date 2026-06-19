@@ -72,6 +72,7 @@ source=(
   rgx1gen11-hibernate-check
   rgx1gen11-hibernate-image-size
   rgx1gen11-hibernate-image-size.service
+  rgx1gen11-s0ix-preflight
   rgx1gen11-boot-check
   rgx1gen11-iwlwifi.conf
   rgx1gen11-btusb.conf
@@ -118,6 +119,7 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'a004b98e2f4cd1b4eec8b01ebb3f43c51c4b763fa2634cc73c9a7ba41063102c'
             'ea33da5db83296ee3313a060b746e11c184fbb3b60cfe5f5d52fe6d87523ae75'
             '99737bbda3820841aa904a95599cd126a974de262e340dca231b9b8cf8a4758c'
+            '9c1b6e732cc9fd6bf6a5e00f8ef609e5da34facff9c754779cc7f85e66dc913b'
             '7a9ef3d9c7594e95936c8d80ac8ec7f7665b6bc0a06e7fb7c91649861c0881dc'
             '134551c9ab2a33011cd2cdf366e66da4cc9297011146a8abe8840f5b7a3f7408'
             '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74')
@@ -158,6 +160,7 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         '3dbadb2775b8fae901140d1ef0b49025370c1dfe34df966a9e697e893fea81844a70edae0a5138f72d3a721bb8e30a63d4f93cd4761a85e0d5303e5f933997dc'
         '98c251ca930db3fea81e264a71ba01042a760ed6dee1c9912cd75f0ad153f339a524423addaf084439c7ff0a8877862be6392e0e3d07f7c759ad0abb9a1ee921'
         '9f8a4de0a246894ecef55637f6c7d13aa01b37f03a92e0b5647e0dae7e16ec3d8a3faeafd907d8455ecd1a6dfd2b59efbb8a1572aed5a7a7084812e76418abb5'
+        'a41e254a2494ba0476b1464fa6f6b1e42e90c4484074bb85195797916d5dc4c129ad3da198fbb8e2cd45f2ad184319e3e3c67bc618220d8f5b0aeeb7afb05998'
         'c23d931b4c98167fd7cda6fcf578e7077a9bbc8224a6444fc4eefab80dfd97f71c217387007fedb550fa55342d109744d293bb849d3c676253ed09fdedce9641'
         '9baa113f8982af04ffafd26096c48c0a099e7aebeafc635c97e79fd5c70da2c348d7b40e05110d01a5f2e2c2ebf5750bab37ebe6b080b5e6c27520aec6dffc82'
         '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a')
@@ -308,6 +311,7 @@ _package() {
   install -Dm755 "$srcdir/rgx1gen11-hibernate-image-size" "$pkgdir/usr/bin/rgx1gen11-hibernate-image-size"
   install -Dm644 "$srcdir/rgx1gen11-hibernate-image-size.service" \
     "$pkgdir/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+  install -Dm755 "$srcdir/rgx1gen11-s0ix-preflight" "$pkgdir/usr/bin/rgx1gen11-s0ix-preflight"
   install -Dm755 "$srcdir/rgx1gen11-boot-check" "$pkgdir/usr/bin/rgx1gen11-boot-check"
   install -Dm644 "$srcdir/rgx1gen11-iwlwifi.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf"
   install -Dm644 "$srcdir/rgx1gen11-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-btusb.conf"

@@ -127,6 +127,13 @@ Validate the encrypted btrfs hibernate path and image-size cap:
 rgx1gen11-hibernate-image-size status
 ```
 
+Validate S2idle/S0ix diagnostic prerequisites before running Intel's root-only
+S0ixSelftestTool:
+
+```sh
+rgx1gen11-s0ix-preflight
+```
+
 ## Install for rEFInd
 
 After a successful build, install the generated packages, create the linux-rg
