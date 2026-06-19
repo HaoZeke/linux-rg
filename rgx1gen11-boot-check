@@ -3,6 +3,7 @@ set -euo pipefail
 
 refind_conf=/boot/EFI/refind/refind.conf
 mkinitcpio_config=/etc/mkinitcpio-linux-rg.conf
+vconsole_config=/etc/vconsole.conf
 boot_kernel=/boot/vmlinuz-linux-rg
 boot_initramfs=/boot/initramfs-linux-rg.img
 modules_root=/usr/lib/modules
@@ -24,6 +25,7 @@ Options:
   --require-boot-log      With --live, require GPU and SOF boot-log signatures
   --refind-conf PATH      rEFInd config (default: /boot/EFI/refind/refind.conf)
   --mkinitcpio-conf PATH  linux-rg mkinitcpio config (default: /etc/mkinitcpio-linux-rg.conf)
+  --vconsole-conf PATH    vconsole config (default: /etc/vconsole.conf)
   --boot-kernel PATH      linux-rg boot kernel (default: /boot/vmlinuz-linux-rg)
   --boot-initramfs PATH   linux-rg initramfs (default: /boot/initramfs-linux-rg.img)
   --modules-root PATH     Modules root (default: /usr/lib/modules)
@@ -52,6 +54,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mkinitcpio-conf)
       mkinitcpio_config=$2
+      shift 2
+      ;;
+    --vconsole-conf)
+      vconsole_config=$2
       shift 2
       ;;
     --boot-kernel)
@@ -181,6 +187,104 @@ want_mkinitcpio_modules() {
   fi
 }
 
+line_words() {
+  local line=$1
+  line=${line#*=}
+  line=${line#\(}
+  line=${line%\)}
+  printf '%s\n' "$line"
+}
+
+has_word() {
+  local haystack=$1 needle=$2
+  [[ " $haystack " == *" $needle "* ]]
+}
+
+want_mkinitcpio_hooks() {
+  local line hooks hook
+
+  if [[ ! -r $mkinitcpio_config ]]; then
+    fail "mkinitcpio config is not readable: $mkinitcpio_config"
+    return
+  fi
+
+  line=$(grep -E '^[[:space:]]*HOOKS=' "$mkinitcpio_config" | tail -n 1 || true)
+  if [[ -z $line ]]; then
+    fail "mkinitcpio HOOKS line missing from $mkinitcpio_config"
+    return
+  fi
+
+  hooks=$(line_words "$line")
+  for hook in keyboard keymap consolefont block encrypt btrfs resume; do
+    if has_word "$hooks" "$hook"; then
+      pass "mkinitcpio hook $hook"
+    else
+      fail "mkinitcpio hook missing: $hook"
+    fi
+  done
+}
+
+refind_options_for() {
+  local title=$1
+  sed -n "/^menuentry \"$title\" {/,/^}/p" "$refind_conf" |
+    sed -nE 's/^[[:space:]]*options[[:space:]]+"(.*)"[[:space:]]*$/\1/p' |
+    head -n 1
+}
+
+want_cmdline_word() {
+  local options=$1 token=$2 description=$3
+  if has_word "$options" "$token"; then
+    pass "$description $token"
+  else
+    fail "$description missing: $token"
+  fi
+}
+
+want_cmdline_prefix() {
+  local options=$1 prefix=$2 description=$3
+  local word
+  for word in $options; do
+    if [[ $word == "$prefix"* ]]; then
+      pass "$description $prefix*"
+      return
+    fi
+  done
+  fail "$description missing: $prefix*"
+}
+
+want_refind_linux_rg_options() {
+  local options
+  options=$(refind_options_for "Arch Linux linux-rg")
+  if [[ -z $options ]]; then
+    fail "rEFInd linux-rg options missing"
+    return
+  fi
+
+  want_cmdline_prefix "$options" cryptdevice= "rEFInd linux-rg option"
+  want_cmdline_word "$options" root=/dev/mapper/luks "rEFInd linux-rg option"
+  want_cmdline_word "$options" rootflags=subvol=@ "rEFInd linux-rg option"
+  want_cmdline_word "$options" resume=/dev/mapper/luks "rEFInd linux-rg option"
+  want_cmdline_prefix "$options" resume_offset= "rEFInd linux-rg option"
+  want_cmdline_word "$options" i915 "rEFInd linux-rg option"
+  want_cmdline_word "$options" pcie_aspm.policy=powersave "rEFInd linux-rg option"
+}
+
+want_vconsole_keymap() {
+  local keymap
+  if [[ -r $vconsole_config ]]; then
+    keymap=$(sed -nE 's/^[[:space:]]*KEYMAP=([^[:space:]#]+).*/\1/p' "$vconsole_config" | tail -n 1)
+  else
+    fail "vconsole config is not readable: $vconsole_config"
+    return
+  fi
+
+  if [[ $keymap == colemak ]]; then
+    pass "vconsole keymap colemak"
+  else
+    fail "vconsole keymap is not colemak: ${keymap:-missing}"
+  fi
+}
+
 want_refind_entry() {
   local stock_line rg_line
 
@@ -292,7 +396,10 @@ check_installed() {
   want_file "$boot_kernel" "boot kernel"
   want_file "$boot_initramfs" "boot initramfs"
   want_mkinitcpio_modules
+  want_mkinitcpio_hooks
   want_refind_entry
+  want_refind_linux_rg_options
+  want_vconsole_keymap
 
   kver=$(detect_rg_kver)
   want_rg_modules_tree "$kver"

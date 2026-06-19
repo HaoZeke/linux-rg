@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+checker="$repo/rgx1gen11-boot-check"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$checker" || fail "missing executable boot checker"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+mkdir -p "$tmpdir/bin" "$tmpdir/modules/9.9.9-rg/build" "$tmpdir/firmware"
+touch "$tmpdir/boot-kernel" "$tmpdir/boot-initramfs" "$tmpdir/modules/9.9.9-rg/build/.config"
+
+cat >"$tmpdir/bin/pacman" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $1 == -Q ]]; then
+  printf '%s 1.0\n' "$2"
+  exit 0
+fi
+exit 2
+SH
+chmod +x "$tmpdir/bin/pacman"
+
+for helper in \
+  rgx1gen11-ax211-check \
+  rgx1gen11-memory-check \
+  rgx1gen11-pstore-check \
+  rgx1gen11-gpu-check \
+  rgx1gen11-sof-check \
+  rgx1gen11-nvme-check; do
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$tmpdir/bin/$helper"
+  chmod +x "$tmpdir/bin/$helper"
+done
+
+refind_conf="$tmpdir/refind.conf"
+cat >"$refind_conf" <<'EOF'
+menuentry "Arch Linux" {
+    loader /vmlinuz-linux
+    initrd /initramfs-linux.img
+    options "cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=12345 i915 pcie_aspm.policy=powersave quiet"
+}
+
+# linux-rg BEGIN
+menuentry "Arch Linux linux-rg" {
+    icon     /EFI/refind/icons/os_arch.png
+    loader   /vmlinuz-linux-rg
+    initrd   /initramfs-linux-rg.img
+    options  "cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=12345 i915 pcie_aspm.policy=powersave quiet"
+    submenuentry "Boot to terminal" {
+        add_options "systemd.unit=multi-user.target"
+    }
+}
+# linux-rg END
+EOF
+
+mkinitcpio_conf="$tmpdir/mkinitcpio-linux-rg.conf"
+cat >"$mkinitcpio_conf" <<'EOF'
+MODULES=(nvme i915)
+BINARIES=()
+FILES=()
+HOOKS=(base udev keyboard keymap consolefont block encrypt btrfs resume filesystems fsck)
+EOF
+
+vconsole_conf="$tmpdir/vconsole.conf"
+cat >"$vconsole_conf" <<'EOF'
+KEYMAP=colemak
+EOF
+
+output=$(
+  PATH="$tmpdir/bin:$PATH" \
+    "$checker" --installed \
+      --refind-conf "$refind_conf" \
+      --mkinitcpio-conf "$mkinitcpio_conf" \
+      --boot-kernel "$tmpdir/boot-kernel" \
+      --boot-initramfs "$tmpdir/boot-initramfs" \
+      --modules-root "$tmpdir/modules" \
+      --firmware-root "$tmpdir/firmware" \
+      --vconsole-conf "$vconsole_conf"
+)
+
+printf '%s\n' "$output" | rg -q 'ok: mkinitcpio hook encrypt' \
+  || fail "installed check should require the encrypt hook"
+printf '%s\n' "$output" | rg -q 'ok: mkinitcpio hook btrfs' \
+  || fail "installed check should require the btrfs hook"
+printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg option cryptdevice=\*' \
+  || fail "installed check should require a cryptdevice option"
+printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg option i915' \
+  || fail "installed check should require the standalone i915 option"
+printf '%s\n' "$output" | rg -q 'ok: vconsole keymap colemak' \
+  || fail "installed check should require Colemak for the LUKS prompt"
+
+bad_mkinitcpio="$tmpdir/mkinitcpio-no-encrypt.conf"
+sed 's/ encrypt//' "$mkinitcpio_conf" >"$bad_mkinitcpio"
+if PATH="$tmpdir/bin:$PATH" \
+  "$checker" --installed \
+    --refind-conf "$refind_conf" \
+    --mkinitcpio-conf "$bad_mkinitcpio" \
+    --boot-kernel "$tmpdir/boot-kernel" \
+    --boot-initramfs "$tmpdir/boot-initramfs" \
+    --modules-root "$tmpdir/modules" \
+    --firmware-root "$tmpdir/firmware" \
+    --vconsole-conf "$vconsole_conf" >/tmp/rgx1gen11-boot-check.no-encrypt 2>&1; then
+  fail "installed check should fail without the encrypt hook"
+fi
+rg -q 'fail: mkinitcpio hook missing: encrypt' /tmp/rgx1gen11-boot-check.no-encrypt \
+  || fail "encrypt-hook failure should be explicit"
+
+bad_vconsole="$tmpdir/vconsole-us.conf"
+printf 'KEYMAP=us\n' >"$bad_vconsole"
+if PATH="$tmpdir/bin:$PATH" \
+  "$checker" --installed \
+    --refind-conf "$refind_conf" \
+    --mkinitcpio-conf "$mkinitcpio_conf" \
+    --boot-kernel "$tmpdir/boot-kernel" \
+    --boot-initramfs "$tmpdir/boot-initramfs" \
+    --modules-root "$tmpdir/modules" \
+    --firmware-root "$tmpdir/firmware" \
+    --vconsole-conf "$bad_vconsole" >/tmp/rgx1gen11-boot-check.bad-keymap 2>&1; then
+  fail "installed check should fail when the LUKS keymap is not colemak"
+fi
+rg -q 'fail: vconsole keymap is not colemak: us' /tmp/rgx1gen11-boot-check.bad-keymap \
+  || fail "keymap failure should be explicit"
+
+printf 'ok\n'
