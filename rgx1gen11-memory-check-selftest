@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+checker="$repo/rgx1gen11-memory-check"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -r "$checker" || fail "missing checker: $checker"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+good_config="$tmpdir/good.config"
+bad_config="$tmpdir/bad.config"
+
+cat >"$good_config" <<'EOF'
+CONFIG_PSI=y
+# CONFIG_PSI_DEFAULT_DISABLED is not set
+CONFIG_CGROUPS=y
+CONFIG_MEMCG=y
+CONFIG_MEMCG_SWAP=y
+CONFIG_CGROUP_BPF=y
+CONFIG_LRU_GEN=y
+CONFIG_LRU_GEN_ENABLED=y
+CONFIG_ANON_MIN_RATIO=1
+CONFIG_CLEAN_LOW_RATIO=15
+CONFIG_CLEAN_MIN_RATIO=4
+CONFIG_KSM=y
+CONFIG_ZSWAP=y
+CONFIG_ZSWAP_DEFAULT_ON=y
+CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD=y
+CONFIG_ZRAM=m
+CONFIG_ZSMALLOC=y
+CONFIG_ZRAM_WRITEBACK=y
+CONFIG_ZRAM_MEMORY_TRACKING=y
+CONFIG_PSTORE=y
+CONFIG_PSTORE_DEFAULT_KMSG_BYTES=10240
+CONFIG_PSTORE_COMPRESS=y
+CONFIG_EFI_VARS_PSTORE=y
+CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE=y
+CONFIG_PSTORE_RAM=m
+CONFIG_PSTORE_ZONE=m
+CONFIG_PSTORE_BLK=m
+CONFIG_PSTORE_BLK_BLKDEV=""
+CONFIG_PSTORE_BLK_KMSG_SIZE=64
+CONFIG_PSTORE_BLK_MAX_REASON=2
+CONFIG_DAMON=y
+CONFIG_DAMON_VADDR=y
+CONFIG_DAMON_PADDR=y
+CONFIG_DAMON_SYSFS=y
+CONFIG_DAMON_RECLAIM=y
+CONFIG_DAMON_LRU_SORT=y
+CONFIG_DAMON_STAT=y
+# CONFIG_DAMON_STAT_ENABLED_DEFAULT is not set
+EOF
+
+cp "$good_config" "$bad_config"
+sed -i '/CONFIG_PSTORE=y/d' "$bad_config"
+
+bash "$checker" --config "$good_config" >/tmp/rgx1gen11-memory-check.good
+rg -Fq 'ok: CONFIG_EFI_VARS_PSTORE=y' /tmp/rgx1gen11-memory-check.good \
+  || fail "checker should report EFI pstore"
+
+if bash "$checker" --config "$bad_config" >/tmp/rgx1gen11-memory-check.bad 2>&1; then
+  fail "checker should reject missing pstore"
+fi
+rg -Fq "CONFIG_PSTORE is missing" /tmp/rgx1gen11-memory-check.bad \
+  || fail "checker should explain missing pstore"
+
+printf 'ok\n'

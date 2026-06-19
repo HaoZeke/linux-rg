@@ -1,0 +1,12 @@
+[Unit]
+Description=Set rgx1gen11 hibernate image size cap
+ConditionPathExists=/sys/power/image_size
+After=local-fs.target
+Before=hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rgx1gen11-hibernate-image-size apply
+
+[Install]
+WantedBy=multi-user.target

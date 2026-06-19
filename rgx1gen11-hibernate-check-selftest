@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=${1:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}
+checker="$repo/rgx1gen11-hibernate-check"
+image_size_helper="$repo/rgx1gen11-hibernate-image-size"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -r "$checker" || fail "missing checker: $checker"
+test -r "$image_size_helper" || fail "missing image-size helper: $image_size_helper"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+power="$tmpdir/sys-power"
+proc="$tmpdir/proc"
+swapdir="$tmpdir/btrfs/@swap"
+mkdir -p "$power" "$proc" "$swapdir"
+
+cat >"$power/state" <<'EOF'
+freeze mem disk
+EOF
+cat >"$power/disk" <<'EOF'
+[platform] shutdown reboot suspend test_resume
+EOF
+cat >"$power/resume" <<'EOF'
+253:0
+EOF
+cat >"$power/resume_offset" <<'EOF'
+533760
+EOF
+cat >"$power/image_size" <<'EOF'
+4294967296
+EOF
+
+RGX1GEN11_POWER_IMAGE_SIZE="$power/image_size" \
+  bash "$image_size_helper" apply 8589934592 >/tmp/rgx1gen11-hibernate-image-size.out
+test "$(cat "$power/image_size")" = 8589934592 \
+  || fail "image-size helper should write the requested cap"
+rg -Fq 'hibernate image_size: 8589934592' /tmp/rgx1gen11-hibernate-image-size.out \
+  || fail "image-size helper should print the applied cap"
+
+cat >"$proc/cmdline" <<'EOF'
+cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=533760 i915
+EOF
+cat >"$proc/mounts" <<'EOF'
+/dev/mapper/luks / btrfs rw,relatime,ssd,space_cache=v2,subvolid=256,subvol=/@ 0 0
+EOF
+swapfile="$swapdir/swapfile"
+truncate -s 9G "$swapfile"
+cat >"$proc/swaps" <<EOF
+Filename Type Size Used Priority
+$swapfile file 9437184 0 -1
+EOF
+
+RGX1GEN11_POWER_ROOT="$power" \
+  RGX1GEN11_PROC_ROOT="$proc" \
+  RGX1GEN11_SWAPFILE_PATH="$swapfile" \
+  bash "$checker" --live --max-image-size 8589934592 --min-swapfile-size 8589934592 \
+  >/tmp/rgx1gen11-hibernate-check.ok
+
+rg -Fq 'ok: /tmp' /tmp/rgx1gen11-hibernate-check.ok \
+  || fail "checker should report ok lines for fake live state"
+
+cat >"$power/image_size" <<'EOF'
+17179869184
+EOF
+if RGX1GEN11_POWER_ROOT="$power" \
+  RGX1GEN11_PROC_ROOT="$proc" \
+  RGX1GEN11_SWAPFILE_PATH="$swapfile" \
+  bash "$checker" --live --max-image-size 8589934592 --min-swapfile-size 8589934592 \
+  >/tmp/rgx1gen11-hibernate-check.bad 2>&1; then
+  fail "checker should reject an oversized hibernate image cap"
+fi
+rg -Fq "expected <= 8589934592" /tmp/rgx1gen11-hibernate-check.bad \
+  || fail "oversized image failure should explain the cap"
+
+printf 'ok\n'

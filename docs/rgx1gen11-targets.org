@@ -229,13 +229,13 @@ Ordered by expected impact on daily =undocked-mixed= profile:
 * Measurement checklist (linux-rg-61pb children)
 
 | Benchmark | Tool / method | Baseline | linux-rg gate |
-| Desktop latency feel | sway input lag, scroll, alt-tab | stock Arch kernel | no regression |
-| Build throughput | =time make -j9= in linux tree | stock | within 5% |
-| Idle power | powertop --auto-tune off, 10 min idle | stock s2idle | within 5% or document trade |
-| NVMe mixed | fio + desktop load | bfq default | ADIOS only if win |
-| Scheduler | =/proc/pressure/*=, perf sched | stock | no sustained some pressure |
-| Suspend | 10x s2idle cycle | stock | 0 hangs |
-| Wi-Fi roam | wpa_supplicant roam log | stock | no regression |
+| Desktop latency feel | sway input lag, scroll, alt-tab | stock Arch kernel | no regression (=linux-rg-61pb=, =linux-rg-bench-sched=) |
+| Build throughput | =time make -j9= in linux tree | stock | within 5% (=linux-rg-61pb=) |
+| Idle power | powertop --auto-tune off, idle sample | stock s2idle | within 5% or document trade (=linux-rg-bench-idle=) |
+| NVMe mixed | fio + desktop load | bfq default | ADIOS only if win (=linux-rg-rt1t=) |
+| Scheduler | =/proc/pressure/*=, perf sched | stock | no sustained some pressure (=linux-rg-bench-sched=) |
+| Suspend | s2idle cycle set | stock | 0 hangs (=linux-rg-slp=) |
+| Wi-Fi roam | iwd/iwctl roam log | stock | no regression (=linux-rg-bench-wifi=) |
 
 * Boot safety (mandatory before first linux-rg boot)
 

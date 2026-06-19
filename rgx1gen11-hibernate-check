@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+live=0
+max_image_size=${RGX1GEN11_HIBERNATE_MAX_IMAGE_SIZE:-8589934592}
+min_swapfile_size=${RGX1GEN11_HIBERNATE_MIN_SWAPFILE_SIZE:-8589934592}
+power_root=${RGX1GEN11_POWER_ROOT:-/sys/power}
+proc_root=${RGX1GEN11_PROC_ROOT:-/proc}
+swapfile_path=${RGX1GEN11_SWAPFILE_PATH:-/btrfs/@swap/swapfile}
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-hibernate-check [options]
+
+Validate the rgx1gen11 hibernate path for encrypted btrfs root and swapfile
+resume.
+
+Options:
+  --live                Inspect live sysfs/procfs hibernate state
+  --max-image-size N    Maximum expected /sys/power/image_size in bytes
+  --min-swapfile-size N Minimum expected swapfile size in bytes
+  -h, --help            Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --live)
+      live=1
+      shift
+      ;;
+    --max-image-size)
+      max_image_size=$2
+      shift 2
+      ;;
+    --min-swapfile-size)
+      min_swapfile_size=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+read_file() {
+  local path=$1
+  if [[ -r $path ]]; then
+    cat "$path"
+  fi
+}
+
+want_word() {
+  local haystack=$1 needle=$2 description=$3
+  if [[ " $haystack " == *" $needle "* ]]; then
+    pass "$description contains $needle"
+  else
+    fail "$description lacks $needle: $haystack"
+  fi
+}
+
+want_cmdline_token() {
+  local token=$1
+  local cmdline
+  cmdline=$(read_file "$proc_root/cmdline")
+  want_word "$cmdline" "$token" "$proc_root/cmdline"
+}
+
+want_cmdline_prefix() {
+  local prefix=$1 word
+  local cmdline
+  cmdline=$(read_file "$proc_root/cmdline")
+  for word in $cmdline; do
+    if [[ $word == "$prefix"* ]]; then
+      pass "$proc_root/cmdline contains $prefix*"
+      return
+    fi
+  done
+  fail "$proc_root/cmdline lacks $prefix*: $cmdline"
+}
+
+want_root_mount() {
+  local line source fstype
+  line=$(awk '$2 == "/" { print; exit }' "$proc_root/mounts" 2>/dev/null || true)
+  source=$(awk '$2 == "/" { print $1; exit }' "$proc_root/mounts" 2>/dev/null || true)
+  fstype=$(awk '$2 == "/" { print $3; exit }' "$proc_root/mounts" 2>/dev/null || true)
+  if [[ $source == /dev/mapper/luks && $fstype == btrfs ]]; then
+    pass "root mount is encrypted btrfs: $line"
+  else
+    fail "root mount is not /dev/mapper/luks btrfs: $line"
+  fi
+}
+
+want_power_file() {
+  local name=$1 pattern=$2
+  local value
+  value=$(read_file "$power_root/$name")
+  if [[ $value =~ $pattern ]]; then
+    pass "$power_root/$name = $value"
+  else
+    fail "$power_root/$name is '$value', expected /$pattern/"
+  fi
+}
+
+want_image_size() {
+  local value
+  value=$(read_file "$power_root/image_size")
+  if [[ $value =~ ^[0-9]+$ && $value -le $max_image_size ]]; then
+    pass "$power_root/image_size = $value <= $max_image_size"
+  else
+    fail "$power_root/image_size is '$value', expected <= $max_image_size"
+  fi
+}
+
+want_swapfile_capacity() {
+  local size
+  if [[ -e $swapfile_path ]] && command -v stat >/dev/null 2>&1; then
+    size=$(stat -c %s "$swapfile_path")
+    if [[ $size -ge $min_swapfile_size ]]; then
+      pass "$swapfile_path size $size >= $min_swapfile_size"
+    else
+      fail "$swapfile_path size $size < $min_swapfile_size"
+    fi
+  else
+    fail "swapfile unavailable: $swapfile_path"
+  fi
+}
+
+want_swapfile_active() {
+  local swaps="$proc_root/swaps"
+  if [[ -r $swaps ]] && awk -v path="$swapfile_path" '$1 == path { found = 1 } END { exit(found ? 0 : 1) }' "$swaps"; then
+    pass "$swapfile_path active in $swaps"
+  else
+    fail "$swapfile_path not active in $swaps"
+  fi
+}
+
+if [[ $live -eq 1 ]]; then
+  want_power_file state '(^|[[:space:]])disk($|[[:space:]])'
+  want_power_file disk '(^|[[:space:]])\[?platform\]?($|[[:space:]])'
+  want_power_file resume '^[0-9]+:[0-9]+$'
+  want_power_file resume_offset '^[1-9][0-9]*$'
+  want_image_size
+  want_cmdline_prefix cryptdevice=
+  want_cmdline_token root=/dev/mapper/luks
+  want_cmdline_token rootflags=subvol=@
+  want_cmdline_token resume=/dev/mapper/luks
+  want_cmdline_prefix resume_offset=
+  want_root_mount
+  want_swapfile_active
+  want_swapfile_capacity
+else
+  usage
+fi
+
+if [[ $failures -gt 0 ]]; then
+  exit 1
+fi

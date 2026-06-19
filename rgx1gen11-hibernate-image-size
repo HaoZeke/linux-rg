@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+image_size_path=${RGX1GEN11_POWER_IMAGE_SIZE:-/sys/power/image_size}
+default_image_size=${RGX1GEN11_HIBERNATE_IMAGE_SIZE:-8589934592}
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-hibernate-image-size COMMAND [BYTES]
+
+Commands:
+  apply [BYTES]  Set /sys/power/image_size to BYTES, default 8 GiB.
+  status         Print the current image_size.
+  -h, --help     Show this help.
+USAGE
+}
+
+cmd_apply() {
+  local value=${1:-$default_image_size}
+  if [[ ! $value =~ ^[0-9]+$ ]]; then
+    printf 'invalid image size: %s\n' "$value" >&2
+    exit 2
+  fi
+  if [[ ! -w $image_size_path ]]; then
+    printf 'not writable: %s\n' "$image_size_path" >&2
+    exit 1
+  fi
+  printf '%s\n' "$value" >"$image_size_path"
+  cmd_status
+}
+
+cmd_status() {
+  if [[ ! -r $image_size_path ]]; then
+    printf 'not readable: %s\n' "$image_size_path" >&2
+    exit 1
+  fi
+  printf 'hibernate image_size: %s\n' "$(cat "$image_size_path")"
+}
+
+case "${1:-}" in
+  apply)
+    cmd_apply "${2:-$default_image_size}"
+    ;;
+  status)
+    cmd_status
+    ;;
+  -h|--help|"")
+    usage
+    ;;
+  *)
+    printf 'unknown command: %s\n' "$1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

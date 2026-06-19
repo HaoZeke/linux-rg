@@ -265,7 +265,18 @@ Fit:
 - `CONFIG_KSM=y`
 - `CONFIG_ZSWAP=y`
 - `CONFIG_ZSWAP_DEFAULT_ON=y`
+- `CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD=y`
 - `CONFIG_ZRAM=m`
+- `CONFIG_ZRAM_WRITEBACK=y`
+- `CONFIG_ZRAM_MEMORY_TRACKING=y`
+- `CONFIG_ZSTD_COMPRESS=m`
+- `CONFIG_ZSTD_DECOMPRESS=m`
+
+Compression is mostly a policy surface rather than a downstream patch surface on
+this laptop. The kernel exposes zstd-backed zswap/zram and btrfs compression
+support; mount options, zram sizing, and writeback policy decide whether those
+features improve latency, battery, or disk writes. The tracking lane is
+=linux-rg-wr9r=, with zram sizing under =linux-rg-zram=.
 
 The kernel KSM documentation describes KSM as a `CONFIG_KSM=y` feature that
 deduplicates anonymous pages registered with `MADV_MERGEABLE`; it also documents
@@ -281,6 +292,31 @@ UKSM patch. CachyOS provides older KSM/UKSM-era patches and a userspace KSM
 settings package, while Linux 7.0 already has KSM smart scan, scan-time advisor
 controls, MGLRU, zswap, zram, and PSI. Carrying a stale memory-management patch
 would add higher risk than benefit for this laptop.
+
+** Pstore crash evidence
+
+Source: mainline Linux configuration.
+
+Why: resume hangs, red-screen events, and kernel oops paths can reboot before
+journald or rsyslog writes useful logs. Pstore can keep kernel crash records
+through the next boot. EFI pstore is compiled in but disabled by default so the
+kernel does not write EFI variables without an explicit backend policy. Ramoops
+and pstore-blk stay modular until a hardware-specific persistent storage
+reservation is tested.
+
+Fit:
+
+- `CONFIG_PSTORE=y`
+- `CONFIG_PSTORE_DEFAULT_KMSG_BYTES=10240`
+- `CONFIG_PSTORE_COMPRESS=y`
+- `CONFIG_EFI_VARS_PSTORE=y`
+- `CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE=y`
+- `CONFIG_PSTORE_RAM=m`
+- `CONFIG_PSTORE_BLK=m`
+
+The linux-rg tracking lane is =linux-rg-krgl=. Rsyslog integration belongs in
+userspace after pstore/systemd-pstore and journald storage semantics are correct;
+the journald conflict lane is =linux-rg-8da1=.
 
 ** Battery and laptop hardware
 

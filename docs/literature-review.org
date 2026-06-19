@@ -75,11 +75,11 @@ Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 ** OokCite failures (keep URL, no fabricated DOI)
 
 | Source | OokCite result | Action |
-| Lebeck ATC 2020 mobile MM | reverse_lookup unrelated hits | USENIX PDF URL; grade A framing |
-| PSI design | no clean DOI | kernel.org + LWN + Meta blog |
-| TMO ASPLOS 2022 | reverse_lookup failed | CMU PDF URL |
-| MGLRU | LPC slides only | grade B engineering |
-| cpuidle TEO | kernel docs + LWN | grade B |
+| Lebeck ATC 2020 mobile MM | reverse_lookup unrelated hits | USENIX PDF URL; grade A framing (=linux-rg-zram=, =linux-rg-wr9r=) |
+| PSI design | no clean DOI | kernel.org + LWN + Meta blog (=linux-rg-oomd=) |
+| TMO ASPLOS 2022 | reverse_lookup failed | CMU PDF URL (=linux-rg-71t0=) |
+| MGLRU | LPC slides only | grade B engineering (=linux-rg-5fxc=) |
+| cpuidle TEO | kernel docs + LWN | grade B (=linux-rg-7m20=) |
 
 ** Prior mistake (corrected)
 
@@ -617,19 +617,19 @@ be recorded in =docs/candidates.org= decision gates.
 Machine-specific targets and vissue map: =docs/rgx1gen11-targets.org=.
 
 | Component | Literature support | Action |
-| MGLRU, PSI, memcg, zswap, zram, DAMON | Strong (A/B) | Keep; tune zram/oomd for 32 GiB box |
-| sched_ext + SMT idle + ASA heuristic | Strong (B) / prototype (D) | Keep; scx_loader A/B on 1365U |
-| BBRv3 default | Strong with fairness caveats (A) | Keep; document Cubic fallback for CNVi roam |
+| MGLRU, PSI, memcg, zswap, zram, DAMON | Strong (A/B) | Keep; tune zram/oomd for 32 GiB box (=linux-rg-7f5e=, =linux-rg-zram=, =linux-rg-oomd=, =linux-rg-wr9r=, =linux-rg-tm76=) |
+| sched_ext + SMT idle + ASA heuristic | Strong (B) / prototype (D) | Keep; scx_loader A/B on 1365U (=linux-rg-tjsl=, =linux-rg-9k2m=, =linux-rg-asa1=) |
+| BBRv3 default | Strong with fairness caveats (A) | Keep; document Cubic fallback for CNVi roam (=linux-rg-l5al=, =linux-rg-ervg=) |
 | BFQ plus block contention | BFQ strong (A); ULL NVMe benefit uncertain | Benchmark on KIOXIA XG8 (=linux-rg-rt1t=) |
-| ADIOS module | No published evaluation (D) | Module only; never default without bench win |
-| BORE + 0010-0013 scheduler weld | No published evaluation (D) | Highest-risk carried fair-class work |
-| detach_tasks fix | Upstream-reviewed (B) | Carried; runtime check on hybrid CPU |
-| cache-aware SCHED_CACHE | Motivation (B); patch (D) | Carried as =0020=; compare with sched_ext |
-| re-swappiness | Problem (A/B); patch (D) | Deprioritized vs mglru+ratios weld |
-| cpuidle TEO 0016 | Governor rationale (B); carry (D until bench) | Carried; validate on bench-idle |
-| zen 0014-0015 MM/cpufreq | Liquorix folklore (D) | Carried; low boot risk |
-| Rust fw_loader + binder | Safety (B/C); not perf | Config pins only |
-| i915 vs xe, SOF, TB4 dock | Platform docs (C) | Userspace/boot policy; see hardware targets |
+| ADIOS module | No published evaluation (D) | Module only; never default without bench win (=linux-rg-rt1t=) |
+| BORE + 0010-0013 scheduler weld | No published evaluation (D) | Highest-risk carried fair-class work (=linux-rg-h2e3=, =linux-rg-bench-sched=) |
+| detach_tasks fix | Upstream-reviewed (B) | Carried; runtime check on hybrid CPU (=linux-rg-78xs=) |
+| cache-aware SCHED_CACHE | Motivation (B); patch (D) | Carried as =0020=; compare with sched_ext (=linux-rg-kr7t=) |
+| re-swappiness | Problem (A/B); patch (D) | Deprioritized vs mglru+ratios weld (=linux-rg-phgx=) |
+| cpuidle TEO 0016 | Governor rationale (B); carry (D until bench) | Carried; validate on bench-idle (=linux-rg-7m20=, =linux-rg-bench-idle=) |
+| zen 0014-0015 MM/cpufreq | Liquorix folklore (D) | Carried; low boot risk (=linux-rg-zen2=) |
+| Rust fw_loader + binder | Safety (B/C); not perf | Config pins only (=linux-rg-rust1=) |
+| i915 vs xe, SOF, TB4 dock | Platform docs (C) | Userspace/boot policy; see hardware targets (=linux-rg-i915=, =linux-rg-sof=, =linux-rg-tb4=) |
 
 * Bibliography (OokCite-validated BibTeX)
 

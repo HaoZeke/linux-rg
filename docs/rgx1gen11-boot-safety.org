@@ -67,6 +67,27 @@ writes. It refuses to continue unless stock rEFInd options include
 =pcie_aspm.policy=powersave=, unless =/= is currently btrfs on
 =/dev/mapper/luks=, and unless the initramfs keymap path is Colemak-safe.
 
+* Hibernate image-size policy
+
+linux-rg ships =rgx1gen11-hibernate-image-size.service=. The installer enables
+it so boot sets =/sys/power/image_size= to 8 GiB. This keeps suspend-to-disk
+write volume bounded while staying below the btrfs swapfile capacity. The live
+gate is:
+
+#+begin_example
+rgx1gen11-hibernate-check --live
+#+end_example
+
+* Crash evidence policy
+
+linux-rg keeps pstore support in the machine config:
+=CONFIG_PSTORE=y=, =CONFIG_PSTORE_COMPRESS=y=, =CONFIG_EFI_VARS_PSTORE=y=,
+and modular =ramoops= / =pstore-blk=. EFI pstore stays disabled by default
+(=CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE=y=) until =linux-rg-krgl= decides the
+backend policy. Rsyslog is a userspace forwarder; it should consume
+journald/kmsg/pstore output after storage semantics are fixed under
+=linux-rg-8da1= and =linux-rg-krgl=.
+
 * Rollback procedure
 
 1. At rEFInd, select stock Arch =linux= entry.

@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if (($# == 0)); then
+  set -- docs/*.org
+fi
+
+failures=0
+
+is_separator() {
+  [[ $1 =~ ^[[:space:]]*\|[-+[:space:]]+\|?[[:space:]]*$ ]]
+}
+
+is_action_header() {
+  local line=$1
+  [[ $line == *"| Vissue"* ]] && return 0
+  [[ $line == *"| Action"* ]] && return 0
+  [[ $line == *"| rgx1gen11 action"* ]] && return 0
+  [[ $line == *"| linux-rg gate"* ]] && return 0
+  return 1
+}
+
+has_issue_or_exemption() {
+  local line=$1
+  local lower=${line,,}
+
+  [[ $line =~ linux-rg-[[:alnum:]-]+ ]] && return 0
+
+  case "$lower" in
+    *"reference only"*|\
+    *"reference"*|\
+    *"skip"*|\
+    *"not part"*|\
+    *"not selected"*|\
+    *"not a patch port"*|\
+    *"not tuning"*|\
+    *"not needed"*|\
+    *"unnecessary"*|\
+    *"n/a"*|\
+    *"folded into"*|\
+    *"already upstream"*|\
+    *"already carried"*|\
+    *"carried"*|\
+    *"closed"*|\
+    *"cancelled"*|\
+    *"no wholesale port"*|\
+    *"no daily-driver"*|\
+    *"validated"*|\
+    *"baseline only"*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+audit_file() {
+  local file=$1
+  local line
+  local lineno=0
+  local in_action_table=0
+  local file_failures=0
+
+  if [[ ! -r $file ]]; then
+    printf 'missing doc: %s\n' "$file" >&2
+    failures=$((failures + 1))
+    return
+  fi
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    lineno=$((lineno + 1))
+
+    if [[ ! $line =~ ^[[:space:]]*\| ]]; then
+      in_action_table=0
+      continue
+    fi
+
+    if is_separator "$line"; then
+      continue
+    fi
+
+    if is_action_header "$line"; then
+      in_action_table=1
+      continue
+    fi
+
+    if ((in_action_table)) && ! has_issue_or_exemption "$line"; then
+      printf '%s:%s: missing vissue or explicit exemption: %s\n' \
+        "$file" "$lineno" "$line" >&2
+      failures=$((failures + 1))
+      file_failures=$((file_failures + 1))
+    fi
+  done <"$file"
+
+  if ((file_failures == 0)); then
+    printf 'ok: %s\n' "$file"
+  fi
+}
+
+for file in "$@"; do
+  audit_file "$file"
+done
+
+if ((failures > 0)); then
+  exit 1
+fi

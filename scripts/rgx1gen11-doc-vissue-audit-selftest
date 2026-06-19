@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=${1:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}
+auditor="$repo/scripts/rgx1gen11-doc-vissue-audit"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$auditor" || fail "missing auditor: $auditor"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+good="$tmpdir/good.org"
+bad="$tmpdir/bad.org"
+
+cat >"$good" <<'EOF'
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| zram sizing | kernel docs | policy | B | Track in =linux-rg-zram= |
+| vendor mine | distro docs | reference | C | reference only |
+| rejected toggle | folklore | kernel | D | skip on ultrabook |
+EOF
+
+cat >"$bad" <<'EOF'
+| Candidate | Source | Layer | Grade | rgx1gen11 action |
+| pstore capture | kernel docs | kernel | B | add support |
+EOF
+
+bash "$auditor" "$good" >/tmp/rgx1gen11-doc-vissue-audit.good
+rg -Fq "ok: $good" /tmp/rgx1gen11-doc-vissue-audit.good \
+  || fail "auditor should accept issue-backed and exempt rows"
+
+if bash "$auditor" "$bad" >/tmp/rgx1gen11-doc-vissue-audit.bad 2>&1; then
+  fail "auditor should reject an actionable row without vissue"
+fi
+rg -Fq "missing vissue" /tmp/rgx1gen11-doc-vissue-audit.bad \
+  || fail "auditor should explain missing issue coverage"
+
+printf 'ok\n'

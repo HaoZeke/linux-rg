@@ -368,6 +368,17 @@ install_boot_check() {
   fi
 }
 
+enable_hibernate_image_size() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    echo "error: systemctl unavailable; cannot enable hibernate image-size policy" >&2
+    exit 1
+  fi
+  systemctl enable --now rgx1gen11-hibernate-image-size.service
+  if command -v rgx1gen11-hibernate-image-size >/dev/null 2>&1; then
+    rgx1gen11-hibernate-image-size status
+  fi
+}
+
 print_state() {
   echo
   echo "== packages =="
@@ -381,6 +392,14 @@ print_state() {
   echo
   echo "== disk =="
   df -h / /boot
+
+  echo
+  echo "== hibernate image-size policy =="
+  systemctl is-enabled rgx1gen11-hibernate-image-size.service
+  systemctl is-active rgx1gen11-hibernate-image-size.service || true
+  if command -v rgx1gen11-hibernate-image-size >/dev/null 2>&1; then
+    rgx1gen11-hibernate-image-size status
+  fi
 
   echo
   echo "== linux-rg boot check =="
@@ -478,6 +497,10 @@ main() {
   echo
   echo "== boot check helper =="
   install_boot_check
+
+  echo
+  echo "== hibernate image-size policy =="
+  enable_hibernate_image_size
 
   print_state
 }

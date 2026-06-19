@@ -329,6 +329,7 @@ check_live() {
   want_checker rgx1gen11-gpu-check --live "${boot_log_args[@]}"
   want_checker rgx1gen11-sof-check --live "${boot_log_args[@]}"
   want_checker rgx1gen11-nvme-check --live
+  want_checker rgx1gen11-hibernate-check --live
 }
 
 if (( installed )); then

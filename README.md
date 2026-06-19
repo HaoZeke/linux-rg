@@ -25,6 +25,12 @@ then applies a small machine overlay in `rgx1gen11.config`.
   (arXiv:2511.11628) with `asa-router` userspace helper.
 - PSI, memcg, DAMON, MGLRU, KSM, zswap, zram, BFQ, sched_ext, and
   ThinkPad/Intel laptop support pinned in the machine config overlay.
+- Compression policy support: zswap defaults to zstd, zram writeback/tracking is
+  available, and the installed kernel keeps zstd modules available for compressed
+  memory, initramfs, module, and btrfs policy work.
+- Pstore crash evidence support: EFI pstore is compiled in but disabled by
+  default, pstore compression is enabled, and ramoops/pstore-blk remain modular
+  for tested crash-log escalation.
 - CachyOS working-set protection ratio extract (0018): `vm.anon_min_ratio`,
   `vm.clean_low_ratio`, `vm.clean_min_ratio`, and `vm.workingset_protection`
   wired into classic reclaim and MGLRU without carrying `CONFIG_CACHY`.
@@ -83,6 +89,10 @@ Validate the PSI/MGLRU/DAMON/zram memory-pressure contract:
 rgx1gen11-memory-check --live --require-oomd
 ```
 
+The same checker asserts the pstore crash-log config contract. Active pstore
+backend selection is tracked separately so EFI-variable writes are not enabled
+blindly.
+
 Validate the Iris Xe i915/xe boot-driver contract:
 
 ```sh
@@ -102,6 +112,13 @@ Validate the KIOXIA XG8 NVMe/APST contract:
 ```sh
 ./rgx1gen11-nvme-check
 rgx1gen11-nvme-check --live
+```
+
+Validate the encrypted btrfs hibernate path and image-size cap:
+
+```sh
+./rgx1gen11-hibernate-check --live
+rgx1gen11-hibernate-image-size status
 ```
 
 ## Install for rEFInd
@@ -132,6 +149,11 @@ the stock rEFInd command line carries `cryptdevice=`, `rootflags=subvol=@`,
 `resume=`, `resume_offset=`, standalone `i915`, and `pcie_aspm.policy=powersave`,
 the linux-rg initramfs keeps early `nvme i915`, and `/etc/vconsole.conf` uses
 `KEYMAP=colemak` so the LUKS prompt remains typeable.
+
+The installer also enables `rgx1gen11-hibernate-image-size.service`, which sets
+`/sys/power/image_size` to 8 GiB at boot. This keeps the hibernate image below
+the btrfs swapfile capacity and reduces suspend-to-disk write volume for laptop
+workflows.
 
 Validate the installer dry-run and package discovery path without root:
 
