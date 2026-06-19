@@ -99,6 +99,13 @@ Inspect pstore post-boot evidence and `systemd-pstore` state:
 rgx1gen11-pstore-check
 ```
 
+Validate the cpuidle/intel_idle/TEO contract:
+
+```sh
+./rgx1gen11-idle-check
+rgx1gen11-idle-check --live
+```
+
 Validate the Iris Xe i915/xe boot-driver contract:
 
 ```sh

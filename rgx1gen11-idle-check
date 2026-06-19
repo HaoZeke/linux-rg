@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
+sys_root=${RGX1GEN11_SYS_ROOT:-/sys}
+expected_driver=intel_idle
+expected_governor=teo
+live=0
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-idle-check [options]
+
+Validate the rgx1gen11 cpuidle/intel_idle/TEO kernel and live governor contract.
+
+Options:
+  --config PATH        Kconfig file to inspect (default: rgx1gen11.config)
+  --sys-root PATH      sysfs root to inspect (default: /sys)
+  --driver NAME        Expected cpuidle driver (default: intel_idle)
+  --governor NAME      Expected cpuidle governor (default: teo)
+  --live               Check live sysfs state
+  -h, --help           Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      config_path=$2
+      shift 2
+      ;;
+    --sys-root)
+      sys_root=$2
+      shift 2
+      ;;
+    --driver)
+      expected_driver=$2
+      shift 2
+      ;;
+    --governor)
+      expected_governor=$2
+      shift 2
+      ;;
+    --live)
+      live=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+failures=0
+
+pass() {
+  printf 'ok: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+trim() {
+  local value=$1
+  value=${value#"${value%%[![:space:]]*}"}
+  value=${value%"${value##*[![:space:]]}"}
+  printf '%s' "$value"
+}
+
+want_config() {
+  local symbol=$1
+  local want=$2
+  local got
+
+  if [[ ! -r $config_path ]]; then
+    fail "config is not readable: $config_path"
+    return
+  fi
+
+  got=$(grep -E "^(# )?${symbol}(=| is not set)" "$config_path" || true)
+  if [[ $got == "$want" ]]; then
+    pass "$want"
+  elif [[ -n $got ]]; then
+    fail "$symbol is '$got', expected '$want'"
+  else
+    fail "$symbol is missing, expected '$want'"
+  fi
+}
+
+want_live_value() {
+  local path=$1
+  local expected=$2
+  local description=$3
+  local got
+
+  [[ $live -eq 1 ]] || return 0
+  if [[ ! -r $path ]]; then
+    fail "$description is not readable: $path"
+    return
+  fi
+
+  got=$(trim "$(<"$path")")
+  if [[ $got == "$expected" ]]; then
+    pass "$description $expected"
+  else
+    fail "$description is '$got', expected '$expected'"
+  fi
+}
+
+want_available_governor() {
+  local path=$sys_root/devices/system/cpu/cpuidle/available_governors
+  local got
+
+  [[ $live -eq 1 ]] || return 0
+  if [[ ! -r $path ]]; then
+    fail "available cpuidle governors are not readable: $path"
+    return
+  fi
+
+  got=$(trim "$(<"$path")")
+  if [[ " $got " == *" $expected_governor "* ]]; then
+    pass "available cpuidle governor $expected_governor"
+  else
+    fail "available cpuidle governors are '$got', expected $expected_governor"
+  fi
+}
+
+want_config CONFIG_CPU_IDLE 'CONFIG_CPU_IDLE=y'
+want_config CONFIG_CPU_IDLE_GOV_MENU 'CONFIG_CPU_IDLE_GOV_MENU=y'
+want_config CONFIG_CPU_IDLE_GOV_TEO 'CONFIG_CPU_IDLE_GOV_TEO=y'
+want_config CONFIG_INTEL_IDLE 'CONFIG_INTEL_IDLE=y'
+
+want_live_value "$sys_root/devices/system/cpu/cpuidle/current_driver" "$expected_driver" "cpuidle driver"
+want_available_governor
+want_live_value "$sys_root/devices/system/cpu/cpuidle/current_governor" "$expected_governor" "cpuidle governor"
+
+if (( failures > 0 )); then
+  exit 1
+fi

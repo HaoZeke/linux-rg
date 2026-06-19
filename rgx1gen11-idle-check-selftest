@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+checker="$repo/rgx1gen11-idle-check"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$checker" || fail "missing executable idle checker"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+sys_root="$tmpdir/sys"
+mkdir -p "$sys_root/devices/system/cpu/cpuidle"
+
+cat >"$tmpdir/config" <<'EOF'
+CONFIG_CPU_IDLE=y
+CONFIG_CPU_IDLE_GOV_MENU=y
+CONFIG_CPU_IDLE_GOV_TEO=y
+CONFIG_INTEL_IDLE=y
+EOF
+
+printf 'intel_idle\n' >"$sys_root/devices/system/cpu/cpuidle/current_driver"
+printf 'ladder menu teo\n' >"$sys_root/devices/system/cpu/cpuidle/available_governors"
+printf 'teo\n' >"$sys_root/devices/system/cpu/cpuidle/current_governor"
+
+output=$(
+  "$checker" \
+    --config "$tmpdir/config" \
+    --sys-root "$sys_root" \
+    --live
+)
+
+printf '%s\n' "$output" | rg -q 'ok: CONFIG_CPU_IDLE=y' \
+  || fail "checker should require CPU_IDLE"
+printf '%s\n' "$output" | rg -q 'ok: cpuidle driver intel_idle' \
+  || fail "checker should require intel_idle"
+printf '%s\n' "$output" | rg -q 'ok: cpuidle governor teo' \
+  || fail "checker should require teo governor"
+
+printf 'menu\n' >"$sys_root/devices/system/cpu/cpuidle/current_governor"
+if "$checker" \
+  --config "$tmpdir/config" \
+  --sys-root "$sys_root" \
+  --live >/tmp/rgx1gen11-idle-check.menu 2>&1; then
+  fail "checker should fail when menu remains the live governor"
+fi
+rg -q "fail: cpuidle governor is 'menu', expected 'teo'" /tmp/rgx1gen11-idle-check.menu \
+  || fail "menu-governor failure should be explicit"
+
+printf 'ok\n'
