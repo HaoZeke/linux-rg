@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=${1:?usage: linux-rg-module-symvers MODULE_ROOT}
+tmpdir=$(mktemp -d /tmp/linux-rg-module-symvers.XXXXXX)
+trap 'rm -rf "$tmpdir"' EXIT
+
+module_path() {
+  local path=$1 rel
+  rel=${path#"$root"/}
+  rel=${rel%.zst}
+  rel=${rel%.ko}
+  rel=${rel#kernel/}
+  printf '%s\n' "$rel"
+}
+
+section_ids() {
+  local object=$1 section=$2
+  readelf -SW "$object" |
+    sed -nE "s/^[[:space:]]*\\[[[:space:]]*([0-9]+)\\][[:space:]]+$section[[:space:]].*$/\\1/p" |
+    paste -sd,
+}
+
+emit_symbols() {
+  local module=$1 object=$2
+  local normal_sections gpl_sections
+
+  normal_sections=$(section_ids "$object" '__ksymtab')
+  gpl_sections=$(section_ids "$object" '__ksymtab_gpl')
+
+  readelf -sW "$object" |
+    awk -v module="$module" \
+      -v normal_sections="$normal_sections" \
+      -v gpl_sections="$gpl_sections" '
+        BEGIN {
+          split(normal_sections, normal, ",")
+          for (idx in normal) {
+            if (normal[idx] != "") export_type[normal[idx]] = "EXPORT_SYMBOL"
+          }
+          split(gpl_sections, gpl, ",")
+          for (idx in gpl) {
+            if (gpl[idx] != "") export_type[gpl[idx]] = "EXPORT_SYMBOL_GPL"
+          }
+        }
+        $8 ~ /^__ksymtab_/ && ($7 in export_type) {
+          symbol = $8
+          sub(/^__ksymtab_/, "", symbol)
+          printf "0x00000000\t%s\t%s\t%s\t\n", symbol, module, export_type[$7]
+        }
+      '
+}
+
+while IFS= read -r -d '' path; do
+  module=$(module_path "$path")
+  object=$path
+
+  if [[ $path == *.zst ]]; then
+    object=$tmpdir/${module//\//__}.ko
+    zstd -dc "$path" > "$object"
+  fi
+
+  emit_symbols "$module" "$object"
+done < <(find "$root" -type f \( -name '*.ko' -o -name '*.ko.zst' \) -print0 | sort -z)

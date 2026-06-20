@@ -84,6 +84,7 @@ source=(
   rgx1gen11-boot-check
   rgx1gen11-live-check
   rgx1gen11-dkms-overlay-apply
+  linux-rg-module-symvers
   69-linux-rg-dkms-overlays.hook
   rgx1gen11-iwlwifi.conf
   rgx1gen11-btusb.conf
@@ -124,7 +125,7 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'e9f56c6b5022ecab01b8ae7fa619c5d0f36b8254db5dfcb757b60b2868a3d567'
             'c6deacb47a8ca1185d379a164e9579413a843285090e5778fe54395b76efbe71'
             'c1aa2ff3cfd18e6f024ca97ab5ee39b69d01dd15e7852e1bd3759f449272f9fc'
-            'ea2792c6660e992199090efdd946b52226125aa4fc7321f04b50f5ba4185cba0'
+            '405200eb6e1abe5c77e655bcd243a938f4707ca7e0c742623aad71eb320ff2fb'
             'b8310d63765adf751befcf80c9b00a092fa007452479e4a23507ffafc6893b75'
             'fa9059e8274b60d3caf1d5e78a1fe21b92d937fe21562df5920b9c66d0013923'
             '7ed090e02c037129860b9042b812751b80d0e9818faad9c6109857f9423be64e'
@@ -145,7 +146,8 @@ sha256sums=('57edc9a41efc1ca6b797afa8f4a587a30da2af6bca7356eb56e1e1a4ada265da'
             'd6ca16a22bb0c90e6f4f3c1b06386bc270ab41c22db64099404741ac604cac09'
             '619d43e497595f4d30007082c24ba708d5a2828c277d4fdbb66de830b80e506a'
             '9fb1984cc325e18050ed2764d60867bb4453270f5c289a82d09db167a642dba7'
-            'dfca3cef00da13c3966ec4435162368c85e83634466554d3f2e15ae33be4d43e'
+            '039d6cb877c14e68d66739039a4d9951d77e3546e8bb46c9a1ab7ce4e300cda9'
+            '7c88d25a5b38caf3a215ebbb501038b711510f240128554b850349fee4d64c4c'
             '922d9daa57bd6ddd5c1b3617286114673d0553b7a42f3a043cf279aa86ce823b'
             '134551c9ab2a33011cd2cdf366e66da4cc9297011146a8abe8840f5b7a3f7408'
             '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74'
@@ -180,7 +182,7 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         '5b9c44d3e1b13bcd7599ecc0b07d0af822bb83672876138f981374aba20b0f7f1475dadd06127e2c29596550f3ad8232a9f534f29810192d95ed6bd7ed279a73'
         'b8ff5dee5b81818ef02107990b5711a7a4d060a943a6663334e0ffa828dd52696bef62b79f2a9ceb369221db0e468d238c6d61ef7127a7b318dacf350f3bbfa6'
         'e4adc5f4d70c0a35472e5a1383a9cccb142dff0844cfe9000a4870c9633b7b9c57ea28c12f305c14e9e65a5d7ceb27f99edfb8d42f3434cc65f0142bf64bd862'
-        'aefae6865df079a6490060db4181118c0bfd20a2698356bf563074339457980bd04a8eaa7a6cae1251011cf3cedd95ed47315fd2da1c1803e25c15bfc94501b5'
+        'b161f8e88a243b3a75a29ee5befc43b6f3d6700451ba2f508c7f1665ad6d84534286119c92188461bf434f56079b1353333e2e84d324b801f17701c6a522daca'
         '85e9a7a9ade677f2aa97bf6f4ce93f99b0d7d3f89e98f918b3b22a28ee1a2c13b68a50e1f22198361131ced13bfc1e54b546e0b1c8e25853397506f3c04e02ac'
         '4f290c4b5aeed7d8a2e048410f304c891955129c1641b5a1145302e61f1e9f76593448d9c765fc13e1717159245c9d304948087f79e04d69e53fdfea4a5e5f13'
         '46b138b363e9a399b9ec9da510395f39399c25342962b61f97aa5da97cd70dfe30c20f7f5c39072dcf6038b94e30cb142c3dd86c08df53c8ea2466f238103eb1'
@@ -201,7 +203,8 @@ b2sums=('2c53f205a940b0f9f68653b92ef46d49f828cbef3cfa8cf94d050c8e6df05c4fcaa4f9b
         '94dbc482b57cb1c1ceb7469a518af49bf684612e5f77ac31ed83b61633b21bcb29c03c0ac8f79a8629c38b0130be81b8e9909a35f5eccdbc4fc832d7cd57b108'
         '6138aee47dcdf5f16864e64e43462d98fcaa518eb27ce45b4166ab6f55d42a44614130209857d6c527c0e4203aa5be7c2589bc6995443c8af7886f9bb2edb0b3'
         'a8322819a2f6008ebb144c97e51f3727a246d1c1e01ef7aae9aa8bb033047ed5e72b524c23a32a1df6b84380b18f7b6ee74e6a85ed22e968d43deb7a32e28c4f'
-        '8a9d4aeab45becc658c161174eac7eb12fc2062927168585caa34b644a4edab57fa9ef25879c8a48b8bede1bb7fd7f71bc8299d409b11063aee6e65160521e92'
+        'fbce7e58ddabb7325b0c094afd3ef596a11c738f32d858885d9a2cd0091618e655ba2d715954b392b0693ed057a2c03bd2f366644f27ec468c746e9e189f81c9'
+        '2d04ddc4f81eb7a5ccd4be176ef2ac1e8f9173efcac187bb35b11afb5cead37f1b3c9ff12f50150ec52bafbfa31fb842ee6082fb35db450e4fa2346b98f73dc7'
         '16e05ed707270707abc52bf789d5fca18ca7041ca01cd15d49c9d3b10743bc899f1672271afe590e2042aca46f5aba8019aa05ab452dc43a93f6d8b492b1f9e7'
         '9baa113f8982af04ffafd26096c48c0a099e7aebeafc635c97e79fd5c70da2c348d7b40e05110d01a5f2e2c2ebf5750bab37ebe6b080b5e6c27520aec6dffc82'
         '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a'
@@ -451,6 +454,12 @@ _package-headers() {
   echo "Installing build files..."
   install -Dt "$builddir" -m644 .config Makefile Module.symvers System.map \
     localversion.* version vmlinux tools/bpf/bpftool/vmlinux.h
+
+  echo "Completing Module.symvers from module export tables..."
+  "$srcdir/linux-rg-module-symvers" "$PWD" > "$builddir/Module.symvers.modules"
+  awk '!seen[$2]++' "$builddir/Module.symvers" "$builddir/Module.symvers.modules" \
+    > "$builddir/Module.symvers.merged"
+  mv "$builddir/Module.symvers.merged" "$builddir/Module.symvers"
   install -Dt "$builddir/kernel" -m644 kernel/Makefile
   install -Dt "$builddir/arch/$karch" -m644 arch/$karch/Makefile
   cp -t "$builddir" -a --no-preserve=ownership scripts
