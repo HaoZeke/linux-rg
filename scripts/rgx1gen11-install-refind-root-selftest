@@ -99,6 +99,8 @@ rg -q 'console_font=.*Lat2-Terminus16' "$installer" \
   || fail "installer should default the linux-rg console font"
 rg -Fq 'font_line="FONT=$console_font"' "$installer" \
   || fail "installer should write the configured console font into linux-rg mkinitcpio"
+rg -Fq 'systemctl daemon-reload' "$installer" \
+  || fail "installer should reload systemd before enabling packaged units"
 
 bad_out="$tmpdir/bad-dry-run.out"
 if LINUX_RG_ARTIFACT_DIR="$bad_artifact_dir" \

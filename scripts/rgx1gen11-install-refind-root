@@ -432,6 +432,7 @@ enable_hibernate_image_size() {
     echo "error: systemctl unavailable; cannot enable hibernate image-size policy" >&2
     exit 1
   fi
+  systemctl daemon-reload
   systemctl enable --now rgx1gen11-hibernate-image-size.service
   if command -v rgx1gen11-hibernate-image-size >/dev/null 2>&1; then
     rgx1gen11-hibernate-image-size status
