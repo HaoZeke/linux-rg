@@ -21,7 +21,7 @@ Options:
   --artifact-dir PATH   Directory containing linux-rg package artifacts
   --kernel-pkg PATH     Exact linux-rg package artifact
   --headers-pkg PATH    Exact linux-rg-headers package artifact
-  --skip-boot-clean     Do not delete rEFInd screenshots or FSCK*.REC files
+  --skip-boot-clean     Do not trash rEFInd screenshots or FSCK*.REC files
   -h, --help            Show this help
 USAGE
 }
@@ -145,16 +145,26 @@ boot_junk_paths() {
 }
 
 clean_boot_junk() {
+  local paths=()
   if (( ! clean_boot )); then
     printf 'skip: boot cleanup disabled\n'
     return
   fi
-  if (( dry_run )); then
-    printf 'dry-run: would delete known rEFInd/FSCK junk under /boot:\n'
-    boot_junk_paths || true
+  mapfile -t paths < <(boot_junk_paths || true)
+  if (( ${#paths[@]} == 0 )); then
+    printf 'ok: no known rEFInd/FSCK junk under /boot\n'
     return
   fi
-  boot_junk_paths -delete || true
+  if (( dry_run )); then
+    printf 'dry-run: would trash known rEFInd/FSCK junk under /boot:\n'
+    printf '%s\n' "${paths[@]}"
+    return
+  fi
+  if ! command -v trash-put >/dev/null 2>&1; then
+    printf 'error: trash-put is required for /boot cleanup\n' >&2
+    exit 1
+  fi
+  trash-put -- "${paths[@]}"
 }
 
 repair_package_ownership() {

@@ -51,4 +51,9 @@ rg -Fq 'dry-run: mkinitcpio -p linux-rg' "$out" \
 rg -Fq 'dry-run: rgx1gen11-boot-check --installed' "$out" \
   || fail "dry-run should print installed boot check command"
 
+rg -Fq 'trash-put' "$script" \
+  || fail "boot cleanup should use trash-put"
+! rg -Fq -- '-delete' "$script" \
+  || fail "boot cleanup should not hard-delete files"
+
 printf 'ok\n'
