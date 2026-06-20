@@ -20,35 +20,89 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 artifact_dir="$tmpdir/artifacts"
 pkgroot="$tmpdir/pkgroot"
-mkdir -p "$artifact_dir" "$pkgroot/usr/lib/modules/9.9.9-rg"
+mkdir -p \
+  "$artifact_dir" \
+  "$pkgroot/usr/bin" \
+  "$pkgroot/usr/lib/modules/9.9.9-rg" \
+  "$pkgroot/usr/lib/systemd/system" \
+  "$pkgroot/usr/share/libalpm/hooks" \
+  "$pkgroot/usr/share/linux-rg/dkms-overlays"
 touch "$pkgroot/usr/lib/modules/9.9.9-rg/vmlinuz"
 printf 'linux-rg\n' >"$pkgroot/usr/lib/modules/9.9.9-rg/pkgbase"
-mkdir -p "$pkgroot/usr/bin" "$pkgroot/usr/lib/systemd/system"
+touch "$pkgroot/usr/bin/rgx1gen11-boot-check"
+touch "$pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$pkgroot/usr/bin/rgx1gen11-live-check"
 touch "$pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+touch "$pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
+touch "$pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
+touch "$pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
+touch "$pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
 bsdtar -cf "$artifact_dir/linux-rg-9.9.9-x86_64.pkg.tar.zst" -C "$pkgroot" usr
 touch "$artifact_dir/linux-rg-headers-9.9.9-x86_64.pkg.tar.zst"
 
 bad_pkgroot="$tmpdir/bad-pkgroot"
 bad_artifact_dir="$tmpdir/bad-artifacts"
-mkdir -p "$bad_artifact_dir" "$bad_pkgroot/usr/lib/modules/9.9.8-rg"
+mkdir -p \
+  "$bad_artifact_dir" \
+  "$bad_pkgroot/usr/bin" \
+  "$bad_pkgroot/usr/lib/modules/9.9.8-rg" \
+  "$bad_pkgroot/usr/share/libalpm/hooks" \
+  "$bad_pkgroot/usr/share/linux-rg/dkms-overlays"
 touch "$bad_pkgroot/usr/lib/modules/9.9.8-rg/vmlinuz"
 printf 'linux-rg\n' >"$bad_pkgroot/usr/lib/modules/9.9.8-rg/pkgbase"
-mkdir -p "$bad_pkgroot/usr/bin"
+touch "$bad_pkgroot/usr/bin/rgx1gen11-boot-check"
+touch "$bad_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-live-check"
+touch "$bad_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
+touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
+touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
+touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
 bsdtar -cf "$bad_artifact_dir/linux-rg-9.9.8-x86_64.pkg.tar.zst" -C "$bad_pkgroot" usr
 touch "$bad_artifact_dir/linux-rg-headers-9.9.8-x86_64.pkg.tar.zst"
 
+bad_payload_pkgroot="$tmpdir/bad-payload-pkgroot"
+bad_payload_artifact_dir="$tmpdir/bad-payload-artifacts"
+mkdir -p \
+  "$bad_payload_artifact_dir" \
+  "$bad_payload_pkgroot/usr/bin" \
+  "$bad_payload_pkgroot/usr/lib/modules/9.9.7-rg" \
+  "$bad_payload_pkgroot/usr/lib/systemd/system" \
+  "$bad_payload_pkgroot/usr/share/libalpm/hooks" \
+  "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays"
+touch "$bad_payload_pkgroot/usr/lib/modules/9.9.7-rg/vmlinuz"
+printf 'linux-rg\n' >"$bad_payload_pkgroot/usr/lib/modules/9.9.7-rg/pkgbase"
+touch "$bad_payload_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
+touch "$bad_payload_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
+touch "$bad_payload_pkgroot/usr/bin/rgx1gen11-live-check"
+touch "$bad_payload_pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+touch "$bad_payload_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
+touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
+touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
+touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+bsdtar -cf "$bad_payload_artifact_dir/linux-rg-9.9.7-x86_64.pkg.tar.zst" -C "$bad_payload_pkgroot" usr
+touch "$bad_payload_artifact_dir/linux-rg-headers-9.9.7-x86_64.pkg.tar.zst"
+
 bad_live_pkgroot="$tmpdir/bad-live-pkgroot"
 bad_live_artifact_dir="$tmpdir/bad-live-artifacts"
-mkdir -p "$bad_live_artifact_dir" "$bad_live_pkgroot/usr/lib/modules/9.9.7-rg"
+mkdir -p \
+  "$bad_live_artifact_dir" \
+  "$bad_live_pkgroot/usr/bin" \
+  "$bad_live_pkgroot/usr/lib/modules/9.9.7-rg" \
+  "$bad_live_pkgroot/usr/lib/systemd/system" \
+  "$bad_live_pkgroot/usr/share/libalpm/hooks" \
+  "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays"
 touch "$bad_live_pkgroot/usr/lib/modules/9.9.7-rg/vmlinuz"
 printf 'linux-rg\n' >"$bad_live_pkgroot/usr/lib/modules/9.9.7-rg/pkgbase"
-mkdir -p "$bad_live_pkgroot/usr/bin" "$bad_live_pkgroot/usr/lib/systemd/system"
+touch "$bad_live_pkgroot/usr/bin/rgx1gen11-boot-check"
+touch "$bad_live_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$bad_live_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$bad_live_pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+touch "$bad_live_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
+touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
+touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
+touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
 bsdtar -cf "$bad_live_artifact_dir/linux-rg-9.9.7-x86_64.pkg.tar.zst" -C "$bad_live_pkgroot" usr
 touch "$bad_live_artifact_dir/linux-rg-headers-9.9.7-x86_64.pkg.tar.zst"
 
@@ -138,6 +192,18 @@ if LINUX_RG_ARTIFACT_DIR="$bad_live_artifact_dir" \
 fi
 rg -Fq 'package payload missing: usr/bin/rgx1gen11-live-check' "$bad_live_out" \
   || fail "stale package rejection should name the missing live-check helper"
+
+bad_payload_out="$tmpdir/bad-payload-dry-run.out"
+if LINUX_RG_ARTIFACT_DIR="$bad_payload_artifact_dir" \
+  LINUX_RG_PROC_MOUNTS="$proc_mounts" \
+  LINUX_RG_VCONSOLE_CONF="$vconsole_conf" \
+  REFIND_CONF="$refind_conf" \
+  MKINITCPIO_BASE="$mkinitcpio_base" \
+  "$installer" --dry-run >"$bad_payload_out" 2>&1; then
+  fail "dry run should reject a stale package without boot-check"
+fi
+rg -Fq 'package payload missing: usr/bin/rgx1gen11-boot-check' "$bad_payload_out" \
+  || fail "stale package rejection should name the missing boot-check helper"
 rg -q "'scx-tools:.*scx_loader" "$pkgbuild" \
   || fail "PKGBUILD should name the Arch package that provides scx_loader"
 if rg -q 'scx_loader: ASA router expert scheduler switching' "$pkgbuild" "$srcinfo"; then
