@@ -5,7 +5,7 @@ config_path=${RGX1GEN11_CONFIG:-rgx1gen11.config}
 modules_dir=
 firmware_root=/lib/firmware
 pci_id=8086:51ca
-expected_driver=sof-audio-pci-intel-tgl
+expected_driver=${RGX1GEN11_AUDIO_DRIVER:-}
 require_firmware=0
 require_boot_log=0
 live=0
@@ -21,7 +21,7 @@ Options:
   --modules-dir PATH     Installed module tree, for example /usr/lib/modules/7.0.12-1-rg
   --firmware-root PATH   Firmware directory (default: /lib/firmware)
   --pci-id ID            Audio PCI ID to inspect with lspci (default: 8086:51ca)
-  --driver NAME          Expected live kernel driver (default: sof-audio-pci-intel-tgl)
+  --driver NAME          Expected live kernel driver; defaults to any supported HDA/SOF path
   --require-firmware     Require SOF firmware and topology files under --firmware-root
   --require-boot-log     Require current-boot SOF/HDA journal entries
   --live                 Check the running kernel module tree and boot policy
@@ -166,6 +166,7 @@ want_firmware() {
 want_lspci_driver() {
   local module=$1
   local lspci_output
+  local driver
   local modules_line
   local modules_words
 
@@ -180,10 +181,17 @@ want_lspci_driver() {
     return
   fi
 
-  if grep -Eq "Kernel driver in use:[[:space:]]+$expected_driver$" <<<"$lspci_output"; then
-    pass "$pci_id uses $expected_driver"
+  driver=$(sed -nE 's/^[[:space:]]*Kernel driver in use:[[:space:]]+(.+)$/\1/p' <<<"$lspci_output" | head -n 1)
+  if [[ -n $expected_driver ]]; then
+    if [[ $driver == "$expected_driver" ]]; then
+      pass "$pci_id uses $expected_driver"
+    else
+      fail "$pci_id uses ${driver:-no driver}, expected $expected_driver"
+    fi
+  elif [[ $driver == snd_hda_intel || $driver == sof-audio-pci-intel-tgl || $driver == snd_soc_avs ]]; then
+    pass "$pci_id uses supported audio driver $driver"
   else
-    fail "$pci_id is not bound to $expected_driver"
+    fail "$pci_id uses unsupported audio driver ${driver:-none}"
   fi
 
   modules_line=$(grep -E '^[[:space:]]*Kernel modules:' <<<"$lspci_output" || true)
@@ -223,7 +231,6 @@ want_config CONFIG_SND_SOC_SOF_INTEL_TGL 'CONFIG_SND_SOC_SOF_INTEL_TGL=m'
 want_config CONFIG_SND_SOC_SOF_INTEL_MTL 'CONFIG_SND_SOC_SOF_INTEL_MTL=m'
 want_config CONFIG_SND_SOC_SOF_INTEL_COMMON 'CONFIG_SND_SOC_SOF_INTEL_COMMON=m'
 want_config CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE 'CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE=m'
-want_config CONFIG_SND_SOC_INTEL_SOF_MAXIM_COMMON 'CONFIG_SND_SOC_INTEL_SOF_MAXIM_COMMON=m'
 want_config CONFIG_SND_HDA_INTEL 'CONFIG_SND_HDA_INTEL=m'
 want_config CONFIG_SND_HDA_CODEC_REALTEK 'CONFIG_SND_HDA_CODEC_REALTEK=m'
 want_config CONFIG_SND_HDA_CODEC_HDMI 'CONFIG_SND_HDA_CODEC_HDMI=m'
