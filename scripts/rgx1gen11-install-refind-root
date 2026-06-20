@@ -538,7 +538,7 @@ main() {
 
   echo
   echo "== install packages =="
-  pacman -U --needed --noconfirm "$kernel_pkg" "$headers_pkg"
+  pacman -U --noconfirm "$kernel_pkg" "$headers_pkg"
 
   need_file "/usr/lib/modules/$kver/vmlinuz"
   install -m 0644 "/usr/lib/modules/$kver/vmlinuz" "$boot_kernel"
