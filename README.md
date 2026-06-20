@@ -220,10 +220,10 @@ bash scripts/rgx1gen11-install-refind-root-selftest
 scripts/rgx1gen11-install-refind-root --dry-run
 ```
 
-After selecting `Arch Linux linux-rg` in rEFInd, validate from this checkout:
+After selecting `Arch Linux linux-rg` in rEFInd:
 
 ```sh
-./rgx1gen11-live-check --with-userspace
+rgx1gen11-live-check --with-userspace
 ```
 
 If the package is already built and the installed tree needs to be repaired
