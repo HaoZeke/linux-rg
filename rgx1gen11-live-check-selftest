@@ -22,9 +22,18 @@ printf '%s\n' "$out" | rg -Fq 'rgx1gen11-idle-check --live' \
   || fail "dry-run should include cpuidle TEO validation"
 printf '%s\n' "$out" | rg -Fq 'rgx1gen11-s0ix-preflight' \
   || fail "dry-run should include S0ix preflight"
+if printf '%s\n' "$out" | rg -Fq "''"; then
+  fail "dry-run should not print empty placeholder arguments"
+fi
 
 out_with_logs=$("$checker" --dry-run)
 printf '%s\n' "$out_with_logs" | rg -Fq 'rgx1gen11-boot-check --live --require-boot-log' \
   || fail "default dry-run should require boot-log signatures"
+
+out_with_userspace=$("$checker" --dry-run --with-userspace)
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-memory-sysctl-check' \
+  || fail "userspace dry-run should include memory sysctl check without PATH lookup"
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-x1gen11-profile doctor' \
+  || fail "userspace dry-run should include profile doctor without PATH lookup"
 
 printf 'ok\n'

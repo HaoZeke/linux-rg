@@ -64,16 +64,18 @@ run_check() {
   shift
   local cmd
 
-  if ! cmd=$(resolve_cmd "$name"); then
-    printf 'fail: command unavailable: %s\n' "$name" >&2
-    failures=$((failures + 1))
+  if (( dry_run )); then
+    printf '%s' "$name"
+    if (($#)); then
+      printf ' %q' "$@"
+    fi
+    printf '\n'
     return
   fi
 
-  if (( dry_run )); then
-    printf '%s' "$name"
-    printf ' %q' "$@"
-    printf '\n'
+  if ! cmd=$(resolve_cmd "$name"); then
+    printf 'fail: command unavailable: %s\n' "$name" >&2
+    failures=$((failures + 1))
     return
   fi
 
