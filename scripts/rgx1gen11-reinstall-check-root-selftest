@@ -22,7 +22,9 @@ make_pkg() {
   rm -rf "$root"
   mkdir -p \
     "$root/usr/bin" \
-    "$root/usr/lib/modules/9.9.9-rg" \
+    "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/async_tx" \
+    "$root/usr/lib/modules/9.9.9-rg/kernel/crypto" \
+    "$root/usr/lib/modules/9.9.9-rg/kernel/drivers/md" \
     "$root/usr/lib/systemd/system" \
     "$root/usr/share/libalpm/hooks" \
     "$root/usr/share/linux-rg/dkms-overlays"
@@ -32,6 +34,12 @@ make_pkg() {
   fi
   : > "$root/usr/bin/rgx1gen11-dkms-overlay-apply"
   : > "$root/usr/lib/modules/9.9.9-rg/vmlinuz"
+  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/async_tx/async_tx.ko.zst"
+  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/async_tx/async_xor.ko.zst"
+  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/lz4.ko.zst"
+  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/lz4hc.ko.zst"
+  : > "$root/usr/lib/modules/9.9.9-rg/kernel/drivers/md/dm-bufio.ko.zst"
+  : > "$root/usr/lib/modules/9.9.9-rg/kernel/drivers/md/dm-integrity.ko.zst"
   : > "$root/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
   : > "$root/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
   : > "$root/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
@@ -57,7 +65,7 @@ rg -Fq 'package payload missing: usr/bin/rgx1gen11-live-check' "$bad_out" \
 out="$tmpdir/out"
 "$script" --dry-run --artifact-dir "$tmpdir" >"$out"
 
-rg -Fq 'ok: linux-rg package payload includes live checks and DKMS overlays' "$out" \
+rg -Fq 'ok: linux-rg package payload includes live checks, DKMS overlays, and initramfs modules' "$out" \
   || fail "dry-run should validate package payload"
 rg -Fq 'dry-run: pacman -U' "$out" \
   || fail "dry-run should print pacman reinstall command"
