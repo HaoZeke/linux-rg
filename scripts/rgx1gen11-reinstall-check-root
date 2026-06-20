@@ -113,6 +113,12 @@ package_has_path() {
   bsdtar -tf "$pkg" | rg -qx "$path"
 }
 
+package_kver() {
+  bsdtar -tf "$kernel_pkg" |
+    sed -n 's#^usr/lib/modules/\([^/]*-rg\)/vmlinuz$#\1#p' |
+    head -n 1
+}
+
 validate_package_payload() {
   local path
   for path in \
@@ -133,10 +139,11 @@ validate_package_payload() {
 }
 
 show_owner_sample() {
+  local kver=$1
   bsdtar -tvf "$kernel_pkg" \
     usr/bin/rgx1gen11-boot-check \
     usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook \
-    usr/lib/modules/7.0.12-arch1-1-rg/vmlinuz
+    "usr/lib/modules/$kver/vmlinuz"
 }
 
 boot_junk_paths() {
@@ -201,9 +208,14 @@ printf '== preflight ==\n'
 df -h / /boot || true
 stat -c '%U:%G %a %s %n' "$kernel_pkg" "$headers_pkg"
 validate_package_payload
+kver=$(package_kver)
+if [[ -z $kver ]]; then
+  printf 'error: could not read linux-rg kernel version from %s\n' "$kernel_pkg" >&2
+  exit 1
+fi
 
 printf '\n== package owner metadata sample ==\n'
-show_owner_sample
+show_owner_sample "$kver"
 
 printf '\n== boot junk cleanup ==\n'
 clean_boot_junk
@@ -241,7 +253,7 @@ run_package_check
 printf '\n== critical ownership sample ==\n'
 stat -c '%U:%G %a %n' \
   /usr/bin/rgx1gen11-boot-check \
-  /usr/lib/modules/7.0.12-arch1-1-rg/vmlinuz \
+  "/usr/lib/modules/$kver/vmlinuz" \
   /boot/vmlinuz-linux-rg \
   /boot/initramfs-linux-rg.img
 
