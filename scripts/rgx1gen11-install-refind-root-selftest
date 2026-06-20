@@ -25,6 +25,7 @@ touch "$pkgroot/usr/lib/modules/9.9.9-rg/vmlinuz"
 printf 'linux-rg\n' >"$pkgroot/usr/lib/modules/9.9.9-rg/pkgbase"
 mkdir -p "$pkgroot/usr/bin" "$pkgroot/usr/lib/systemd/system"
 touch "$pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
+touch "$pkgroot/usr/bin/rgx1gen11-live-check"
 touch "$pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
 bsdtar -cf "$artifact_dir/linux-rg-9.9.9-x86_64.pkg.tar.zst" -C "$pkgroot" usr
 touch "$artifact_dir/linux-rg-headers-9.9.9-x86_64.pkg.tar.zst"
@@ -36,8 +37,20 @@ touch "$bad_pkgroot/usr/lib/modules/9.9.8-rg/vmlinuz"
 printf 'linux-rg\n' >"$bad_pkgroot/usr/lib/modules/9.9.8-rg/pkgbase"
 mkdir -p "$bad_pkgroot/usr/bin"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
+touch "$bad_pkgroot/usr/bin/rgx1gen11-live-check"
 bsdtar -cf "$bad_artifact_dir/linux-rg-9.9.8-x86_64.pkg.tar.zst" -C "$bad_pkgroot" usr
 touch "$bad_artifact_dir/linux-rg-headers-9.9.8-x86_64.pkg.tar.zst"
+
+bad_live_pkgroot="$tmpdir/bad-live-pkgroot"
+bad_live_artifact_dir="$tmpdir/bad-live-artifacts"
+mkdir -p "$bad_live_artifact_dir" "$bad_live_pkgroot/usr/lib/modules/9.9.7-rg"
+touch "$bad_live_pkgroot/usr/lib/modules/9.9.7-rg/vmlinuz"
+printf 'linux-rg\n' >"$bad_live_pkgroot/usr/lib/modules/9.9.7-rg/pkgbase"
+mkdir -p "$bad_live_pkgroot/usr/bin" "$bad_live_pkgroot/usr/lib/systemd/system"
+touch "$bad_live_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
+touch "$bad_live_pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+bsdtar -cf "$bad_live_artifact_dir/linux-rg-9.9.7-x86_64.pkg.tar.zst" -C "$bad_live_pkgroot" usr
+touch "$bad_live_artifact_dir/linux-rg-headers-9.9.7-x86_64.pkg.tar.zst"
 
 refind_conf="$tmpdir/refind.conf"
 cat >"$refind_conf" <<'EOF'
@@ -113,6 +126,18 @@ if LINUX_RG_ARTIFACT_DIR="$bad_artifact_dir" \
 fi
 rg -Fq 'package payload missing: usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service' "$bad_out" \
   || fail "stale package rejection should name the missing hibernate image-size unit"
+
+bad_live_out="$tmpdir/bad-live-dry-run.out"
+if LINUX_RG_ARTIFACT_DIR="$bad_live_artifact_dir" \
+  LINUX_RG_PROC_MOUNTS="$proc_mounts" \
+  LINUX_RG_VCONSOLE_CONF="$vconsole_conf" \
+  REFIND_CONF="$refind_conf" \
+  MKINITCPIO_BASE="$mkinitcpio_base" \
+  "$installer" --dry-run >"$bad_live_out" 2>&1; then
+  fail "dry run should reject a stale package without live-check"
+fi
+rg -Fq 'package payload missing: usr/bin/rgx1gen11-live-check' "$bad_live_out" \
+  || fail "stale package rejection should name the missing live-check helper"
 rg -q "'scx-tools:.*scx_loader" "$pkgbuild" \
   || fail "PKGBUILD should name the Arch package that provides scx_loader"
 if rg -q 'scx_loader: ASA router expert scheduler switching' "$pkgbuild" "$srcinfo"; then
