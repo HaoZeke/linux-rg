@@ -157,6 +157,14 @@ clean_boot_junk() {
   boot_junk_paths -delete || true
 }
 
+repair_package_ownership() {
+  pacman -Qlq linux-rg linux-rg-headers |
+    sort -u |
+    while IFS= read -r path; do
+      [[ -e $path || -L $path ]] && chown -h root:root "$path"
+    done
+}
+
 run_package_check() {
   local output=/tmp/rg-linux-rg-qkk-after-reinstall.out
   pacman -Qkk linux-rg linux-rg-headers 2>&1 | tee "$output" | tail -n 120
@@ -200,9 +208,18 @@ fi
 
 printf '\n== reinstall linux-rg packages ==\n'
 pacman -U "$kernel_pkg" "$headers_pkg"
+repair_package_ownership
 
 printf '\n== rebuild initramfs ==\n'
 mkinitcpio -p linux-rg
+if [[ -e /boot/vmlinuz-linux-rg ]]; then
+  chown root:root /boot/vmlinuz-linux-rg
+  chmod 0644 /boot/vmlinuz-linux-rg
+fi
+if [[ -e /boot/initramfs-linux-rg.img ]]; then
+  chown root:root /boot/initramfs-linux-rg.img
+  chmod 0644 /boot/initramfs-linux-rg.img
+fi
 
 printf '\n== boot check ==\n'
 rgx1gen11-boot-check --installed

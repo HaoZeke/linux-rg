@@ -438,6 +438,14 @@ enable_hibernate_image_size() {
   fi
 }
 
+repair_package_ownership() {
+  pacman -Qlq linux-rg linux-rg-headers |
+    sort -u |
+    while IFS= read -r path; do
+      [[ -e $path || -L $path ]] && chown -h root:root "$path"
+    done
+}
+
 print_state() {
   echo
   echo "== packages =="
@@ -539,6 +547,7 @@ main() {
   echo
   echo "== install packages =="
   pacman -U --noconfirm "$kernel_pkg" "$headers_pkg"
+  repair_package_ownership
 
   need_file "/usr/lib/modules/$kver/vmlinuz"
   install -m 0644 "/usr/lib/modules/$kver/vmlinuz" "$boot_kernel"
@@ -549,6 +558,8 @@ main() {
   write_mkinitcpio_config
   write_mkinitcpio_preset
   mkinitcpio -p linux-rg
+  chown root:root "$boot_kernel" "$boot_initramfs"
+  chmod 0644 "$boot_kernel" "$boot_initramfs"
 
   echo
   echo "== rEFInd =="
