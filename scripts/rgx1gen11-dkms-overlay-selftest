@@ -42,7 +42,10 @@ dry_run_patch() {
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' RETURN
   cp -a "$src_root" "$tmp/$src_name"
-  patch -d "$tmp/$src_name" -p2 --dry-run --forward --silent < "$root/$patch_path"
+  if patch -d "$tmp/$src_name" -p2 --dry-run --forward --silent < "$root/$patch_path"; then
+    return 0
+  fi
+  patch -d "$tmp/$src_name" -p2 --dry-run --reverse --silent < "$root/$patch_path"
 }
 
 require_executable rgx1gen11-dkms-overlay-apply
@@ -60,6 +63,7 @@ require_text dkms-overlays/rtl88xxau-r1298-linux-7.0.patch 'radio_idx'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'EVDI_ENABLE_FBDEV'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'const struct drm_format_info *info'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'MODULE_IMPORT_NS("DMA_BUF")'
+require_text rgx1gen11-dkms-overlay-apply 'linux-rg ships v4l2loopback in-tree'
 
 require_text 69-linux-rg-dkms-overlays.hook 'Exec = /usr/bin/rgx1gen11-dkms-overlay-apply --patch-only --if-present'
 require_text 69-linux-rg-dkms-overlays.hook 'Target = linux-rg'

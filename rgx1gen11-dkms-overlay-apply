@@ -168,6 +168,43 @@ patch_module() {
   fi
 }
 
+skip_duplicate_v4l2loopback() {
+  local module=v4l2loopback
+  local version=0.15.3
+  local src_name=v4l2loopback-0.15.3
+  local src_dir=/usr/src/$src_name
+  local stamp=$1
+  local marker='linux-rg ships v4l2loopback in-tree'
+
+  printf '\n== skip %s/%s for %s ==\n' "$module" "$version" "$target_kver"
+
+  [[ -d $src_dir ]] || {
+    if ((if_present)); then
+      printf 'skip: missing DKMS source: %s\n' "$src_dir"
+      return 0
+    fi
+    printf 'error: missing DKMS source: %s\n' "$src_dir" >&2
+    return 1
+  }
+
+  backup_source "$src_name" "$stamp"
+  for dkms_conf in "$src_dir/dkms.conf" "/var/lib/dkms/$module/$version/build/dkms.conf"; do
+    [[ -f $dkms_conf ]] || continue
+    if rg -q --fixed-strings "$marker" "$dkms_conf"; then
+      printf 'already patched: %s\n' "$dkms_conf"
+      continue
+    fi
+    cat >>"$dkms_conf" <<'EOF'
+
+# linux-rg ships v4l2loopback in-tree; keep this DKMS package for fallback kernels.
+case "${kernelver:-}" in
+  *-rg) BUILD_EXCLUSIVE_KERNEL="linux-rg ships v4l2loopback in-tree" ;;
+esac
+EOF
+    printf 'patched: %s\n' "$dkms_conf"
+  done
+}
+
 rebuild_module() {
   local module=$1
   local version=$2
@@ -185,6 +222,7 @@ printf 'jobs: %s\n' "$jobs"
 patch_module ddcci 0.4.5 ddcci-0.4.5 dkms-overlays/ddcci-0.4.5-linux-7.0.patch "$stamp"
 patch_module rtl88xxau r1298.b44d288 rtl88xxau-r1298.b44d288 dkms-overlays/rtl88xxau-r1298-linux-7.0.patch "$stamp"
 patch_module evdi 1.14.7 evdi-1.14.7 dkms-overlays/evdi-1.14.7-linux-7.0.patch "$stamp"
+skip_duplicate_v4l2loopback "$stamp"
 
 if ((patch_only)); then
   printf '\npatch-only: dkms rebuild left to pacman hook\n'
