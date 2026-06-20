@@ -224,6 +224,34 @@ want_mkinitcpio_hooks() {
   done
 }
 
+want_mkinitcpio_crypto_modules() {
+  local line modules module
+
+  if [[ ! -r $mkinitcpio_config ]]; then
+    fail "mkinitcpio config is not readable: $mkinitcpio_config"
+    return
+  fi
+
+  line=$(grep -E '^[[:space:]]*CRYPTO_MODULES=' "$mkinitcpio_config" | tail -n 1 || true)
+  if [[ -z $line ]]; then
+    fail "mkinitcpio CRYPTO_MODULES line missing from $mkinitcpio_config"
+    return
+  fi
+
+  modules=${line#*=}
+  modules=${modules//\"/}
+  modules=${modules//\'/}
+  modules=${modules#\(}
+  modules=${modules%\)}
+  for module in aesni_intel cryptd essiv lz4 lz4hc; do
+    if has_word "$modules" "$module"; then
+      pass "mkinitcpio CRYPTO_MODULES includes $module"
+    else
+      fail "mkinitcpio CRYPTO_MODULES lacks $module: $line"
+    fi
+  done
+}
+
 refind_options_for() {
   local title=$1
   sed -n "/^menuentry \"$title\" {/,/^}/p" "$refind_conf" |
@@ -396,6 +424,7 @@ check_installed() {
   want_file "$boot_kernel" "boot kernel"
   want_file "$boot_initramfs" "boot initramfs"
   want_mkinitcpio_modules
+  want_mkinitcpio_crypto_modules
   want_mkinitcpio_hooks
   want_refind_entry
   want_refind_linux_rg_options

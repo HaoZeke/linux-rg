@@ -132,8 +132,13 @@ validate_package_payload() {
     usr/bin/rgx1gen11-dkms-overlay-apply \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_tx.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_xor.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/aria_generic.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/cast5_generic.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/cast6_generic.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/cast_common.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/lz4.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/lz4hc.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/serpent_generic.ko.zst" \
     "usr/lib/modules/$kver/kernel/drivers/md/dm-bufio.ko.zst" \
     "usr/lib/modules/$kver/kernel/drivers/md/dm-integrity.ko.zst" \
     usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service \

@@ -52,6 +52,7 @@ mkinitcpio_preset=${MKINITCPIO_PRESET:-/etc/mkinitcpio.d/linux-rg.preset}
 boot_kernel=${BOOT_KERNEL:-/boot/vmlinuz-linux-rg}
 boot_initramfs=${BOOT_INITRAMFS:-/boot/initramfs-linux-rg.img}
 module_list=${LINUX_RG_INITRAMFS_MODULES:-"nvme i915"}
+crypto_module_list=${LINUX_RG_CRYPTO_MODULES:-"aesni_intel cryptd essiv lz4 lz4hc"}
 console_font=${LINUX_RG_CONSOLE_FONT:-Lat2-Terminus16}
 proc_mounts=${LINUX_RG_PROC_MOUNTS:-/proc/mounts}
 vconsole_conf=${LINUX_RG_VCONSOLE_CONF:-/etc/vconsole.conf}
@@ -108,8 +109,13 @@ validate_package_payload() {
     usr/bin/rgx1gen11-live-check \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_tx.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_xor.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/aria_generic.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/cast5_generic.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/cast6_generic.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/cast_common.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/lz4.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/lz4hc.ko.zst" \
+    "usr/lib/modules/$kver/kernel/crypto/serpent_generic.ko.zst" \
     "usr/lib/modules/$kver/kernel/drivers/md/dm-bufio.ko.zst" \
     "usr/lib/modules/$kver/kernel/drivers/md/dm-integrity.ko.zst" \
     usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service \
@@ -135,6 +141,10 @@ module_array_literal() {
     fi
   done
   printf '%s)\n' "$out"
+}
+
+crypto_modules_line() {
+  printf 'CRYPTO_MODULES="%s"\n' "$crypto_module_list"
 }
 
 line_words() {
@@ -257,20 +267,28 @@ probe_boot_contract() {
 }
 
 write_mkinitcpio_config() {
-  local tmp modules_line hooks_line font_line
+  local tmp modules_line crypto_line hooks_line font_line
   tmp=$(mktemp)
   modules_line=$(module_array_literal)
+  crypto_line=$(crypto_modules_line)
   hooks_line=$(hook_line_with_microcode)
   font_line="FONT=$console_font"
-  awk -v modules_line="$modules_line" -v hooks_line="$hooks_line" -v font_line="$font_line" '
+  awk -v modules_line="$modules_line" -v crypto_line="$crypto_line" \
+    -v hooks_line="$hooks_line" -v font_line="$font_line" '
     BEGIN {
       replaced_modules = 0
+      replaced_crypto = 0
       replaced_hooks = 0
       replaced_font = 0
     }
     /^MODULES=/ {
       print modules_line
       replaced_modules = 1
+      next
+    }
+    /^CRYPTO_MODULES=/ {
+      print crypto_line
+      replaced_crypto = 1
       next
     }
     /^HOOKS=/ {
@@ -287,6 +305,9 @@ write_mkinitcpio_config() {
     END {
       if (!replaced_modules) {
         print modules_line
+      }
+      if (!replaced_crypto) {
+        print crypto_line
       }
       if (!replaced_hooks) {
         print hooks_line
