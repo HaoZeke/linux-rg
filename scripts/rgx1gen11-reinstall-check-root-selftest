@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+script="$repo/scripts/rgx1gen11-reinstall-check-root"
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  exit 1
+}
+
+test -x "$script" || fail "missing script: $script"
+bash -n "$script"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+make_pkg() {
+  local pkg=$1
+  local root=$tmpdir/root
+  rm -rf "$root"
+  mkdir -p \
+    "$root/usr/bin" \
+    "$root/usr/lib/modules/7.0.12-arch1-1-rg" \
+    "$root/usr/lib/systemd/system" \
+    "$root/usr/share/libalpm/hooks" \
+    "$root/usr/share/linux-rg/dkms-overlays"
+  : > "$root/usr/bin/rgx1gen11-boot-check"
+  : > "$root/usr/bin/rgx1gen11-dkms-overlay-apply"
+  : > "$root/usr/lib/modules/7.0.12-arch1-1-rg/vmlinuz"
+  : > "$root/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+  : > "$root/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
+  : > "$root/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
+  : > "$root/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
+  : > "$root/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+  bsdtar --zstd -cf "$pkg" -C "$root" usr
+}
+
+make_pkg "$tmpdir/linux-rg-7.0.12.arch1-1-x86_64.pkg.tar.zst"
+make_pkg "$tmpdir/linux-rg-headers-7.0.12.arch1-1-x86_64.pkg.tar.zst"
+
+out="$tmpdir/out"
+"$script" --dry-run --artifact-dir "$tmpdir" >"$out"
+
+rg -Fq 'ok: linux-rg package payload includes boot checker and DKMS overlays' "$out" \
+  || fail "dry-run should validate package payload"
+rg -Fq 'dry-run: pacman -U' "$out" \
+  || fail "dry-run should print pacman reinstall command"
+rg -Fq 'dry-run: mkinitcpio -p linux-rg' "$out" \
+  || fail "dry-run should print mkinitcpio command"
+rg -Fq 'dry-run: rgx1gen11-boot-check --installed' "$out" \
+  || fail "dry-run should print installed boot check command"
+
+printf 'ok\n'

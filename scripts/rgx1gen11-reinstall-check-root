@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+clean_boot=1
+artifact_dir=${LINUX_RG_ARTIFACT_DIR:-}
+kernel_pkg=${LINUX_RG_KERNEL_PKG:-}
+headers_pkg=${LINUX_RG_HEADERS_PKG:-}
+refind_conf=${REFIND_CONF:-/boot/EFI/refind/refind.conf}
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-reinstall-check-root [options]
+
+Reinstall linux-rg packages, rebuild the linux-rg initramfs, and print boot and
+ownership checks. This is for repairing an installed tree from preserved
+packages without rebuilding the kernel.
+
+Options:
+  --dry-run             Validate package discovery and payload without writes
+  --artifact-dir PATH   Directory containing linux-rg package artifacts
+  --kernel-pkg PATH     Exact linux-rg package artifact
+  --headers-pkg PATH    Exact linux-rg-headers package artifact
+  --skip-boot-clean     Do not delete rEFInd screenshots or FSCK*.REC files
+  -h, --help            Show this help
+USAGE
+}
+
+while (($#)); do
+  case "$1" in
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --artifact-dir)
+      artifact_dir=$2
+      shift 2
+      ;;
+    --kernel-pkg)
+      kernel_pkg=$2
+      shift 2
+      ;;
+    --headers-pkg)
+      headers_pkg=$2
+      shift 2
+      ;;
+    --skip-boot-clean)
+      clean_boot=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+require_root() {
+  if ((dry_run)); then
+    return
+  fi
+  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+    printf 'error: run as root or pass --dry-run\n' >&2
+    exit 1
+  fi
+}
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+checkout_root=$(cd -- "$script_dir/.." && pwd)
+
+default_artifact_home() {
+  local home user
+  user=${SUDO_USER:-}
+  if [[ -n $user && $user != root ]] && command -v getent >/dev/null 2>&1; then
+    home=$(getent passwd "$user" | cut -d: -f6 || true)
+    if [[ -n $home ]]; then
+      printf '%s\n' "$home"
+      return
+    fi
+  fi
+  printf '%s\n' "${HOME:-/root}"
+}
+
+default_artifact_dir() {
+  if compgen -G "$checkout_root/linux-rg-[0-9]*-x86_64.pkg.tar.zst" >/dev/null; then
+    printf '%s\n' "$checkout_root"
+    return
+  fi
+  printf '%s/.local/share/rg-kernel/artifacts/linux-rg\n' "$(default_artifact_home)"
+}
+
+latest_package() {
+  local dir=$1 pattern=$2 description=$3
+  local candidates=() sorted=()
+  if [[ -d $dir ]]; then
+    mapfile -d '' -t candidates < <(find "$dir" -maxdepth 1 -type f -name "$pattern" -print0)
+  fi
+  if (( ${#candidates[@]} == 0 )); then
+    printf 'error: no %s found under %s\n' "$description" "$dir" >&2
+    exit 1
+  fi
+  mapfile -d '' -t sorted < <(printf '%s\0' "${candidates[@]}" | sort -z)
+  printf '%s\n' "${sorted[-1]}"
+}
+
+package_has_path() {
+  local pkg=$1 path=$2
+  bsdtar -tf "$pkg" | rg -qx "$path"
+}
+
+validate_package_payload() {
+  local path
+  for path in \
+    usr/bin/rgx1gen11-boot-check \
+    usr/bin/rgx1gen11-dkms-overlay-apply \
+    usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service \
+    usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook \
+    usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch \
+    usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch \
+    usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch; do
+    if ! package_has_path "$kernel_pkg" "$path"; then
+      printf 'error: package payload missing: %s\n' "$path" >&2
+      exit 1
+    fi
+  done
+  printf 'ok: linux-rg package payload includes boot checker and DKMS overlays\n'
+}
+
+show_owner_sample() {
+  bsdtar -tvf "$kernel_pkg" \
+    usr/bin/rgx1gen11-boot-check \
+    usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook \
+    usr/lib/modules/7.0.12-arch1-1-rg/vmlinuz
+}
+
+boot_junk_paths() {
+  find /boot -maxdepth 1 \
+    \( -name 'screenshot_*.bmp' -o -name 'FSCK*.REC' \) \
+    -type f -print
+}
+
+clean_boot_junk() {
+  if (( ! clean_boot )); then
+    printf 'skip: boot cleanup disabled\n'
+    return
+  fi
+  if (( dry_run )); then
+    printf 'dry-run: would delete known rEFInd/FSCK junk under /boot:\n'
+    boot_junk_paths || true
+    return
+  fi
+  boot_junk_paths -delete || true
+}
+
+run_package_check() {
+  local output=/tmp/rg-linux-rg-qkk-after-reinstall.out
+  pacman -Qkk linux-rg linux-rg-headers 2>&1 | tee "$output" | tail -n 120
+  if rg -q 'UID mismatch|GID mismatch|altered files' "$output"; then
+    printf 'error: pacman ownership check still reports altered files\n' >&2
+    return 1
+  fi
+}
+
+require_root
+
+if [[ -z $artifact_dir ]]; then
+  artifact_dir=$(default_artifact_dir)
+fi
+if [[ -z $kernel_pkg ]]; then
+  kernel_pkg=$(latest_package "$artifact_dir" 'linux-rg-[0-9]*-x86_64.pkg.tar.zst' 'linux-rg package')
+fi
+if [[ -z $headers_pkg ]]; then
+  headers_pkg=$(latest_package "$artifact_dir" 'linux-rg-headers-[0-9]*-x86_64.pkg.tar.zst' 'linux-rg-headers package')
+fi
+
+printf '== preflight ==\n'
+df -h / /boot || true
+stat -c '%U:%G %a %s %n' "$kernel_pkg" "$headers_pkg"
+validate_package_payload
+
+printf '\n== package owner metadata sample ==\n'
+show_owner_sample
+
+printf '\n== boot junk cleanup ==\n'
+clean_boot_junk
+df -h /boot || true
+
+if (( dry_run )); then
+  printf '\n== dry-run package commands ==\n'
+  printf 'dry-run: pacman -U %q %q\n' "$kernel_pkg" "$headers_pkg"
+  printf 'dry-run: mkinitcpio -p linux-rg\n'
+  printf 'dry-run: rgx1gen11-boot-check --installed\n'
+  exit 0
+fi
+
+printf '\n== reinstall linux-rg packages ==\n'
+pacman -U "$kernel_pkg" "$headers_pkg"
+
+printf '\n== rebuild initramfs ==\n'
+mkinitcpio -p linux-rg
+
+printf '\n== boot check ==\n'
+rgx1gen11-boot-check --installed
+
+printf '\n== package ownership check ==\n'
+run_package_check
+
+printf '\n== critical ownership sample ==\n'
+stat -c '%U:%G %a %n' \
+  /usr/bin/rgx1gen11-boot-check \
+  /usr/lib/modules/7.0.12-arch1-1-rg/vmlinuz \
+  /boot/vmlinuz-linux-rg \
+  /boot/initramfs-linux-rg.img
+
+printf '\n== rEFInd linux-rg entry ==\n'
+sed -n '/^menuentry "Arch Linux linux-rg" {/,/^}/p' "$refind_conf" || true
+
+printf '\n== final space ==\n'
+df -h / /boot

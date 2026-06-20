@@ -81,6 +81,13 @@ env GNUPGHOME=${GNUPGHOME:-/home/rgoswami/.local/share/chezmoi/.kernel-build/gnu
 `-j9` keeps the local build under the configured 80% CPU cap for this 12-thread
 machine.
 
+For `rgx1gen11`, the build recipe applies `rgx1gen11.lsmod` through
+`localmodconfig` before the profile overlay. The overlay then re-pins the boot,
+input, GPU, Wi-Fi, Bluetooth, audio, camera, DDC/CI, pstore, and sched-ext
+contracts. `LINUX_RG_MODULE_BUDGET` defaults to `1500` for this profile so a
+broad Arch-style module build fails during `prepare()` instead of during final
+module linking.
+
 ## Hardware Checks
 
 Validate the AX211 policy from the repo config:
@@ -229,6 +236,19 @@ After selecting `Arch Linux linux-rg` in rEFInd:
 ```sh
 rgx1gen11-boot-check --live --require-boot-log
 ```
+
+If the package is already built and the installed tree needs to be repaired
+without rebuilding, run the reinstall verifier from the checkout:
+
+```sh
+scripts/rgx1gen11-reinstall-check-root --dry-run
+sudo bash scripts/rgx1gen11-reinstall-check-root
+```
+
+The script validates the package payload, removes only known rEFInd screenshots
+and `FSCK*.REC` files from `/boot`, reinstalls `linux-rg` and
+`linux-rg-headers`, rebuilds the linux-rg initramfs, runs
+`rgx1gen11-boot-check --installed`, and checks pacman file ownership.
 
 ## DKMS Overlays
 

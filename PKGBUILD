@@ -279,6 +279,12 @@ prepare() {
 
   echo "Setting config..."
   cp ../config.$CARCH .config
+  local localmodconfig=${LINUX_RG_LOCALMODCONFIG:-1}
+  local lsmod_snapshot="$startdir/$linux_rg_profile.lsmod"
+  if [[ $localmodconfig = 1 && -s $lsmod_snapshot ]]; then
+    echo "Applying $linux_rg_profile module allowlist..."
+    make LSMOD="$lsmod_snapshot" localmodconfig
+  fi
   echo "Applying $linux_rg_profile config..."
   while IFS= read -r rg_cfg; do
     case "$rg_cfg" in "") continue ;; esac
@@ -302,6 +308,20 @@ prepare() {
     fi
   done < "../$linux_rg_profile.config"
   make olddefconfig
+  local module_count module_budget
+  module_count=$(grep -c '^CONFIG_.*=m$' .config || :)
+  case "$linux_rg_profile" in
+    rgx1gen11) module_budget=${LINUX_RG_MODULE_BUDGET:-1500} ;;
+    *) module_budget=${LINUX_RG_MODULE_BUDGET:-0} ;;
+  esac
+  if (( module_budget > 0 )); then
+    echo "$linux_rg_profile module config count: $module_count / $module_budget"
+    if (( module_count > module_budget )); then
+      echo "$linux_rg_profile module config count exceeds budget" >&2
+      echo "set LINUX_RG_MODULE_BUDGET to an explicit higher value for broad builds" >&2
+      exit 1
+    fi
+  fi
   diff -u ../config.$CARCH .config || :
 
   make -s kernelrelease > version
