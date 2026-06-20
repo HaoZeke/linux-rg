@@ -220,21 +220,10 @@ bash scripts/rgx1gen11-install-refind-root-selftest
 scripts/rgx1gen11-install-refind-root --dry-run
 ```
 
-For the current built package, copy the source checker before running the root
-installer so the install can verify the rEFInd and mkinitcpio state. The
-installer keeps the checker in `/usr/local/bin` when the package does not yet
-provide `/usr/bin/rgx1gen11-boot-check`.
+After selecting `Arch Linux linux-rg` in rEFInd, validate from this checkout:
 
 ```sh
-cp rgx1gen11-boot-check /tmp/rgx1gen11-boot-check
-sudo LINUX_RG_BOOT_CHECK=/tmp/rgx1gen11-boot-check \
-  bash scripts/rgx1gen11-install-refind-root
-```
-
-After selecting `Arch Linux linux-rg` in rEFInd:
-
-```sh
-rgx1gen11-boot-check --live --require-boot-log
+./rgx1gen11-live-check --with-userspace
 ```
 
 If the package is already built and the installed tree needs to be repaired
