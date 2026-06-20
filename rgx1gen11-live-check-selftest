@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+checker="$repo/rgx1gen11-live-check"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+test -x "$checker" || fail "missing executable live checker"
+
+out=$("$checker" --dry-run --no-boot-log)
+printf '%s\n' "$out" | rg -Fq 'rgx1gen11-boot-check --live' \
+  || fail "dry-run should include boot live check"
+printf '%s\n' "$out" | rg -Fq 'rgx1gen11-memory-check --live --require-oomd' \
+  || fail "dry-run should require the oomd memory contract"
+printf '%s\n' "$out" | rg -Fq 'rgx1gen11-nvme-check --live --require-feature' \
+  || fail "dry-run should require NVMe APST feature validation"
+printf '%s\n' "$out" | rg -Fq 'rgx1gen11-idle-check --live' \
+  || fail "dry-run should include cpuidle TEO validation"
+printf '%s\n' "$out" | rg -Fq 'rgx1gen11-s0ix-preflight' \
+  || fail "dry-run should include S0ix preflight"
+
+out_with_logs=$("$checker" --dry-run)
+printf '%s\n' "$out_with_logs" | rg -Fq 'rgx1gen11-boot-check --live --require-boot-log' \
+  || fail "default dry-run should require boot-log signatures"
+
+printf 'ok\n'

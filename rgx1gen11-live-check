@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+require_boot_log=1
+with_userspace=0
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-live-check [options]
+
+Run the rgx1gen11 post-reboot linux-rg validation bundle.
+
+Options:
+  --dry-run          Print commands without running them
+  --no-boot-log      Do not require GPU/SOF boot-log signatures
+  --with-userspace   Also run chezmoi userspace policy checks from PATH
+  -h, --help         Show this help
+USAGE
+}
+
+while (($#)); do
+  case "$1" in
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --no-boot-log)
+      require_boot_log=0
+      shift
+      ;;
+    --with-userspace)
+      with_userspace=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+failures=0
+
+resolve_cmd() {
+  local name=$1
+  if [[ -x $script_dir/$name ]]; then
+    printf '%s\n' "$script_dir/$name"
+  elif command -v "$name" >/dev/null 2>&1; then
+    command -v "$name"
+  else
+    return 1
+  fi
+}
+
+run_check() {
+  local name=$1
+  shift
+  local cmd
+
+  if ! cmd=$(resolve_cmd "$name"); then
+    printf 'fail: command unavailable: %s\n' "$name" >&2
+    failures=$((failures + 1))
+    return
+  fi
+
+  if (( dry_run )); then
+    printf '%s' "$name"
+    printf ' %q' "$@"
+    printf '\n'
+    return
+  fi
+
+  printf '\n== %s ==\n' "$name"
+  if ! "$cmd" "$@"; then
+    failures=$((failures + 1))
+  fi
+}
+
+boot_args=(--live)
+if (( require_boot_log )); then
+  boot_args+=(--require-boot-log)
+fi
+
+run_check rgx1gen11-boot-check "${boot_args[@]}"
+run_check rgx1gen11-memory-check --live --require-oomd
+run_check rgx1gen11-nvme-check --live --require-feature
+run_check rgx1gen11-idle-check --live
+run_check rgx1gen11-s0ix-preflight
+
+if (( with_userspace )); then
+  run_check rg-memory-sysctl-check
+  run_check rg-x1gen11-profile doctor
+fi
+
+if (( failures > 0 )); then
+  exit 1
+fi
