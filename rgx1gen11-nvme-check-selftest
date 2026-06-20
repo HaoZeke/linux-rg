@@ -80,6 +80,8 @@ printf '%s\n' "$output" | rg -q 'ok: nvme_core default_ps_max_latency_us 100000'
   || fail "checker should read nvme_core latency from injected sysfs"
 printf '%s\n' "$output" | rg -q 'ok: cmdline token pcie_aspm.policy=powersave' \
   || fail "checker should read the injected cmdline"
+rg -Fq '/usr/lib/modules/$(uname -r)/build/.config' "$checker" \
+  || fail "live mode should default to the running kernel config"
 
 if NVME_FEATURE_OUTPUT='Autonomous Power State Transition Enable (APSTE): Disabled' \
   PATH="$tmpdir/bin:$PATH" \

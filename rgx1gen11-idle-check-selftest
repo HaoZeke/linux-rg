@@ -41,6 +41,8 @@ printf '%s\n' "$output" | rg -q 'ok: cpuidle driver intel_idle' \
   || fail "checker should require intel_idle"
 printf '%s\n' "$output" | rg -q 'ok: cpuidle governor teo' \
   || fail "checker should require teo governor"
+rg -Fq '/usr/lib/modules/$(uname -r)/build/.config' "$checker" \
+  || fail "live mode should default to the running kernel config"
 
 printf 'menu\n' >"$sys_root/devices/system/cpu/cpuidle/current_governor"
 if "$checker" \

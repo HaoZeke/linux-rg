@@ -98,6 +98,8 @@ rg -Fq "ok: $proc_root/sys/vm/workingset_protection = 1" /tmp/rgx1gen11-memory-c
   || fail "checker should report injected workingset_protection"
 rg -Fq "ok: $proc_root/sys/vm/clean_low_ratio = 15" /tmp/rgx1gen11-memory-check.live-good \
   || fail "checker should report injected clean_low_ratio"
+rg -Fq '/usr/lib/modules/$(uname -r)/build/.config' "$checker" \
+  || fail "live mode should default to the running kernel config"
 
 printf '14\n' >"$proc_root/sys/vm/clean_low_ratio"
 if bash "$checker" \
