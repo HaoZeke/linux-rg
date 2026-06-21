@@ -145,11 +145,16 @@ Daily laptop policy prioritizes cool operation and battery endurance:
 - =rg-x1gen11-profile doctor --check= fails if the active profile drifts from
   live platform profile, CPU governor, EPP, iwlwifi power-save policy, or
   scheduler ladder =scx_mode=.
+- =rg-thermal-stack-check --check= reports platform thermal zones, ThinkPad ACPI
+  fan/thermal exposure, and service ownership. TLP remains the primary laptop
+  power daemon; =power-profiles-daemon= must be inactive, and =thermald= must
+  not run together with TLP without a documented split policy.
 
 Hot laptop triage starts with:
 
 #+begin_src sh
 rg-x1gen11-profile doctor --check
+rg-thermal-stack-check --check
 rg-psi-snapshot
 rgx1gen11-nvme-check --live --require-feature
 #+end_src
