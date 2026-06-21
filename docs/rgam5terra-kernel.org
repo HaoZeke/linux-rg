@@ -106,7 +106,7 @@ profile-specific interpretation as of 2026-06-19 research pass.
 | 0023 btrfs DIO parallel | likely skip | Arch 7.0.12 has =IS_NOSEC= DIO path |
 | 0027 BT USB quirks | probe-gated | cachyos-fixes #04; =linux-rg-eamh= |
 | 0028 in-kernel r8125 | probe-gated | sirlucjan r8125-patches; =linux-rg-awbh= |
-| 0029 udmabuf sg fix | candidate | cachyos-fixes #11; =linux-rg-6rl5= |
+| 0029 udmabuf sg fix | carried shared | cachyos-fixes #11; =linux-rg-6rl5= |
 | 0024 MZEN5 znver5 ISA | candidate | graysky cpu-patches; after PPT gate |
 | 0025 gaming-sched cgroup_mode | candidate | 32T cgroup shares; BORE conflict risk |
 | 0026 newidle balance revert | candidate | Cachy desktop; mutually exclusive w/ 0025 |
@@ -428,7 +428,7 @@ for AMD desktop repos -- this is the closest CachyOS "profile" to rgam5terra.
 | 38 | btrfs DIO not serialized | **carry if btrfs root** | B/C | candidate =0023= |
 | 03 | BT USB quirk =0489:e112= (ASUS B650M) | skip | C | **already in Arch 7.0.12** |
 | 04 | BT USB quirk delta (+15 IDs) | probe B650I VID/PID | C | candidate =0027= if BT broken |
-| 11 | udmabuf malformed scatterlist | shared stability | B | candidate =0029= |
+| 11 | udmabuf malformed scatterlist | shared stability | B | carried =0029= |
 | 01-02,12-29 | i915/Panther PSR/FRED | skip | -- | wrong hardware |
 | 40-46 | AMD PMC laptop quirks | skip | C | ThinkPad/Lenovo laptops |
 
@@ -478,7 +478,7 @@ Ordered implementation queue for the profile:
 | 0026 | newidle balance revert | cachyos-fixes #05 | P3 | alt to 0025 (=linux-rg-nc54=) |
 | 0027 | BT USB quirk delta | cachyos-fixes #04 | P1 | probe-gated (=linux-rg-eamh=) |
 | 0028 | in-kernel r8125 | r8125-patches | P1 | vs DKMS (=linux-rg-awbh=) |
-| 0029 | udmabuf scatterlist fix | cachyos-fixes #11 | P1 | dma-buf stability (=linux-rg-6rl5=) |
+| 0029 | udmabuf scatterlist fix | cachyos-fixes #11 | P1 | carried shared dma-buf stability (=linux-rg-6rl5=) |
 | -- | r8125 DKMS package | CachyOS packaging | P1 | r8169 link instability (=linux-rg-lvi1=) |
 | 0030 | sched idle symmetric hooks | cachyos-fixes #20 | P2 | =linux-rg-i27u= |
 | 0032 | detach_tasks standalone (0011) | fair.c fix | P2 | =linux-rg-ylxm= |

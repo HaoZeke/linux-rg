@@ -1,0 +1,76 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg maintainers <linux-rg@localhost>
+Date: Sat, 20 Jun 2026 00:00:00 +0000
+Subject: [PATCH 29/29] dma-buf/udmabuf: build sg table from resolved pages
+
+udmabuf stores folios plus per-entry offsets.  Resolve that representation to
+the exact backing struct page array and let the scatterlist helper construct the
+table instead of open-coding one PAGE_SIZE segment per folio.
+
+This mirrors the CachyOS fixes-patches #11 carry and avoids malformed
+scatterlist entries when a udmabuf entry refers to a page inside a higher-order
+folio.
+
+Evidence grade: B (dma-buf stability fix; small helper substitution).
+
+---
+ drivers/dma-buf/udmabuf.c | 25 +++++++++++++++++--------
+ 1 file changed, 17 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/dma-buf/udmabuf.c b/drivers/dma-buf/udmabuf.c
+index 6cb1ba4fd..a065b7d10 100644
+--- a/drivers/dma-buf/udmabuf.c
++++ b/drivers/dma-buf/udmabuf.c
+@@ -133,25 +133,34 @@ static struct sg_table *get_sg_table(struct device *dev, struct dma_buf *buf,
+ 				     enum dma_data_direction direction)
+ {
+ 	struct udmabuf *ubuf = buf->priv;
++	struct page **pages;
+ 	struct sg_table *sg;
+-	struct scatterlist *sgl;
+-	unsigned int i = 0;
++	unsigned int i;
+ 	int ret;
+ 
+ 	sg = kzalloc_obj(*sg);
+ 	if (!sg)
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	ret = sg_alloc_table(sg, ubuf->pagecount, GFP_KERNEL);
+-	if (ret < 0)
+-		goto err_alloc;
++	pages = kvmalloc_objs(*pages, ubuf->pagecount);
++	if (!pages) {
++		ret = -ENOMEM;
++		goto err_alloc_pages;
++	}
+ 
+-	for_each_sg(sg->sgl, sgl, ubuf->pagecount, i)
+-		sg_set_folio(sgl, ubuf->folios[i], PAGE_SIZE,
+-			     ubuf->offsets[i]);
++	for (i = 0; i < ubuf->pagecount; i++)
++		pages[i] = folio_page(ubuf->folios[i],
++				       ubuf->offsets[i] >> PAGE_SHIFT);
++
++	ret = sg_alloc_table_from_pages(sg, pages, ubuf->pagecount, 0,
++					ubuf->pagecount << PAGE_SHIFT,
++					GFP_KERNEL);
++	kvfree(pages);
++	if (ret < 0)
++		goto err_alloc_table;
+ 
+ 	ret = dma_map_sgtable(dev, sg, direction, 0);
+ 	if (ret < 0)
+ 		goto err_map;
+ 	return sg;
+ 
+ err_map:
+ 	sg_free_table(sg);
+-err_alloc:
++err_alloc_table:
++err_alloc_pages:
+ 	kfree(sg);
+ 	return ERR_PTR(ret);
+ }
+-- 
+2.50.0

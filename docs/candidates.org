@@ -271,19 +271,23 @@ In-tree Realtek r8125 driver series instead of CachyOS DKMS packaging
 ** Status
 
 | Field | Value |
-| Decision | candidate |
+| Decision | shared carry |
 | Evidence grade | B (dma-buf stability) |
 | Source | cachyos-fixes-patches-v27 #11 |
+| Patch file | =0029-udmabuf-sg-table-from-pages.patch= |
 | vissue | =linux-rg-6rl5= |
 
 ** What it is
 
-Replaces =sg_set_folio= loop with =sg_alloc_table_from_pages= in udmabuf path.
-Arch 7.0.12 still uses older pattern; Cachy 7.1.1 prebuilt has fix.
+Replaces the =sg_set_folio= loop with a page-array based
+=sg_alloc_table_from_pages= call in the udmabuf path. Arch 7.0.12 still uses
+the older pattern; the linux-rg carry resolves each folio+offset pair to the
+exact backing page before building the scatterlist.
 
 ** Applicability
 
-May benefit all profiles if carried in shared 00xx queue.
+Carried in the shared patch queue for every profile. This is a small dma-buf
+stability fix and does not depend on rgam5terra live hardware probes.
 
 * Candidate: CachyOS CONFIG_CACHY fair (explicit block for rgam5terra)
 

@@ -58,6 +58,8 @@ in =docs/candidates.org= and the per-profile kernel/targets docs.
   scan budgeting, and batch eviction flow adapted to keep the 0018 ratio gates.
 - MM bulk-free hot paths (0021): `free_contig_range()` and `vfree()` batched
   page freeing carried for memory-pressure benchmarking.
+- udmabuf scatterlist construction fix (0029): resolves folio+offset entries to
+  backing pages before `sg_alloc_table_from_pages()` builds the DMA scatterlist.
 - Intel AX211 Wi-Fi/BT: `IWLMLD`, `bt_coex_active` modprobe drop-in; `linux-firmware`
   in package depends; `rgx1gen11-ax211-check` validates the config, module tree,
   modprobe policy, and firmware inventory.
