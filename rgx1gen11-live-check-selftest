@@ -33,7 +33,19 @@ printf '%s\n' "$out_with_logs" | rg -Fq 'rgx1gen11-boot-check --live --require-b
 out_with_userspace=$("$checker" --dry-run --with-userspace)
 printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-memory-sysctl-check' \
   || fail "userspace dry-run should include memory sysctl check without PATH lookup"
-printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-x1gen11-profile doctor' \
-  || fail "userspace dry-run should include profile doctor without PATH lookup"
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-pipewire-rt-check --check' \
+  || fail "userspace dry-run should include PipeWire RT policy check"
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-oomd-policy-check --check' \
+  || fail "userspace dry-run should include OOMD policy check"
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-ksm-policy --check' \
+  || fail "userspace dry-run should include KSM policy check"
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-storage-trim-check --check' \
+  || fail "userspace dry-run should include storage trim policy check"
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-zswap-tune check' \
+  || fail "userspace dry-run should include zswap/zram policy check"
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-thermal-stack-check --check' \
+  || fail "userspace dry-run should include thermal stack policy check"
+printf '%s\n' "$out_with_userspace" | rg -Fq 'rg-x1gen11-profile doctor --check' \
+  || fail "userspace dry-run should include profile doctor policy check"
 
 printf 'ok\n'

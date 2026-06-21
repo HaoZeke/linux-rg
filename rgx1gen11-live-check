@@ -98,7 +98,13 @@ run_check rgx1gen11-s0ix-preflight
 
 if (( with_userspace )); then
   run_check rg-memory-sysctl-check
-  run_check rg-x1gen11-profile doctor
+  run_check rg-pipewire-rt-check --check
+  run_check rg-oomd-policy-check --check
+  run_check rg-ksm-policy --check
+  run_check rg-storage-trim-check --check
+  run_check rg-zswap-tune check
+  run_check rg-thermal-stack-check --check
+  run_check rg-x1gen11-profile doctor --check
 fi
 
 if (( failures > 0 )); then
