@@ -15,9 +15,22 @@ bash -n "$script"
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
+write_alpha_icon() {
+  local path=$1
+  cp "$repo/os_linux_rg.png" "$path"
+}
+
+write_rgb_icon() {
+  local path=$1
+  base64 -d >"$path" <<'EOF'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqBhUWMjPZhyrsAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTA2LTIxVDIyOjUwOjUxKzAwOjAwhxfuQwAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0wNi0yMVQyMjo1MDo1MSswMDowMPZKVv8AAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMDYtMjFUMjI6NTA6NTErMDA6MDChX3cgAAAADElEQVQI12P4//8/AAX+Av7czFnnAAAAAElFTkSuQmCC
+EOF
+}
+
 make_pkg() {
   local pkg=$1
   local include_live=${2:-1}
+  local icon_mode=${3:-alpha}
   local root=$tmpdir/root
   rm -rf "$root"
   mkdir -p \
@@ -35,7 +48,11 @@ make_pkg() {
   fi
   : > "$root/usr/bin/rgx1gen11-dkms-overlay-apply"
   : > "$root/usr/bin/linux-rg-module-symvers"
-  : > "$root/usr/share/linux-rg/refind/os_linux_rg.png"
+  case "$icon_mode" in
+    alpha) write_alpha_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
+    rgb) write_rgb_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
+    *) fail "unknown icon mode: $icon_mode" ;;
+  esac
   : > "$root/usr/lib/modules/9.9.9-rg/vmlinuz"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/async_tx/async_tx.ko.zst"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/async_tx/async_xor.ko.zst"
@@ -65,6 +82,17 @@ fi
 rg -Fq 'package payload missing: usr/bin/rgx1gen11-live-check' "$bad_out" \
   || fail "dry-run should name missing live-check payload"
 
+bad_icon_dir="$tmpdir/bad-icon"
+mkdir -p "$bad_icon_dir"
+make_pkg "$bad_icon_dir/linux-rg-7.0.12.arch1-1-x86_64.pkg.tar.zst" 1 rgb
+make_pkg "$bad_icon_dir/linux-rg-headers-7.0.12.arch1-1-x86_64.pkg.tar.zst"
+bad_icon_out="$tmpdir/bad-icon-out"
+if "$script" --dry-run --artifact-dir "$bad_icon_dir" >"$bad_icon_out" 2>&1; then
+  fail "dry-run should reject package rEFInd icon without alpha"
+fi
+rg -Fq 'package rEFInd icon lacks PNG alpha channel: usr/share/linux-rg/refind/os_linux_rg.png' "$bad_icon_out" \
+  || fail "RGB icon rejection should name the rEFInd icon payload"
+
 out="$tmpdir/out"
 "$script" --dry-run --artifact-dir "$tmpdir" >"$out"
 
@@ -78,7 +106,9 @@ rg -Fq 'dry-run: RG_DKMS_JOBS=9 rgx1gen11-dkms-overlay-apply 9.9.9-rg' "$out" \
   || fail "dry-run should print DKMS overlay repair"
 rg -Fq 'dry-run: mkinitcpio -p linux-rg' "$out" \
   || fail "dry-run should print mkinitcpio command"
-rg -Fq 'dry-run: install /usr/share/linux-rg/refind/os_linux_rg.png /boot/EFI/refind/icons/os_linux_rg.png' "$out" \
+rg -Fq 'dry-run: install ' "$out" \
+  || fail "dry-run should print rEFInd icon installation"
+rg -Fq '/boot/EFI/refind/icons/os_linux_rg.png' "$out" \
   || fail "dry-run should print rEFInd icon installation"
 rg -Fq 'dry-run: rgx1gen11-boot-check --installed' "$out" \
   || fail "dry-run should print installed boot check command"

@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+checkout_root=$(cd -- "$script_dir/.." && pwd)
+
+default_refind_icon_source() {
+  if [[ -f /usr/share/linux-rg/refind/os_linux_rg.png ]]; then
+    printf '%s\n' /usr/share/linux-rg/refind/os_linux_rg.png
+  elif [[ -f $checkout_root/os_linux_rg.png ]]; then
+    printf '%s\n' "$checkout_root/os_linux_rg.png"
+  else
+    printf '%s\n' /usr/share/linux-rg/refind/os_linux_rg.png
+  fi
+}
+
 default_artifact_home() {
   local home user
   if [[ -n ${LINUX_RG_ARTIFACT_HOME:-} ]]; then
@@ -47,7 +60,7 @@ kernel_pkg=${LINUX_RG_KERNEL_PKG:-$(latest_package "$artifact_dir" 'linux-rg-[0-
 headers_pkg=${LINUX_RG_HEADERS_PKG:-$(latest_package "$artifact_dir" 'linux-rg-headers-[0-9]*-x86_64.pkg.tar.zst' 'linux-rg-headers package')}
 refind_conf=${REFIND_CONF:-/boot/EFI/refind/refind.conf}
 refind_icon=${REFIND_ICON:-/EFI/refind/icons/os_linux_rg.png}
-refind_icon_source=${REFIND_ICON_SOURCE:-/usr/share/linux-rg/refind/os_linux_rg.png}
+refind_icon_source=${REFIND_ICON_SOURCE:-$(default_refind_icon_source)}
 refind_icon_target=${REFIND_ICON_TARGET:-/boot${refind_icon}}
 mkinitcpio_base=${MKINITCPIO_BASE:-/etc/mkinitcpio.conf}
 mkinitcpio_config=${MKINITCPIO_CONFIG:-/etc/mkinitcpio-linux-rg.conf}
@@ -98,8 +111,42 @@ package_has_path() {
   bsdtar -tf "$pkg" | rg -qx "$path"
 }
 
+png_color_type() {
+  local path=$1
+  od -An -tu1 -j25 -N1 "$path" 2>/dev/null | tr -d '[:space:]'
+}
+
+package_png_color_type() {
+  local pkg=$1 path=$2
+  local tmp
+  tmp=$(mktemp)
+  if ! bsdtar -xOf "$pkg" "$path" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
+  png_color_type "$tmp"
+  rm -f "$tmp"
+}
+
+want_png_alpha_color_type() {
+  local color_type=$1 description=$2
+  case "$color_type" in
+    4|6)
+      return 0
+      ;;
+    "")
+      printf 'error: %s PNG color type unreadable\n' "$description" >&2
+      exit 1
+      ;;
+    *)
+      printf 'error: %s lacks PNG alpha channel (color type %s)\n' "$description" "$color_type" >&2
+      exit 1
+      ;;
+  esac
+}
+
 validate_package_payload() {
-  local kver path
+  local kver path icon_path icon_color_type
   kver=$(package_kver)
   if [[ -z $kver ]]; then
     printf 'error: could not read linux-rg kernel version from %s\n' "$kernel_pkg" >&2
@@ -128,11 +175,27 @@ validate_package_payload() {
       exit 1
     fi
   done
+
+  icon_path=usr/share/linux-rg/refind/os_linux_rg.png
+  icon_color_type=$(package_png_color_type "$kernel_pkg" "$icon_path")
+  case "$icon_color_type" in
+    4|6) ;;
+    "")
+      printf 'error: package rEFInd icon PNG color type unreadable: %s\n' "$icon_path" >&2
+      exit 1
+      ;;
+    *)
+      printf 'error: package rEFInd icon lacks PNG alpha channel: %s (color type %s)\n' "$icon_path" "$icon_color_type" >&2
+      exit 1
+      ;;
+  esac
 }
 
 install_refind_icon() {
   need_file "$refind_icon_source"
+  want_png_alpha_color_type "$(png_color_type "$refind_icon_source")" "rEFInd icon source $refind_icon_source"
   install -Dm644 "$refind_icon_source" "$refind_icon_target"
+  want_png_alpha_color_type "$(png_color_type "$refind_icon_target")" "rEFInd icon target $refind_icon_target"
   echo "wrote: $refind_icon_target"
 }
 

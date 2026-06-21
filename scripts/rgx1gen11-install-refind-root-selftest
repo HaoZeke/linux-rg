@@ -37,6 +37,18 @@ add_initramfs_modules() {
   done
 }
 
+write_alpha_icon() {
+  local path=$1
+  cp "$repo/os_linux_rg.png" "$path"
+}
+
+write_rgb_icon() {
+  local path=$1
+  base64 -d >"$path" <<'EOF'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqBhUWMjPZhyrsAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTA2LTIxVDIyOjUwOjUxKzAwOjAwhxfuQwAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0wNi0yMVQyMjo1MDo1MSswMDowMPZKVv8AAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMDYtMjFUMjI6NTA6NTErMDA6MDChX3cgAAAADElEQVQI12P4//8/AAX+Av7czFnnAAAAAElFTkSuQmCC
+EOF
+}
+
 artifact_dir="$tmpdir/artifacts"
 pkgroot="$tmpdir/pkgroot"
 mkdir -p \
@@ -55,7 +67,7 @@ touch "$pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$pkgroot/usr/bin/linux-rg-module-symvers"
 touch "$pkgroot/usr/bin/rgx1gen11-live-check"
 touch "$pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
-touch "$pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
+write_alpha_icon "$pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
@@ -80,7 +92,7 @@ touch "$bad_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$bad_pkgroot/usr/bin/linux-rg-module-symvers"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-live-check"
-touch "$bad_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
+write_alpha_icon "$bad_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
@@ -106,7 +118,7 @@ touch "$bad_payload_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$bad_payload_pkgroot/usr/bin/linux-rg-module-symvers"
 touch "$bad_payload_pkgroot/usr/bin/rgx1gen11-live-check"
 touch "$bad_payload_pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
-touch "$bad_payload_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
+write_alpha_icon "$bad_payload_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_payload_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
@@ -132,7 +144,7 @@ touch "$bad_live_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$bad_live_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$bad_live_pkgroot/usr/bin/linux-rg-module-symvers"
 touch "$bad_live_pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
-touch "$bad_live_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
+write_alpha_icon "$bad_live_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_live_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
@@ -249,6 +261,45 @@ if LINUX_RG_ARTIFACT_DIR="$bad_payload_artifact_dir" \
 fi
 rg -Fq 'package payload missing: usr/bin/rgx1gen11-boot-check' "$bad_payload_out" \
   || fail "stale package rejection should name the missing boot-check helper"
+
+bad_icon_pkgroot="$tmpdir/bad-icon-pkgroot"
+bad_icon_artifact_dir="$tmpdir/bad-icon-artifacts"
+mkdir -p \
+  "$bad_icon_artifact_dir" \
+  "$bad_icon_pkgroot/usr/bin" \
+  "$bad_icon_pkgroot/usr/lib/modules/9.9.6-rg" \
+  "$bad_icon_pkgroot/usr/lib/systemd/system" \
+  "$bad_icon_pkgroot/usr/share/libalpm/hooks" \
+  "$bad_icon_pkgroot/usr/share/linux-rg/dkms-overlays" \
+  "$bad_icon_pkgroot/usr/share/linux-rg/refind"
+touch "$bad_icon_pkgroot/usr/lib/modules/9.9.6-rg/vmlinuz"
+printf 'linux-rg\n' >"$bad_icon_pkgroot/usr/lib/modules/9.9.6-rg/pkgbase"
+touch "$bad_icon_pkgroot/usr/bin/rgx1gen11-boot-check"
+touch "$bad_icon_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
+touch "$bad_icon_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
+touch "$bad_icon_pkgroot/usr/bin/linux-rg-module-symvers"
+touch "$bad_icon_pkgroot/usr/bin/rgx1gen11-live-check"
+touch "$bad_icon_pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+write_rgb_icon "$bad_icon_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
+touch "$bad_icon_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
+touch "$bad_icon_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
+touch "$bad_icon_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
+touch "$bad_icon_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+add_initramfs_modules "$bad_icon_pkgroot" 9.9.6-rg
+bsdtar -cf "$bad_icon_artifact_dir/linux-rg-9.9.6-x86_64.pkg.tar.zst" -C "$bad_icon_pkgroot" usr
+touch "$bad_icon_artifact_dir/linux-rg-headers-9.9.6-x86_64.pkg.tar.zst"
+bad_icon_out="$tmpdir/bad-icon-dry-run.out"
+if LINUX_RG_ARTIFACT_DIR="$bad_icon_artifact_dir" \
+  LINUX_RG_PROC_MOUNTS="$proc_mounts" \
+  LINUX_RG_VCONSOLE_CONF="$vconsole_conf" \
+  REFIND_CONF="$refind_conf" \
+  MKINITCPIO_BASE="$mkinitcpio_base" \
+  "$installer" --dry-run >"$bad_icon_out" 2>&1; then
+  fail "dry run should reject package rEFInd icon without alpha"
+fi
+rg -Fq 'package rEFInd icon lacks PNG alpha channel: usr/share/linux-rg/refind/os_linux_rg.png' "$bad_icon_out" \
+  || fail "RGB icon rejection should name the rEFInd icon payload"
+
 rg -q "'scx-tools:.*scx_loader" "$pkgbuild" \
   || fail "PKGBUILD should name the Arch package that provides scx_loader"
 if rg -q 'scx_loader: ASA router expert scheduler switching' "$pkgbuild" "$srcinfo"; then
