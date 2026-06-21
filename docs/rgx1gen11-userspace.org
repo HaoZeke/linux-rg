@@ -132,6 +132,26 @@ Acceptance for a scheduler change is in =docs/rgx1gen11-targets.org=: build
 wall time within 5% of stock or faster, no sustained CPU pressure under desktop
 use, and an explicit A/B record for chosen sched_ext expert vs BORE-only.
 
+* Audio realtime policy
+
+PipeWire =module-rt= is the low-latency audio path for the daily-driver kernel.
+This keeps =CONFIG_PREEMPT_RT= out of =linux-rg= while still allowing bounded
+realtime scheduling for PipeWire processing threads.
+
+Chezmoi owns:
+
+- =~/.config/pipewire/pipewire.conf.d/10-rg-rt.conf= with =module.rt.args=
+  =rt.prio=88=, =nice.level=-11=, RTKit/portal fallback, and rlimits enabled.
+- =/etc/security/limits.d/95-rg-audio-rt.conf= with =@audio= realtime,
+  memlock, and nice limits.
+- =/etc/sysctl.d/98-rg-realtime.conf= to keep =sched_rt_runtime_us= bounded.
+- =rg-pipewire-rt-check --check= for static policy validation and runtime
+  service visibility where the user bus is reachable.
+
+The policy intentionally avoids making the whole PipeWire service SCHED_FIFO.
+PipeWire selects realtime threads through =module-rt=; the kernel RT bandwidth
+limit remains enabled so runaway RT work cannot starve the laptop.
+
 * Power, thermals, and suspend
 
 Daily laptop policy prioritizes cool operation and battery endurance:
