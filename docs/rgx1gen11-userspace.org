@@ -218,6 +218,7 @@ Root-only thermal evidence is collected by =rg-linux-rg-postboot-check= through
 | Installed boot contract | =rgx1gen11-boot-check --installed= | rEFInd, initramfs, encrypted btrfs, config checks pass |
 | Root repair | =sudo rg-linux-rg-userspace-root-setup= | DKMS overlays, sysctl/profile, initramfs, live bundle pass |
 | Postboot | =sudo rg-linux-rg-postboot-check= | Running kernel, DKMS, module probes, profile policy, KSM policy, storage trim policy, zswap/zram policy, live checks pass |
+| Policy gate bundle | =rg-bench-matrix run gates= | Non-root artifacts for memory sysctl, PipeWire RT, KSM, storage trim, zswap/zram, thermal, and active workload profile |
 | Non-root dashboard | =rg-x1gen11-profile doctor --check= | Current profile matches readable live userspace state |
 
 Do not treat a non-root sandbox failure to read =/dev/nvme0=, debugfs, or the
