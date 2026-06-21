@@ -141,7 +141,8 @@ Daily laptop policy prioritizes cool operation and battery endurance:
 - =rg-x1gen11-profile doctor= reports platform profile, cpufreq, zram, oomd,
   sched_ext, and DAMON status.
 - =rg-x1gen11-profile doctor --check= fails if the active profile drifts from
-  live platform profile, CPU governor, EPP, or iwlwifi power-save policy.
+  live platform profile, CPU governor, EPP, iwlwifi power-save policy, or
+  scheduler ladder =scx_mode=.
 
 Hot laptop triage starts with:
 
