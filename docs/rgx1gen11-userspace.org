@@ -92,7 +92,7 @@ The daily =undocked-mixed= profile is the baseline for battery and thermals:
 | EPP | =balance_power= |
 | iwlwifi power_save | enabled |
 | zram | zstd, ram/2 sizing unless memory-pressure data says otherwise |
-| zswap | enabled, zstd |
+| zswap | enabled, zstd, max pool 20%, accept threshold 90% |
 | storage trim | periodic =fstrim.timer=; encrypted passthrough; no continuous btrfs discard |
 | systemd-oomd | enabled |
 | KSM | enabled for =MADV_MERGEABLE= pages; scan-time advisor; zero-page merge disabled |
@@ -118,6 +118,14 @@ The current 32 GiB laptop target keeps zram at ram/2 because live evidence in
 =docs/candidates.org= measured roughly 3.68x compression on the stock baseline.
 Changing that policy requires =memory-pressure= evidence, not a default swap-size
 guess.
+
+=rg-zswap-tune check= is the live compressed-memory gate. It validates zswap
+=enabled=Y=, =compressor=zstd=, =max_pool_percent=20=,
+=accept_threshold_percent=90=, =shrinker_enabled=Y= where available, and zram0
+as the selected =zstd= compressor at swap priority =100=. The root setup helper
+applies the same laptop profile through =rg-zswap-tune laptop= so the runtime
+state matches the selected kernel and userspace compression policy before the
+postboot gate runs.
 
 KSM is a userspace policy on top of =CONFIG_KSM=y=. The managed
 =rg-ksm-madvise.service= enables ksmd, selects the scan-time advisor when the
@@ -209,7 +217,7 @@ Root-only thermal evidence is collected by =rg-linux-rg-postboot-check= through
 | Package payload | =scripts/rgx1gen11-reinstall-check-root --dry-run= | Required helpers, icon, modules, DKMS overlays present |
 | Installed boot contract | =rgx1gen11-boot-check --installed= | rEFInd, initramfs, encrypted btrfs, config checks pass |
 | Root repair | =sudo rg-linux-rg-userspace-root-setup= | DKMS overlays, sysctl/profile, initramfs, live bundle pass |
-| Postboot | =sudo rg-linux-rg-postboot-check= | Running kernel, DKMS, module probes, profile policy, KSM policy, storage trim policy, live checks pass |
+| Postboot | =sudo rg-linux-rg-postboot-check= | Running kernel, DKMS, module probes, profile policy, KSM policy, storage trim policy, zswap/zram policy, live checks pass |
 | Non-root dashboard | =rg-x1gen11-profile doctor --check= | Current profile matches readable live userspace state |
 
 Do not treat a non-root sandbox failure to read =/dev/nvme0=, debugfs, or the
