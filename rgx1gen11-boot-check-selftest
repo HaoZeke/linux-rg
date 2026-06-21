@@ -16,7 +16,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 mkdir -p "$tmpdir/bin" "$tmpdir/boot/EFI/refind/icons" "$tmpdir/modules/9.9.9-rg/build" "$tmpdir/firmware"
 touch "$tmpdir/boot-kernel" "$tmpdir/boot-initramfs" "$tmpdir/modules/9.9.9-rg/build/.config"
-touch "$tmpdir/boot/EFI/refind/icons/os_linux_rg.png"
+cp "$repo/os_linux_rg.png" "$tmpdir/boot/EFI/refind/icons/os_linux_rg.png"
 
 cat >"$tmpdir/bin/pacman" <<'SH'
 #!/usr/bin/env bash
@@ -101,8 +101,34 @@ printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon /EFI/refind/icons/os_l
   || fail "installed check should require the linux-rg rEFInd icon"
 printf '%s\n' "$output" | rg -q "ok: rEFInd linux-rg icon file $tmpdir/boot/EFI/refind/icons/os_linux_rg.png" \
   || fail "installed check should require the linux-rg rEFInd icon file"
+printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon keeps PNG alpha channel' \
+  || fail "installed check should require the linux-rg rEFInd icon alpha channel"
+if command -v identify >/dev/null 2>&1; then
+  printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon has transparent corner' \
+    || fail "installed check should require the linux-rg rEFInd icon corner alpha"
+fi
 printf '%s\n' "$output" | rg -q 'ok: vconsole keymap colemak' \
   || fail "installed check should require Colemak for the LUKS prompt"
+
+base64 -d >"$tmpdir/boot/EFI/refind/icons/os_linux_rg.png" <<'EOF'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqBhUWMjPZhyrsAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTA2LTIxVDIyOjUwOjUxKzAwOjAwhxfuQwAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0wNi0yMVQyMjo1MDo1MSswMDowMPZKVv8AAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMDYtMjFUMjI6NTA6NTErMDA6MDChX3cgAAAADElEQVQI12P4//8/AAX+Av7czFnnAAAAAElFTkSuQmCC
+EOF
+if PATH="$tmpdir/bin:$PATH" \
+  RGX1GEN11_HELPER_DIR="$tmpdir/bin" \
+  "$checker" --installed \
+    --refind-conf "$refind_conf" \
+    --refind-root "$tmpdir/boot" \
+    --mkinitcpio-conf "$mkinitcpio_conf" \
+    --boot-kernel "$tmpdir/boot-kernel" \
+    --boot-initramfs "$tmpdir/boot-initramfs" \
+    --modules-root "$tmpdir/modules" \
+    --firmware-root "$tmpdir/firmware" \
+    --vconsole-conf "$vconsole_conf" >/tmp/rgx1gen11-boot-check.flat-icon 2>&1; then
+  fail "installed check should fail when the linux-rg rEFInd icon is flattened"
+fi
+rg -q 'fail: rEFInd linux-rg icon lacks PNG alpha channel:' /tmp/rgx1gen11-boot-check.flat-icon \
+  || fail "flattened-icon failure should be explicit"
+cp "$repo/os_linux_rg.png" "$tmpdir/boot/EFI/refind/icons/os_linux_rg.png"
 
 bad_mkinitcpio="$tmpdir/mkinitcpio-no-encrypt.conf"
 sed 's/ encrypt//' "$mkinitcpio_conf" >"$bad_mkinitcpio"

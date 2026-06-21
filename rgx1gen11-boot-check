@@ -131,6 +131,46 @@ want_file() {
   fi
 }
 
+png_color_type() {
+  local path=$1
+  od -An -tu1 -j25 -N1 "$path" 2>/dev/null | tr -d '[:space:]'
+}
+
+want_refind_icon_alpha() {
+  local icon_path=$1
+  local color_type corner
+
+  color_type=$(png_color_type "$icon_path")
+  case "$color_type" in
+    4|6)
+      pass "rEFInd linux-rg icon keeps PNG alpha channel"
+      ;;
+    "")
+      fail "rEFInd linux-rg icon PNG color type unreadable: $icon_path"
+      return
+      ;;
+    *)
+      fail "rEFInd linux-rg icon lacks PNG alpha channel: $icon_path (color type $color_type)"
+      return
+      ;;
+  esac
+
+  if command -v identify >/dev/null 2>&1; then
+    corner=$(identify -format '%[pixel:p{0,0}]' "$icon_path" 2>/dev/null || true)
+    case "$corner" in
+      *,0\)|*,0.0\)|*#??????00*)
+        pass "rEFInd linux-rg icon has transparent corner"
+        ;;
+      "")
+        fail "rEFInd linux-rg icon corner alpha unreadable: $icon_path"
+        ;;
+      *)
+        fail "rEFInd linux-rg icon corner is not transparent: $corner"
+        ;;
+    esac
+  fi
+}
+
 want_package() {
   local package=$1
   local output
@@ -360,6 +400,7 @@ want_refind_entry() {
   icon_path="${refind_root%/}$refind_icon"
   if [[ -f $icon_path ]]; then
     pass "rEFInd linux-rg icon file $icon_path"
+    want_refind_icon_alpha "$icon_path"
   else
     fail "rEFInd linux-rg icon file missing: $icon_path"
   fi
