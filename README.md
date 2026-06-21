@@ -231,8 +231,8 @@ sudo rg-linux-rg-postboot-check
 The postboot helper is managed by chezmoi and installed to
 `~/.local/bin/rg-linux-rg-postboot-check`. It checks the running linux-rg
 kernel, module export table, external DKMS modules, in-tree v4l2loopback,
-boot/live contracts, userspace policy, and a thermal snapshot. For a targeted
-repair of an already installed tree, use:
+boot/live contracts, active userspace profile policy, and a thermal snapshot.
+For a targeted repair of an already installed tree, use:
 
 ```sh
 sudo rg-linux-rg-userspace-root-setup

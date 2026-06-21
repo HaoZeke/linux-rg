@@ -66,6 +66,7 @@ Pass evidence:
   =cfg80211_del_sta_sinfo=, =cfg80211_ch_switch_notify=, =video_ioctl2=, and
   =v4l2_fh_exit=.
 - =rgx1gen11-live-check --with-userspace= exits 0 under root.
+- =rg-x1gen11-profile doctor --check= reports =profile policy: ok=.
 
 * Workload profiles
 
@@ -139,11 +140,13 @@ Daily laptop policy prioritizes cool operation and battery endurance:
 - =rgx1gen11-s0ix-preflight= verifies prerequisites for Intel's S0ixSelftestTool.
 - =rg-x1gen11-profile doctor= reports platform profile, cpufreq, zram, oomd,
   sched_ext, and DAMON status.
+- =rg-x1gen11-profile doctor --check= fails if the active profile drifts from
+  live platform profile, CPU governor, EPP, or iwlwifi power-save policy.
 
 Hot laptop triage starts with:
 
 #+begin_src sh
-rg-x1gen11-profile doctor
+rg-x1gen11-profile doctor --check
 rg-psi-snapshot
 rgx1gen11-nvme-check --live --require-feature
 #+end_src
@@ -157,8 +160,8 @@ Root-only thermal evidence is collected by =rg-linux-rg-postboot-check= through
 | Package payload | =scripts/rgx1gen11-reinstall-check-root --dry-run= | Required helpers, icon, modules, DKMS overlays present |
 | Installed boot contract | =rgx1gen11-boot-check --installed= | rEFInd, initramfs, encrypted btrfs, config checks pass |
 | Root repair | =sudo rg-linux-rg-userspace-root-setup= | DKMS overlays, sysctl/profile, initramfs, live bundle pass |
-| Postboot | =sudo rg-linux-rg-postboot-check= | Running kernel, DKMS, module probes, live checks pass |
-| Non-root dashboard | =rg-x1gen11-profile doctor= | Current profile and userspace state are readable |
+| Postboot | =sudo rg-linux-rg-postboot-check= | Running kernel, DKMS, module probes, profile policy, live checks pass |
+| Non-root dashboard | =rg-x1gen11-profile doctor --check= | Current profile matches readable live userspace state |
 
 Do not treat a non-root sandbox failure to read =/dev/nvme0=, debugfs, or the
 systemd system bus as a kernel regression. The root postboot helper is the
