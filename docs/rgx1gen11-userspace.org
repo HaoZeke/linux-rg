@@ -46,8 +46,11 @@ The root setup helper performs the following sequence for
 5. Rebuilds external DKMS modules with =RG_DKMS_JOBS=, defaulting to 80% CPUs.
 6. Verifies =v4l2loopback= comes from the in-tree linux-rg module.
 7. Enables =rgx1gen11-hibernate-image-size.service= and =systemd-oomd=.
-8. Reloads sysctl policy, applies the daily X1 profile, and rebuilds initramfs.
-9. Runs =rgx1gen11-live-check --with-userspace=.
+8. Installs the checked-in =oomd-rgx1gen11.json= profile, systemd resource
+   accounting defaults, and =oomd.service= protection; enables facebookincubator
+   =oomd.service= when the binary is installed.
+9. Reloads sysctl policy, applies the daily X1 profile, and rebuilds initramfs.
+10. Runs =rgx1gen11-live-check --with-userspace=.
 
 Use:
 
@@ -68,6 +71,8 @@ Pass evidence:
 - =rgx1gen11-live-check --with-userspace= exits 0 under root.
 - =rg-memory-sysctl-check= reports the VM dirty/writeback, swappiness,
   watermark, and cache-pressure policy matches the managed drop-in.
+- =/etc/oomd/oomd.json= contains the rgx1gen11 PSI pressure profile; if
+  facebookincubator =oomd= is installed, =oomd.service= is enabled.
 - =rg-x1gen11-profile doctor --check= reports =profile policy: ok=.
 
 * Workload profiles
@@ -82,7 +87,7 @@ The policy source is chezmoi:
 | =rg-damon-reclaim= | Optional bounded DAMON reclaim profiles |
 | =rg-psi-snapshot= / =rg-psi-top= | PSI observability |
 | =rg-zswap-tune= | zswap policy surface |
-| =rg-oomd-profile-install= | systemd-oomd / oomd policy installer |
+| =rg-oomd-profile-install= | systemd-oomd / facebookincubator oomd policy installer |
 
 The daily =undocked-mixed= profile is the baseline for battery and thermals:
 
@@ -111,7 +116,9 @@ The memory stack is layered:
 2. VM sysctls: swappiness/page-cluster/dirty/writeback/watermark policy from
    chezmoi.
 3. Slices: browser/build/rust-analyzer memory high/max caps.
-4. Kill policy: =systemd-oomd= as the default active layer.
+4. Kill policy: =systemd-oomd= as the default active layer; the
+   facebookincubator =oomd= profile is installed for host-level PSI rules and
+   becomes active when the daemon is installed.
 5. Optional profiling: DAMON reclaim/LRU sorting only for selected profiles.
 
 The current 32 GiB laptop target keeps zram at ram/2 because live evidence in
