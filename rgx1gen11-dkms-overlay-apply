@@ -107,6 +107,44 @@ if [[ ! -d /usr/lib/modules/$target_kver/build ]]; then
   exit 1
 fi
 
+refresh_module_symvers() {
+  local modules_root=/usr/lib/modules/$target_kver
+  local build_dir=$modules_root/build
+  local helper=
+  local candidate tmp_modules tmp_merged
+
+  for candidate in "$root/linux-rg-module-symvers" /usr/bin/linux-rg-module-symvers; do
+    if [[ -x $candidate ]]; then
+      helper=$candidate
+      break
+    fi
+  done
+
+  if [[ -z $helper ]]; then
+    printf 'warning: linux-rg-module-symvers unavailable; DKMS may miss module exports\n' >&2
+    return 0
+  fi
+  if [[ ! -d $modules_root/kernel || ! -f $build_dir/Module.symvers ]]; then
+    printf 'warning: cannot refresh Module.symvers for %s\n' "$target_kver" >&2
+    return 0
+  fi
+
+  tmp_modules=$(mktemp)
+  tmp_merged=$(mktemp)
+  trap 'rm -f "$tmp_modules" "$tmp_merged"' RETURN
+
+  "$helper" "$modules_root/kernel" > "$tmp_modules"
+  awk '!seen[$2]++' "$build_dir/Module.symvers" "$tmp_modules" > "$tmp_merged"
+  if cmp -s "$tmp_merged" "$build_dir/Module.symvers"; then
+    printf 'Module.symvers already includes installed module exports\n'
+  else
+    cp -a "$build_dir/Module.symvers" \
+      "$build_dir/Module.symvers.rg-dkms-overlay-$(date +%Y%m%d-%H%M%S).bak"
+    install -m0644 "$tmp_merged" "$build_dir/Module.symvers"
+    printf 'refreshed: %s\n' "$build_dir/Module.symvers"
+  fi
+}
+
 apply_patch_file() {
   local dir=$1
   local patch_file=$2
@@ -218,6 +256,8 @@ stamp=$(date +%Y%m%d-%H%M%S)
 
 printf 'target kernel: %s\n' "$target_kver"
 printf 'jobs: %s\n' "$jobs"
+
+refresh_module_symvers
 
 patch_module ddcci 0.4.5 ddcci-0.4.5 dkms-overlays/ddcci-0.4.5-linux-7.0.patch "$stamp"
 patch_module rtl88xxau r1298.b44d288 rtl88xxau-r1298.b44d288 dkms-overlays/rtl88xxau-r1298-linux-7.0.patch "$stamp"
