@@ -143,6 +143,7 @@ validate_package_payload() {
     usr/bin/rgx1gen11-boot-check \
     usr/bin/rgx1gen11-live-check \
     usr/bin/rgx1gen11-dkms-overlay-apply \
+    usr/bin/linux-rg-module-symvers \
     usr/share/linux-rg/refind/os_linux_rg.png \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_tx.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_xor.ko.zst" \
@@ -258,6 +259,21 @@ repair_package_ownership() {
     done
 }
 
+repair_dkms_overlays() {
+  local kver=$1
+  local jobs=${RG_DKMS_JOBS:-9}
+
+  if ! command -v rgx1gen11-dkms-overlay-apply >/dev/null 2>&1; then
+    printf 'error: rgx1gen11-dkms-overlay-apply missing after package install\n' >&2
+    return 1
+  fi
+  if ! command -v linux-rg-module-symvers >/dev/null 2>&1; then
+    printf 'error: linux-rg-module-symvers missing after package install\n' >&2
+    return 1
+  fi
+  RG_DKMS_JOBS=$jobs rgx1gen11-dkms-overlay-apply "$kver"
+}
+
 run_package_check() {
   local output=/tmp/rg-linux-rg-qkk-after-reinstall.out
   pacman -Qkk linux-rg linux-rg-headers 2>&1 | tee "$output" | tail -n 120
@@ -299,6 +315,7 @@ df -h /boot || true
 if (( dry_run )); then
   printf '\n== dry-run package commands ==\n'
   printf 'dry-run: pacman --noconfirm -U %q %q\n' "$kernel_pkg" "$headers_pkg"
+  printf 'dry-run: RG_DKMS_JOBS=%q rgx1gen11-dkms-overlay-apply %q\n' "${RG_DKMS_JOBS:-9}" "$kver"
   printf 'dry-run: mkinitcpio -p linux-rg\n'
   printf 'dry-run: install %q %q\n' "$refind_icon_source" "$refind_icon_target"
   printf 'dry-run: rgx1gen11-boot-check --installed\n'
@@ -308,6 +325,9 @@ fi
 printf '\n== reinstall linux-rg packages ==\n'
 pacman --noconfirm -U "$kernel_pkg" "$headers_pkg"
 repair_package_ownership
+
+printf '\n== repair dkms overlays ==\n'
+repair_dkms_overlays "$kver"
 
 printf '\n== rebuild initramfs ==\n'
 mkinitcpio -p linux-rg

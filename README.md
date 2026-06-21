@@ -238,8 +238,9 @@ sudo bash scripts/rgx1gen11-reinstall-check-root
 
 The script validates the package payload, trashes only known rEFInd screenshots
 and `FSCK*.REC` files from `/boot`, reinstalls `linux-rg` and
-`linux-rg-headers`, rebuilds the linux-rg initramfs, runs
-`rgx1gen11-boot-check --installed`, and checks pacman file ownership.
+`linux-rg-headers`, refreshes DKMS compatibility overlays and module export
+symbols, rebuilds the linux-rg initramfs, runs `rgx1gen11-boot-check
+--installed`, and checks pacman file ownership.
 
 ## DKMS Overlays
 

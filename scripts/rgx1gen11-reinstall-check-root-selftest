@@ -34,6 +34,7 @@ make_pkg() {
     : > "$root/usr/bin/rgx1gen11-live-check"
   fi
   : > "$root/usr/bin/rgx1gen11-dkms-overlay-apply"
+  : > "$root/usr/bin/linux-rg-module-symvers"
   : > "$root/usr/share/linux-rg/refind/os_linux_rg.png"
   : > "$root/usr/lib/modules/9.9.9-rg/vmlinuz"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/async_tx/async_tx.ko.zst"
@@ -69,8 +70,12 @@ out="$tmpdir/out"
 
 rg -Fq 'ok: linux-rg package payload includes live checks, DKMS overlays, and initramfs modules' "$out" \
   || fail "dry-run should validate package payload"
+rg -Fq 'usr/bin/linux-rg-module-symvers' "$script" \
+  || fail "reinstall verifier should require linux-rg-module-symvers"
 rg -Fq 'dry-run: pacman --noconfirm -U' "$out" \
   || fail "dry-run should print the noninteractive pacman reinstall command"
+rg -Fq 'dry-run: RG_DKMS_JOBS=9 rgx1gen11-dkms-overlay-apply 9.9.9-rg' "$out" \
+  || fail "dry-run should print DKMS overlay repair"
 rg -Fq 'dry-run: mkinitcpio -p linux-rg' "$out" \
   || fail "dry-run should print mkinitcpio command"
 rg -Fq 'dry-run: install /usr/share/linux-rg/refind/os_linux_rg.png /boot/EFI/refind/icons/os_linux_rg.png' "$out" \
