@@ -237,7 +237,7 @@ Ordered by expected impact on daily =undocked-mixed= profile:
 | Idle power | powertop --auto-tune off, idle sample | stock s2idle | within 5% or document trade (=linux-rg-bench-idle=) |
 | NVMe mixed | fio + desktop load | bfq default | ADIOS only if win (=linux-rg-rt1t=) |
 | Scheduler | =/proc/pressure/*=, perf sched | stock | no sustained some pressure (=linux-rg-bench-sched=) |
-| Userspace policy gates | =rg-bench-matrix run gates= | post-root-setup | memory, RT, KSM, trim, zswap, thermal, and profile checks captured (=linux-rg-59jn=) |
+| Userspace policy gates | =rg-bench-matrix run gates= | post-root-setup | memory, RT, OOMD, KSM, trim, zswap, thermal, and profile checks captured (=linux-rg-59jn=) |
 | Suspend | s2idle cycle set | stock | 0 hangs (=linux-rg-slp=) |
 | Wi-Fi roam | iwd/iwctl roam log | stock | no regression (=linux-rg-bench-wifi=) |
 
