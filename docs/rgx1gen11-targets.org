@@ -12,6 +12,7 @@ See =docs/profiles.org= for other profiles and the shared patch applicability ma
 Companion docs:
 
 - =docs/rgx1gen11-kernel.org= -- carried patches and config rationale for this profile
+- =docs/rgx1gen11-userspace.org= -- userspace policy and postboot validation for this profile
 - =docs/candidates.org= -- candidate evaluation (shared, with per-profile notes)
 - =docs/literature-review.org= -- shared evidence grades and bibliography
 

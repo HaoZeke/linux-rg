@@ -14,7 +14,7 @@ and hardware-specific validation.
 | Slug       | Form factor | CPU / GPU                  | Status     | Key files                  |
 |------------|-------------|----------------------------|------------|----------------------------|
 | rgx1gen11  | Laptop      | Intel i7-1365U / Iris Xe   | Active     | rgx1gen11.config + docs    |
-| rgam5terra | Desktop     | Ryzen 9 9950X / ASUS RTX 5070 Dual / B650I Terra | Researching | MC receipts in targets.org |
+| rgam5terra | Desktop     | Ryzen 9 9950X / ASUS RTX 5070 Dual / B650I Terra | Researching | rgam5terra.config + docs |
 
 - Shared research evidence and candidate evaluation: `docs/literature-review.org`, `docs/candidates.org`
 - Per-profile hardware targets, drivers, boot contracts, and patch applicability notes live in the profile-specific docs.
@@ -225,8 +225,23 @@ scripts/rgx1gen11-install-refind-root --dry-run
 After selecting `Arch Linux linux-rg` in rEFInd:
 
 ```sh
-rgx1gen11-live-check --with-userspace
+sudo rg-linux-rg-postboot-check
 ```
+
+The postboot helper is managed by chezmoi and installed to
+`~/.local/bin/rg-linux-rg-postboot-check`. It checks the running linux-rg
+kernel, module export table, external DKMS modules, in-tree v4l2loopback,
+boot/live contracts, userspace policy, and a thermal snapshot. For a targeted
+repair of an already installed tree, use:
+
+```sh
+sudo rg-linux-rg-userspace-root-setup
+```
+
+That helper syncs the current linux-rg validation helpers into `/usr/bin`,
+refreshes installed `Module.symvers` from module export tables, rebuilds
+out-of-tree DKMS overlays, reloads memory/profile policy, rebuilds the linux-rg
+initramfs, and runs the live bundle.
 
 If the package is already built and the installed tree needs to be repaired
 without rebuilding, run the reinstall verifier from the checkout:
@@ -272,6 +287,7 @@ install`, and `depmod` for the target kernel.
 - `docs/rgx1gen11-targets.org` -- verified hardware inventory, workload profiles, targets
 - `docs/rgx1gen11-drivers.org` -- driver map for the profile
 - `docs/rgx1gen11-boot-safety.org` -- rollback and mkinitcpio contract (read first for the profile)
+- `docs/rgx1gen11-userspace.org` -- durable userspace/root policy and verification ladder
 
 Shared evidence (applies across profiles unless noted):
 

@@ -43,7 +43,8 @@ Vissue: =linux-rg-boot=. Parent: =linux-rg-mxx8=.
 6. rEFInd entry points at linux-rg *after* stock entry (stock stays default until
    verified).
 7. The package payload contains the installed boot/live checkers, hibernate
-   image-size unit, DKMS overlay helper, pacman hook, and DKMS overlay patches.
+   image-size unit, DKMS overlay helper, module-symvers helper, pacman hook,
+   and DKMS overlay patches.
 8. =rgx1gen11-boot-check --installed= passes after package install.
 
 * mkinitcpio: rgx1gen11 MODULES and hooks (mandatory)
@@ -70,7 +71,8 @@ requires =/etc/vconsole.conf= to contain =KEYMAP=colemak= and the
 The installer probes the live machine and validates the linux-rg package payload
 before package installation or boot-file writes. It refuses to continue unless
 the package includes =rgx1gen11-live-check=, =rgx1gen11-boot-check=, the
-hibernate image-size service, and the DKMS overlay repair assets. It also
+hibernate image-size service, and the DKMS overlay repair assets, including
+=linux-rg-module-symvers=. It also
 refuses to continue unless stock rEFInd options include
 =cryptdevice=, =root=/dev/mapper/luks=, =rootflags=subvol=@=,
 =resume=/dev/mapper/luks=, =resume_offset=, =i915=, and
@@ -115,7 +117,7 @@ Run in order; stop and rollback if any step fails.
 3. =lsmod | rg 'nvme|i915|iwlmvm|btusb|snd_sof'= all load on demand.
 4. =dmesg | rg -i 'iwlwifi.*loaded|firmware.*ma-b0|Bluetooth'= no firmware -ENOENT.
 5. =ping -c1 127.0.0.1= only; then Wi-Fi via iwd/iwctl (linux-rg-wifi).
-6. =rgx1gen11-live-check --with-userspace= passes.
+6. =sudo rg-linux-rg-postboot-check= passes.
 7. One =systemctl suspend= + resume (linux-rg-slp).
 8. Only then set rEFInd default to linux-rg.
 

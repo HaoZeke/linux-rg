@@ -17,6 +17,7 @@ Per-profile assets:
 - =docs/${slug}-targets.org= -- verified hardware, workload profiles, measurable targets, vissues
 - =docs/${slug}-drivers.org= -- driver map and firmware notes
 - =docs/${slug}-boot-safety.org= -- boot contract, mkinitcpio, rollback rules
+- =docs/${slug}-userspace.org= -- host policy, root helper workflow, postboot verification (when present)
 - Profile-specific check scripts (e.g. =rgx1gen11-*-check=)
 
 * Active profiles
@@ -60,7 +61,7 @@ Vissues: epic =linux-rg-ln3w= (and children).
 | RAM | T-Force Xtreem 48 GiB DDR5-8000 CL38 (MC SKU 655191) |
 | Retailer | Micro Center Cambridge (store 121); receipt total $2,961.09 |
 | Status | Receipts captured; docs populated, live probe pending |
-| Config overlay | (to be added) |
+| Config overlay | =rgam5terra.config= |
 
 Full line-item table with SKUs and prices: =docs/rgam5terra-targets.org=
 ("Full build listing").

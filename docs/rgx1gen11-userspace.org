@@ -1,0 +1,165 @@
+#+title: linux-rg rgx1gen11 userspace policy
+#+date: [2026-06-21 Sun]
+
+* Purpose
+
+The rgx1gen11 kernel profile exposes the mechanisms for laptop performance and
+efficiency: PSI, memcg, MGLRU, DAMON, zswap, zram, sched_ext, BFQ/ADIOS,
+intel_idle, intel_pstate, NVMe APST, pstore, and profile-aware driver stacks.
+This document records the userspace policy that turns those mechanisms into the
+daily-driver behavior for the ThinkPad X1 Carbon Gen 11.
+
+The policy is split deliberately:
+
+- linux-rg package helpers live in this repo and validate the installed kernel.
+- Durable host policy lives in chezmoi and is applied to =~/.local/bin=,
+  =~/.config=, user systemd units, and root-managed drop-ins.
+- Temporary =/tmp/rg-*.sh= files are batch transport only. They must exec a
+  managed helper or be regenerated from a managed source.
+
+Companion docs:
+
+- =docs/rgx1gen11-kernel.org= -- kernel mechanisms and carried patches
+- =docs/rgx1gen11-targets.org= -- workload profiles and acceptance targets
+- =docs/rgx1gen11-boot-safety.org= -- boot, rollback, and initramfs contract
+- =docs/candidates.org= -- policy evidence and candidate history
+
+* Durable entry points
+
+The host exposes two durable root commands through chezmoi:
+
+- =rg-linux-rg-userspace-root-setup=
+  - Owner: chezmoi =~/.local/bin=
+  - Role: repairs and syncs the installed linux-rg userspace stack, DKMS
+    overlays, sysctl/profile policy, and initramfs.
+- =rg-linux-rg-postboot-check=
+  - Owner: chezmoi =~/.local/bin=
+  - Role: validates the running linux-rg kernel and userspace policy after boot.
+
+The root setup helper performs the following sequence for
+=7.0.12-arch1-1-rg= unless a kernel release is passed as the first argument:
+
+1. Syncs current linux-rg package helpers from the checkout into =/usr/bin=.
+2. Installs =linux-rg-module-symvers= and =rgx1gen11-dkms-overlay-apply=.
+3. Refreshes the installed =Module.symvers= from in-tree module export tables.
+4. Applies DKMS compatibility overlays for =ddcci=, =rtl88xxau=, and =evdi=.
+5. Rebuilds external DKMS modules with =RG_DKMS_JOBS=, defaulting to 80% CPUs.
+6. Verifies =v4l2loopback= comes from the in-tree linux-rg module.
+7. Enables =rgx1gen11-hibernate-image-size.service= and =systemd-oomd=.
+8. Reloads sysctl policy, applies the daily X1 profile, and rebuilds initramfs.
+9. Runs =rgx1gen11-live-check --with-userspace=.
+
+Use:
+
+#+begin_src sh
+sudo rg-linux-rg-userspace-root-setup 2>&1 | tee /tmp/rg-linux-rg-userspace-root-setup.out
+sudo rg-linux-rg-postboot-check 2>&1 | tee /tmp/rg-linux-rg-postboot-check.out
+#+end_src
+
+Pass evidence:
+
+- =dkms status -k 7.0.12-arch1-1-rg= reports =installed= for =ddcci=, =evdi=,
+  =rtl88xxau=, =vboxhost=, and =acpi_call=.
+- =modinfo -k 7.0.12-arch1-1-rg v4l2loopback= reports =intree: Y=.
+- =modinfo -k 7.0.12-arch1-1-rg 88XXau= resolves.
+- =/usr/lib/modules/7.0.12-arch1-1-rg/build/Module.symvers= includes
+  =cfg80211_del_sta_sinfo=, =cfg80211_ch_switch_notify=, =video_ioctl2=, and
+  =v4l2_fh_exit=.
+- =rgx1gen11-live-check --with-userspace= exits 0 under root.
+
+* Workload profiles
+
+The policy source is chezmoi:
+
+| Asset | Role |
+| =~/.config/rg-x1gen11/profiles.json= | Named workload profiles |
+| =rg-x1gen11-profile= | Applies platform, CPU, Wi-Fi, zram, DAMON, slice, and scheduler policy |
+| =rg-memory-sysctl-check= | Verifies live VM sysctl contract |
+| =rg-sched-ladder= / =rg-scx-loader= | sched_ext scheduler selection helpers |
+| =rg-damon-reclaim= | Optional bounded DAMON reclaim profiles |
+| =rg-psi-snapshot= / =rg-psi-top= | PSI observability |
+| =rg-zswap-tune= | zswap policy surface |
+| =rg-oomd-profile-install= | systemd-oomd / oomd policy installer |
+
+The daily =undocked-mixed= profile is the baseline for battery and thermals:
+
+| Knob | Daily target |
+| Platform profile | =low-power= |
+| CPU governor | =powersave= |
+| EPP | =balance_power= |
+| iwlwifi power_save | enabled |
+| zram | zstd, ram/2 sizing unless memory-pressure data says otherwise |
+| zswap | enabled, zstd |
+| systemd-oomd | enabled |
+| sched_ext | off by default; explicit ladder profiles choose scx schedulers |
+| DAMON reclaim | off by default; =memory-pressure= profile enables bounded policy |
+
+=build-heavy= may raise CPU policy and sched_ext selection, but it must keep
+memory and thermal caps active. =focus= may bias interactivity, but it must not
+disable PSI/oomd or the hibernate image-size cap.
+
+* Memory and OOM policy
+
+The memory stack is layered:
+
+1. Kernel mechanisms: PSI, memcg, MGLRU, zswap zstd, zram zstd, KSM, DAMON.
+2. VM sysctls: swappiness/page-cluster/dirty/writeback/watermark policy from
+   chezmoi.
+3. Slices: browser/build/rust-analyzer memory high/max caps.
+4. Kill policy: =systemd-oomd= as the default active layer.
+5. Optional profiling: DAMON reclaim/LRU sorting only for selected profiles.
+
+The current 32 GiB laptop target keeps zram at ram/2 because live evidence in
+=docs/candidates.org= measured roughly 3.68x compression on the stock baseline.
+Changing that policy requires =memory-pressure= evidence, not a default swap-size
+guess.
+
+* Scheduler policy
+
+The kernel carries BORE, sched_ext, ASA, cache-aware placement, migration-cost
+policy, and SMT-idle support. Userspace controls when sched_ext participates:
+
+| Mode | Scheduler policy |
+| Daily laptop | BORE/fair path, sched_ext off |
+| Interactive trial | =scx_p2dq= or ladder-selected low-latency scheduler |
+| Build-heavy | =scx_rusty= trial with PSI and wall-time capture |
+| ASA experiment | =asa-router= / =scx_loader= only with explicit profile |
+
+Acceptance for a scheduler change is in =docs/rgx1gen11-targets.org=: build
+wall time within 5% of stock or faster, no sustained CPU pressure under desktop
+use, and an explicit A/B record for chosen sched_ext expert vs BORE-only.
+
+* Power, thermals, and suspend
+
+Daily laptop policy prioritizes cool operation and battery endurance:
+
+- =pcie_aspm.policy=powersave= is part of the boot contract.
+- NVMe APST is validated by =rgx1gen11-nvme-check --live --require-feature=.
+- =rgx1gen11-hibernate-image-size.service= caps the hibernate image at 8 GiB.
+- =rgx1gen11-s0ix-preflight= verifies prerequisites for Intel's S0ixSelftestTool.
+- =rg-x1gen11-profile doctor= reports platform profile, cpufreq, zram, oomd,
+  sched_ext, and DAMON status.
+
+Hot laptop triage starts with:
+
+#+begin_src sh
+rg-x1gen11-profile doctor
+rg-psi-snapshot
+rgx1gen11-nvme-check --live --require-feature
+#+end_src
+
+Root-only thermal evidence is collected by =rg-linux-rg-postboot-check= through
+=/sys/class/thermal= and the linux-rg live bundle.
+
+* Verification ladder
+
+| Stage | Command | Evidence |
+| Package payload | =scripts/rgx1gen11-reinstall-check-root --dry-run= | Required helpers, icon, modules, DKMS overlays present |
+| Installed boot contract | =rgx1gen11-boot-check --installed= | rEFInd, initramfs, encrypted btrfs, config checks pass |
+| Root repair | =sudo rg-linux-rg-userspace-root-setup= | DKMS overlays, sysctl/profile, initramfs, live bundle pass |
+| Postboot | =sudo rg-linux-rg-postboot-check= | Running kernel, DKMS, module probes, live checks pass |
+| Non-root dashboard | =rg-x1gen11-profile doctor= | Current profile and userspace state are readable |
+
+Do not treat a non-root sandbox failure to read =/dev/nvme0=, debugfs, or the
+systemd system bus as a kernel regression. The root postboot helper is the
+authoritative gate for those paths.
