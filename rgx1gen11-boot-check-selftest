@@ -14,8 +14,9 @@ test -x "$checker" || fail "missing executable boot checker"
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-mkdir -p "$tmpdir/bin" "$tmpdir/modules/9.9.9-rg/build" "$tmpdir/firmware"
+mkdir -p "$tmpdir/bin" "$tmpdir/boot/EFI/refind/icons" "$tmpdir/modules/9.9.9-rg/build" "$tmpdir/firmware"
 touch "$tmpdir/boot-kernel" "$tmpdir/boot-initramfs" "$tmpdir/modules/9.9.9-rg/build/.config"
+touch "$tmpdir/boot/EFI/refind/icons/os_linux_rg.png"
 
 cat >"$tmpdir/bin/pacman" <<'SH'
 #!/usr/bin/env bash
@@ -49,7 +50,7 @@ menuentry "Arch Linux" {
 
 # linux-rg BEGIN
 menuentry "Arch Linux linux-rg" {
-    icon     /EFI/refind/icons/os_arch.png
+    icon     /EFI/refind/icons/os_linux_rg.png
     loader   /vmlinuz-linux-rg
     initrd   /initramfs-linux-rg.img
     options  "cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=12345 i915 pcie_aspm.policy=powersave quiet"
@@ -63,6 +64,7 @@ EOF
 mkinitcpio_conf="$tmpdir/mkinitcpio-linux-rg.conf"
 cat >"$mkinitcpio_conf" <<'EOF'
 MODULES=(nvme i915)
+CRYPTO_MODULES=(aesni_intel cryptd essiv lz4 lz4hc)
 BINARIES=()
 FILES=()
 HOOKS=(base udev keyboard keymap consolefont block encrypt btrfs resume filesystems fsck)
@@ -74,9 +76,11 @@ KEYMAP=colemak
 EOF
 
 output=$(
+  RGX1GEN11_HELPER_DIR="$tmpdir/bin" \
   PATH="$tmpdir/bin:$PATH" \
     "$checker" --installed \
       --refind-conf "$refind_conf" \
+      --refind-root "$tmpdir/boot" \
       --mkinitcpio-conf "$mkinitcpio_conf" \
       --boot-kernel "$tmpdir/boot-kernel" \
       --boot-initramfs "$tmpdir/boot-initramfs" \
@@ -93,14 +97,20 @@ printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg option cryptdevice=\*' \
   || fail "installed check should require a cryptdevice option"
 printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg option i915' \
   || fail "installed check should require the standalone i915 option"
+printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon /EFI/refind/icons/os_linux_rg.png' \
+  || fail "installed check should require the linux-rg rEFInd icon"
+printf '%s\n' "$output" | rg -q "ok: rEFInd linux-rg icon file $tmpdir/boot/EFI/refind/icons/os_linux_rg.png" \
+  || fail "installed check should require the linux-rg rEFInd icon file"
 printf '%s\n' "$output" | rg -q 'ok: vconsole keymap colemak' \
   || fail "installed check should require Colemak for the LUKS prompt"
 
 bad_mkinitcpio="$tmpdir/mkinitcpio-no-encrypt.conf"
 sed 's/ encrypt//' "$mkinitcpio_conf" >"$bad_mkinitcpio"
 if PATH="$tmpdir/bin:$PATH" \
+  RGX1GEN11_HELPER_DIR="$tmpdir/bin" \
   "$checker" --installed \
     --refind-conf "$refind_conf" \
+    --refind-root "$tmpdir/boot" \
     --mkinitcpio-conf "$bad_mkinitcpio" \
     --boot-kernel "$tmpdir/boot-kernel" \
     --boot-initramfs "$tmpdir/boot-initramfs" \
@@ -115,8 +125,10 @@ rg -q 'fail: mkinitcpio hook missing: encrypt' /tmp/rgx1gen11-boot-check.no-encr
 bad_vconsole="$tmpdir/vconsole-us.conf"
 printf 'KEYMAP=us\n' >"$bad_vconsole"
 if PATH="$tmpdir/bin:$PATH" \
+  RGX1GEN11_HELPER_DIR="$tmpdir/bin" \
   "$checker" --installed \
     --refind-conf "$refind_conf" \
+    --refind-root "$tmpdir/boot" \
     --mkinitcpio-conf "$mkinitcpio_conf" \
     --boot-kernel "$tmpdir/boot-kernel" \
     --boot-initramfs "$tmpdir/boot-initramfs" \

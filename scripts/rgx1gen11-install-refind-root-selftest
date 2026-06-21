@@ -29,13 +29,8 @@ add_initramfs_modules() {
   for rel in \
     kernel/crypto/async_tx/async_tx.ko.zst \
     kernel/crypto/async_tx/async_xor.ko.zst \
-    kernel/crypto/aria_generic.ko.zst \
-    kernel/crypto/cast5_generic.ko.zst \
-    kernel/crypto/cast6_generic.ko.zst \
-    kernel/crypto/cast_common.ko.zst \
     kernel/crypto/lz4.ko.zst \
     kernel/crypto/lz4hc.ko.zst \
-    kernel/crypto/serpent_generic.ko.zst \
     kernel/drivers/md/dm-bufio.ko.zst \
     kernel/drivers/md/dm-integrity.ko.zst; do
     touch "$root/usr/lib/modules/$kver/$rel"
@@ -50,7 +45,8 @@ mkdir -p \
   "$pkgroot/usr/lib/modules/9.9.9-rg" \
   "$pkgroot/usr/lib/systemd/system" \
   "$pkgroot/usr/share/libalpm/hooks" \
-  "$pkgroot/usr/share/linux-rg/dkms-overlays"
+  "$pkgroot/usr/share/linux-rg/dkms-overlays" \
+  "$pkgroot/usr/share/linux-rg/refind"
 touch "$pkgroot/usr/lib/modules/9.9.9-rg/vmlinuz"
 printf 'linux-rg\n' >"$pkgroot/usr/lib/modules/9.9.9-rg/pkgbase"
 touch "$pkgroot/usr/bin/rgx1gen11-boot-check"
@@ -58,6 +54,7 @@ touch "$pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$pkgroot/usr/bin/rgx1gen11-live-check"
 touch "$pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+touch "$pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
@@ -73,13 +70,15 @@ mkdir -p \
   "$bad_pkgroot/usr/bin" \
   "$bad_pkgroot/usr/lib/modules/9.9.8-rg" \
   "$bad_pkgroot/usr/share/libalpm/hooks" \
-  "$bad_pkgroot/usr/share/linux-rg/dkms-overlays"
+  "$bad_pkgroot/usr/share/linux-rg/dkms-overlays" \
+  "$bad_pkgroot/usr/share/linux-rg/refind"
 touch "$bad_pkgroot/usr/lib/modules/9.9.8-rg/vmlinuz"
 printf 'linux-rg\n' >"$bad_pkgroot/usr/lib/modules/9.9.8-rg/pkgbase"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-boot-check"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$bad_pkgroot/usr/bin/rgx1gen11-live-check"
+touch "$bad_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
@@ -96,13 +95,15 @@ mkdir -p \
   "$bad_payload_pkgroot/usr/lib/modules/9.9.7-rg" \
   "$bad_payload_pkgroot/usr/lib/systemd/system" \
   "$bad_payload_pkgroot/usr/share/libalpm/hooks" \
-  "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays"
+  "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays" \
+  "$bad_payload_pkgroot/usr/share/linux-rg/refind"
 touch "$bad_payload_pkgroot/usr/lib/modules/9.9.7-rg/vmlinuz"
 printf 'linux-rg\n' >"$bad_payload_pkgroot/usr/lib/modules/9.9.7-rg/pkgbase"
 touch "$bad_payload_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$bad_payload_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$bad_payload_pkgroot/usr/bin/rgx1gen11-live-check"
 touch "$bad_payload_pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+touch "$bad_payload_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_payload_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
@@ -119,13 +120,15 @@ mkdir -p \
   "$bad_live_pkgroot/usr/lib/modules/9.9.7-rg" \
   "$bad_live_pkgroot/usr/lib/systemd/system" \
   "$bad_live_pkgroot/usr/share/libalpm/hooks" \
-  "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays"
+  "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays" \
+  "$bad_live_pkgroot/usr/share/linux-rg/refind"
 touch "$bad_live_pkgroot/usr/lib/modules/9.9.7-rg/vmlinuz"
 printf 'linux-rg\n' >"$bad_live_pkgroot/usr/lib/modules/9.9.7-rg/pkgbase"
 touch "$bad_live_pkgroot/usr/bin/rgx1gen11-boot-check"
 touch "$bad_live_pkgroot/usr/bin/rgx1gen11-dkms-overlay-apply"
 touch "$bad_live_pkgroot/usr/bin/rgx1gen11-hibernate-image-size"
 touch "$bad_live_pkgroot/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
+touch "$bad_live_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_live_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
@@ -183,6 +186,8 @@ rg -Fq "vconsole keymap: colemak" "$out" \
   || fail "dry run should require the Colemak initramfs keymap"
 rg -Fq "initramfs modules: MODULES=(nvme i915)" "$out" \
   || fail "dry run should keep nvme and early i915 in initramfs modules"
+rg -Fq 'refind icon:' "$out" \
+  || fail "dry run should print the rEFInd icon target"
 rg -Fq 'refind options:  cryptdevice=UUID=11111111-2222-3333-4444-555555555555:luks:allow-discards root=/dev/mapper/luks rootflags=subvol=@ rw resume=/dev/mapper/luks resume_offset=12345 i915 pcie_aspm.policy=powersave quiet' "$out" \
   || fail "dry run should read encrypted btrfs rEFInd options"
 rg -q 'microcode' "$installer" \
@@ -196,6 +201,10 @@ rg -Fq 'font_line="FONT=$console_font"' "$installer" \
   || fail "installer should write the configured console font into linux-rg mkinitcpio"
 rg -Fq 'systemctl daemon-reload' "$installer" \
   || fail "installer should reload systemd before enabling packaged units"
+rg -Fq 'icon     $refind_icon' "$installer" \
+  || fail "installer should write the linux-rg rEFInd icon"
+rg -Fq 'usr/share/linux-rg/refind/os_linux_rg.png' "$installer" \
+  || fail "installer should require the linux-rg rEFInd icon package payload"
 
 bad_out="$tmpdir/bad-dry-run.out"
 if LINUX_RG_ARTIFACT_DIR="$bad_artifact_dir" \

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+helper_dir=${RGX1GEN11_HELPER_DIR:-$script_dir}
 refind_conf=/boot/EFI/refind/refind.conf
+refind_root=/boot
+refind_icon=/EFI/refind/icons/os_linux_rg.png
 mkinitcpio_config=/etc/mkinitcpio-linux-rg.conf
 vconsole_config=/etc/vconsole.conf
 boot_kernel=/boot/vmlinuz-linux-rg
@@ -24,6 +28,7 @@ Options:
   --live                  Check the running linux-rg boot and hardware stack
   --require-boot-log      With --live, require GPU and SOF boot-log signatures
   --refind-conf PATH      rEFInd config (default: /boot/EFI/refind/refind.conf)
+  --refind-root PATH      Root for rEFInd absolute asset paths (default: /boot)
   --mkinitcpio-conf PATH  linux-rg mkinitcpio config (default: /etc/mkinitcpio-linux-rg.conf)
   --vconsole-conf PATH    vconsole config (default: /etc/vconsole.conf)
   --boot-kernel PATH      linux-rg boot kernel (default: /boot/vmlinuz-linux-rg)
@@ -50,6 +55,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --refind-conf)
       refind_conf=$2
+      shift 2
+      ;;
+    --refind-root)
+      refind_root=$2
       shift 2
       ;;
     --mkinitcpio-conf)
@@ -314,7 +323,7 @@ want_vconsole_keymap() {
 }
 
 want_refind_entry() {
-  local stock_line rg_line
+  local icon_path stock_line rg_line
 
   if [[ ! -r $refind_conf ]]; then
     fail "rEFInd config is not readable: $refind_conf"
@@ -340,14 +349,32 @@ want_refind_entry() {
   else
     fail "rEFInd linux-rg initrd missing"
   fi
+
+  if sed -n '/^menuentry "Arch Linux linux-rg" {/,/^}/p' "$refind_conf" |
+      grep -Eq "^[[:space:]]*icon[[:space:]]+$refind_icon$"; then
+    pass "rEFInd linux-rg icon $refind_icon"
+  else
+    fail "rEFInd linux-rg icon missing: $refind_icon"
+  fi
+
+  icon_path="${refind_root%/}$refind_icon"
+  if [[ -f $icon_path ]]; then
+    pass "rEFInd linux-rg icon file $icon_path"
+  else
+    fail "rEFInd linux-rg icon file missing: $icon_path"
+  fi
 }
 
 checker_path() {
   local checker=$1
-  if command -v "$checker" >/dev/null 2>&1; then
-    command -v "$checker"
+  if [[ -x "$helper_dir/$checker" ]]; then
+    printf '%s/%s\n' "$helper_dir" "$checker"
+  elif [[ $helper_dir != "$script_dir" && -x "$script_dir/$checker" ]]; then
+    printf '%s/%s\n' "$script_dir" "$checker"
   elif [[ -x ./$checker ]]; then
     printf './%s\n' "$checker"
+  elif command -v "$checker" >/dev/null 2>&1; then
+    command -v "$checker"
   else
     return 1
   fi
@@ -400,12 +427,27 @@ want_cmdline_token() {
 
 want_local_ping() {
   local output
+  local route_output
   if ! command -v ping >/dev/null 2>&1; then
-    fail "ping is unavailable"
+    if [[ -r /sys/class/net/lo/operstate && $(</sys/class/net/lo/operstate) == unknown ]]; then
+      pass "loopback interface lo present"
+    else
+      fail "ping is unavailable and loopback state is not readable"
+    fi
     return
   fi
   if output=$(ping -c1 -W1 127.0.0.1 2>&1); then
     pass "local ping 127.0.0.1"
+  elif grep -Fq 'Operation not permitted' <<<"$output"; then
+    if command -v ip >/dev/null 2>&1 &&
+        route_output=$(ip route get 127.0.0.1 2>&1) &&
+        grep -Fq 'dev lo' <<<"$route_output"; then
+      pass "local route 127.0.0.1 via lo"
+    elif [[ -d /sys/class/net/lo && -r /sys/class/net/lo/operstate ]]; then
+      pass "loopback interface lo present"
+    else
+      fail "local ping failed: $output"
+    fi
   else
     fail "local ping failed: $output"
   fi

@@ -27,22 +27,19 @@ make_pkg() {
     "$root/usr/lib/modules/9.9.9-rg/kernel/drivers/md" \
     "$root/usr/lib/systemd/system" \
     "$root/usr/share/libalpm/hooks" \
-    "$root/usr/share/linux-rg/dkms-overlays"
+    "$root/usr/share/linux-rg/dkms-overlays" \
+    "$root/usr/share/linux-rg/refind"
   : > "$root/usr/bin/rgx1gen11-boot-check"
   if (( include_live )); then
     : > "$root/usr/bin/rgx1gen11-live-check"
   fi
   : > "$root/usr/bin/rgx1gen11-dkms-overlay-apply"
+  : > "$root/usr/share/linux-rg/refind/os_linux_rg.png"
   : > "$root/usr/lib/modules/9.9.9-rg/vmlinuz"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/async_tx/async_tx.ko.zst"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/async_tx/async_xor.ko.zst"
-  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/aria_generic.ko.zst"
-  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/cast5_generic.ko.zst"
-  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/cast6_generic.ko.zst"
-  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/cast_common.ko.zst"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/lz4.ko.zst"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/lz4hc.ko.zst"
-  : > "$root/usr/lib/modules/9.9.9-rg/kernel/crypto/serpent_generic.ko.zst"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/drivers/md/dm-bufio.ko.zst"
   : > "$root/usr/lib/modules/9.9.9-rg/kernel/drivers/md/dm-integrity.ko.zst"
   : > "$root/usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service"
@@ -72,10 +69,12 @@ out="$tmpdir/out"
 
 rg -Fq 'ok: linux-rg package payload includes live checks, DKMS overlays, and initramfs modules' "$out" \
   || fail "dry-run should validate package payload"
-rg -Fq 'dry-run: pacman -U' "$out" \
-  || fail "dry-run should print pacman reinstall command"
+rg -Fq 'dry-run: pacman --noconfirm -U' "$out" \
+  || fail "dry-run should print the noninteractive pacman reinstall command"
 rg -Fq 'dry-run: mkinitcpio -p linux-rg' "$out" \
   || fail "dry-run should print mkinitcpio command"
+rg -Fq 'dry-run: install /usr/share/linux-rg/refind/os_linux_rg.png /boot/EFI/refind/icons/os_linux_rg.png' "$out" \
+  || fail "dry-run should print rEFInd icon installation"
 rg -Fq 'dry-run: rgx1gen11-boot-check --installed' "$out" \
   || fail "dry-run should print installed boot check command"
 

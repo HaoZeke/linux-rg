@@ -7,6 +7,10 @@ artifact_dir=${LINUX_RG_ARTIFACT_DIR:-}
 kernel_pkg=${LINUX_RG_KERNEL_PKG:-}
 headers_pkg=${LINUX_RG_HEADERS_PKG:-}
 refind_conf=${REFIND_CONF:-/boot/EFI/refind/refind.conf}
+refind_icon=${REFIND_ICON:-/EFI/refind/icons/os_linux_rg.png}
+refind_icon_source=${REFIND_ICON_SOURCE:-/usr/share/linux-rg/refind/os_linux_rg.png}
+refind_icon_target=${REFIND_ICON_TARGET:-/boot${refind_icon}}
+stamp=$(date +%Y%m%d-%H%M%S)
 
 usage() {
   cat <<'USAGE'
@@ -113,6 +117,15 @@ package_has_path() {
   bsdtar -tf "$pkg" | rg -qx "$path"
 }
 
+backup_file() {
+  local path=$1
+  if [[ -e $path ]]; then
+    local backup="${path}.rg-linux-rg-${stamp}.bak"
+    cp -a "$path" "$backup"
+    printf 'backup: %s\n' "$backup"
+  fi
+}
+
 package_kver() {
   bsdtar -tf "$kernel_pkg" |
     sed -n 's#^usr/lib/modules/\([^/]*-rg\)/vmlinuz$#\1#p' |
@@ -130,15 +143,11 @@ validate_package_payload() {
     usr/bin/rgx1gen11-boot-check \
     usr/bin/rgx1gen11-live-check \
     usr/bin/rgx1gen11-dkms-overlay-apply \
+    usr/share/linux-rg/refind/os_linux_rg.png \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_tx.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_xor.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/aria_generic.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/cast5_generic.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/cast6_generic.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/cast_common.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/lz4.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/lz4hc.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/serpent_generic.ko.zst" \
     "usr/lib/modules/$kver/kernel/drivers/md/dm-bufio.ko.zst" \
     "usr/lib/modules/$kver/kernel/drivers/md/dm-integrity.ko.zst" \
     usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service \
@@ -152,6 +161,56 @@ validate_package_payload() {
     fi
   done
   printf 'ok: linux-rg package payload includes live checks, DKMS overlays, and initramfs modules\n'
+}
+
+install_refind_icon() {
+  if [[ ! -f $refind_icon_source ]]; then
+    printf 'error: missing rEFInd icon source: %s\n' "$refind_icon_source" >&2
+    exit 1
+  fi
+  install -Dm644 "$refind_icon_source" "$refind_icon_target"
+  printf 'wrote: %s\n' "$refind_icon_target"
+}
+
+write_refind_icon_line() {
+  local tmp
+  if [[ ! -r $refind_conf ]]; then
+    printf 'error: rEFInd config is not readable: %s\n' "$refind_conf" >&2
+    exit 1
+  fi
+  tmp=$(mktemp)
+  awk -v icon_line="    icon     $refind_icon" '
+    /^menuentry "Arch Linux linux-rg" \{/ {
+      in_linux_rg = 1
+      icon_written = 0
+      print
+      next
+    }
+    in_linux_rg && /^[[:space:]]*icon[[:space:]]+/ {
+      if (!icon_written) {
+        print icon_line
+        icon_written = 1
+      }
+      next
+    }
+    in_linux_rg && /^[[:space:]]*loader[[:space:]]+/ && !icon_written {
+      print icon_line
+      icon_written = 1
+    }
+    in_linux_rg && /^}/ {
+      in_linux_rg = 0
+      icon_written = 0
+    }
+    { print }
+  ' "$refind_conf" > "$tmp"
+  if ! cmp -s "$tmp" "$refind_conf"; then
+    backup_file "$refind_conf"
+    install -m 0644 "$tmp" "$refind_conf"
+    printf 'wrote: %s\n' "$refind_conf"
+  else
+    printf 'unchanged: %s\n' "$refind_conf"
+  fi
+  rm -f "$tmp"
 }
 
 show_owner_sample() {
@@ -239,14 +298,15 @@ df -h /boot || true
 
 if (( dry_run )); then
   printf '\n== dry-run package commands ==\n'
-  printf 'dry-run: pacman -U %q %q\n' "$kernel_pkg" "$headers_pkg"
+  printf 'dry-run: pacman --noconfirm -U %q %q\n' "$kernel_pkg" "$headers_pkg"
   printf 'dry-run: mkinitcpio -p linux-rg\n'
+  printf 'dry-run: install %q %q\n' "$refind_icon_source" "$refind_icon_target"
   printf 'dry-run: rgx1gen11-boot-check --installed\n'
   exit 0
 fi
 
 printf '\n== reinstall linux-rg packages ==\n'
-pacman -U "$kernel_pkg" "$headers_pkg"
+pacman --noconfirm -U "$kernel_pkg" "$headers_pkg"
 repair_package_ownership
 
 printf '\n== rebuild initramfs ==\n'
@@ -259,6 +319,10 @@ if [[ -e /boot/initramfs-linux-rg.img ]]; then
   chown root:root /boot/initramfs-linux-rg.img
   chmod 0644 /boot/initramfs-linux-rg.img
 fi
+
+printf '\n== rEFInd icon ==\n'
+install_refind_icon
+write_refind_icon_line
 
 printf '\n== boot check ==\n'
 rgx1gen11-boot-check --installed

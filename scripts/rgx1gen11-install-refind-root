@@ -46,6 +46,9 @@ artifact_dir=${LINUX_RG_ARTIFACT_DIR:-$(default_artifact_dir)}
 kernel_pkg=${LINUX_RG_KERNEL_PKG:-$(latest_package "$artifact_dir" 'linux-rg-[0-9]*-x86_64.pkg.tar.zst' 'linux-rg package')}
 headers_pkg=${LINUX_RG_HEADERS_PKG:-$(latest_package "$artifact_dir" 'linux-rg-headers-[0-9]*-x86_64.pkg.tar.zst' 'linux-rg-headers package')}
 refind_conf=${REFIND_CONF:-/boot/EFI/refind/refind.conf}
+refind_icon=${REFIND_ICON:-/EFI/refind/icons/os_linux_rg.png}
+refind_icon_source=${REFIND_ICON_SOURCE:-/usr/share/linux-rg/refind/os_linux_rg.png}
+refind_icon_target=${REFIND_ICON_TARGET:-/boot${refind_icon}}
 mkinitcpio_base=${MKINITCPIO_BASE:-/etc/mkinitcpio.conf}
 mkinitcpio_config=${MKINITCPIO_CONFIG:-/etc/mkinitcpio-linux-rg.conf}
 mkinitcpio_preset=${MKINITCPIO_PRESET:-/etc/mkinitcpio.d/linux-rg.preset}
@@ -107,15 +110,11 @@ validate_package_payload() {
     usr/bin/rgx1gen11-dkms-overlay-apply \
     usr/bin/rgx1gen11-hibernate-image-size \
     usr/bin/rgx1gen11-live-check \
+    usr/share/linux-rg/refind/os_linux_rg.png \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_tx.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/async_tx/async_xor.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/aria_generic.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/cast5_generic.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/cast6_generic.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/cast_common.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/lz4.ko.zst" \
     "usr/lib/modules/$kver/kernel/crypto/lz4hc.ko.zst" \
-    "usr/lib/modules/$kver/kernel/crypto/serpent_generic.ko.zst" \
     "usr/lib/modules/$kver/kernel/drivers/md/dm-bufio.ko.zst" \
     "usr/lib/modules/$kver/kernel/drivers/md/dm-integrity.ko.zst" \
     usr/lib/systemd/system/rgx1gen11-hibernate-image-size.service \
@@ -128,6 +127,12 @@ validate_package_payload() {
       exit 1
     fi
   done
+}
+
+install_refind_icon() {
+  need_file "$refind_icon_source"
+  install -Dm644 "$refind_icon_source" "$refind_icon_target"
+  echo "wrote: $refind_icon_target"
 }
 
 module_array_literal() {
@@ -370,7 +375,7 @@ write_refind_entry() {
   cat > "$block" <<EOF
 # linux-rg BEGIN
 menuentry "Arch Linux linux-rg" {
-    icon     /EFI/refind/icons/os_arch.png
+    icon     $refind_icon
     loader   /vmlinuz-linux-rg
     initrd   /initramfs-linux-rg.img
     options  "$options"
@@ -495,7 +500,7 @@ print_state() {
   ls -lh "$boot_kernel" "$boot_initramfs"
   echo
   echo "== rEFInd linux-rg stanza =="
-  rg -n 'linux-rg|vmlinuz-linux-rg|initramfs-linux-rg' "$refind_conf"
+  rg -n 'linux-rg|os_linux_rg|vmlinuz-linux-rg|initramfs-linux-rg' "$refind_conf"
   echo
   echo "== disk =="
   df -h / /boot
@@ -538,6 +543,7 @@ print_plan() {
   echo "boot check bin:  $boot_check_install"
   echo "initramfs modules: $(module_array_literal)"
   echo "refind config:   $refind_conf"
+  echo "refind icon:     $refind_icon_target"
   echo "refind options:  $options"
   echo
   df -h / /boot
@@ -603,6 +609,7 @@ main() {
 
   echo
   echo "== rEFInd =="
+  install_refind_icon
   write_refind_entry
 
   echo
