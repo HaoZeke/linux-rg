@@ -133,6 +133,50 @@ png_color_type() {
   od -An -tu1 -j25 -N1 "$path" 2>/dev/null | tr -d '[:space:]'
 }
 
+png_corner_alpha() {
+  local path=$1
+  python - "$path" 2>/dev/null <<'PY' || true
+import struct
+import sys
+import zlib
+
+path = sys.argv[1]
+with open(path, "rb") as handle:
+    data = handle.read()
+
+if data[:8] != b"\x89PNG\r\n\x1a\n":
+    raise SystemExit(1)
+
+pos = 8
+width = bit_depth = color_type = interlace = None
+idat = []
+while pos + 8 <= len(data):
+    length = struct.unpack(">I", data[pos : pos + 4])[0]
+    kind = data[pos + 4 : pos + 8]
+    chunk = data[pos + 8 : pos + 8 + length]
+    pos += length + 12
+    if kind == b"IHDR":
+        width, _height, bit_depth, color_type, _compression, _filter, interlace = struct.unpack(
+            ">IIBBBBB", chunk
+        )
+    elif kind == b"IDAT":
+        idat.append(chunk)
+    elif kind == b"IEND":
+        break
+
+if bit_depth != 8 or color_type not in (4, 6) or interlace != 0 or not idat:
+    raise SystemExit(1)
+
+raw = zlib.decompress(b"".join(idat))
+channels = {4: 2, 6: 4}[color_type]
+first_row = raw[: 1 + (width * channels)]
+if len(first_row) < 1 + channels:
+    raise SystemExit(1)
+
+print(first_row[channels])
+PY
+}
+
 package_png_color_type() {
   local pkg=$1 path=$2
   local tmp
@@ -142,6 +186,18 @@ package_png_color_type() {
     return 1
   fi
   png_color_type "$tmp"
+  rm -f "$tmp"
+}
+
+package_png_corner_alpha() {
+  local pkg=$1 path=$2
+  local tmp
+  tmp=$(mktemp)
+  if ! bsdtar -xOf "$pkg" "$path" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
+  png_corner_alpha "$tmp"
   rm -f "$tmp"
 }
 
@@ -157,6 +213,23 @@ want_png_alpha_color_type() {
       ;;
     *)
       printf 'error: %s lacks PNG alpha channel (color type %s)\n' "$description" "$color_type" >&2
+      exit 1
+      ;;
+  esac
+}
+
+want_png_transparent_corner() {
+  local alpha=$1 description=$2 path=$3
+  case "$alpha" in
+    0)
+      return 0
+      ;;
+    "")
+      printf 'error: %s corner alpha unreadable: %s\n' "$description" "$path" >&2
+      exit 1
+      ;;
+    *)
+      printf 'error: %s corner is not transparent: %s (alpha %s)\n' "$description" "$path" "$alpha" >&2
       exit 1
       ;;
   esac
@@ -219,6 +292,8 @@ validate_package_payload() {
       exit 1
       ;;
   esac
+  want_png_transparent_corner "$(package_png_corner_alpha "$kernel_pkg" "$icon_path")" \
+    "package rEFInd icon" "$icon_path"
   printf 'ok: linux-rg package payload includes live checks, DKMS overlays, and initramfs modules\n'
 }
 
@@ -228,8 +303,12 @@ install_refind_icon() {
     exit 1
   fi
   want_png_alpha_color_type "$(png_color_type "$refind_icon_source")" "rEFInd icon source $refind_icon_source"
+  want_png_transparent_corner "$(png_corner_alpha "$refind_icon_source")" \
+    "rEFInd icon source" "$refind_icon_source"
   install -Dm644 "$refind_icon_source" "$refind_icon_target"
   want_png_alpha_color_type "$(png_color_type "$refind_icon_target")" "rEFInd icon target $refind_icon_target"
+  want_png_transparent_corner "$(png_corner_alpha "$refind_icon_target")" \
+    "rEFInd icon target" "$refind_icon_target"
   printf 'wrote: %s\n' "$refind_icon_target"
 }
 

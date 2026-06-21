@@ -27,6 +27,13 @@ iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1
 EOF
 }
 
+write_opaque_alpha_icon() {
+  local path=$1
+  base64 -d >"$path" <<'EOF'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqBhUXNxOeXJRWAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTA2LTIxVDIzOjU1OjE5KzAwOjAwCw28HwAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0wNi0yMVQyMzo1NToxOSswMDowMHpQBKMAAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMDYtMjFUMjM6NTU6MTkrMDA6MDAtRSV8AAAAC0lEQVQI12P4DwQACfsD/WMmxY8AAAAASUVORK5CYII=
+EOF
+}
+
 make_pkg() {
   local pkg=$1
   local include_live=${2:-1}
@@ -51,6 +58,7 @@ make_pkg() {
   case "$icon_mode" in
     alpha) write_alpha_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
     rgb) write_rgb_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
+    opaque-alpha) write_opaque_alpha_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
     *) fail "unknown icon mode: $icon_mode" ;;
   esac
   : > "$root/usr/lib/modules/9.9.9-rg/vmlinuz"
@@ -92,6 +100,17 @@ if "$script" --dry-run --artifact-dir "$bad_icon_dir" >"$bad_icon_out" 2>&1; the
 fi
 rg -Fq 'package rEFInd icon lacks PNG alpha channel: usr/share/linux-rg/refind/os_linux_rg.png' "$bad_icon_out" \
   || fail "RGB icon rejection should name the rEFInd icon payload"
+
+bad_opaque_icon_dir="$tmpdir/bad-opaque-icon"
+mkdir -p "$bad_opaque_icon_dir"
+make_pkg "$bad_opaque_icon_dir/linux-rg-7.0.12.arch1-1-x86_64.pkg.tar.zst" 1 opaque-alpha
+make_pkg "$bad_opaque_icon_dir/linux-rg-headers-7.0.12.arch1-1-x86_64.pkg.tar.zst"
+bad_opaque_icon_out="$tmpdir/bad-opaque-icon-out"
+if "$script" --dry-run --artifact-dir "$bad_opaque_icon_dir" >"$bad_opaque_icon_out" 2>&1; then
+  fail "dry-run should reject package rEFInd icon without a transparent corner"
+fi
+rg -Fq 'package rEFInd icon corner is not transparent: usr/share/linux-rg/refind/os_linux_rg.png' "$bad_opaque_icon_out" \
+  || fail "opaque RGBA icon rejection should name the rEFInd icon payload"
 
 out="$tmpdir/out"
 "$script" --dry-run --artifact-dir "$tmpdir" >"$out"
