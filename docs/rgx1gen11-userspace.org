@@ -66,6 +66,8 @@ Pass evidence:
   =cfg80211_del_sta_sinfo=, =cfg80211_ch_switch_notify=, =video_ioctl2=, and
   =v4l2_fh_exit=.
 - =rgx1gen11-live-check --with-userspace= exits 0 under root.
+- =rg-memory-sysctl-check= reports the VM dirty/writeback, swappiness,
+  watermark, and cache-pressure policy matches the managed drop-in.
 - =rg-x1gen11-profile doctor --check= reports =profile policy: ok=.
 
 * Workload profiles
