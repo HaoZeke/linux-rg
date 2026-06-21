@@ -28,6 +28,11 @@ Companion docs:
 
 The host exposes two durable root commands through chezmoi:
 
+- =rg-linux-rg-finish-userspace-gates=
+  - Owner: chezmoi =~/.local/bin=
+  - Role: finalizes a linux-rg boot by installing the transparent rEFInd icon,
+    syncing the managed root/postboot/gate helpers, applying the root setup, and
+    running postboot plus non-root policy gates.
 - =rg-linux-rg-userspace-root-setup=
   - Owner: chezmoi =~/.local/bin=
   - Role: repairs and syncs the installed linux-rg userspace stack, DKMS
@@ -55,6 +60,7 @@ The root setup helper performs the following sequence for
 Use:
 
 #+begin_src sh
+sudo rg-linux-rg-finish-userspace-gates 2>&1 | tee /tmp/rg-linux-rg-finish-userspace-gates.out
 sudo rg-linux-rg-userspace-root-setup 2>&1 | tee /tmp/rg-linux-rg-userspace-root-setup.out
 sudo rg-linux-rg-postboot-check 2>&1 | tee /tmp/rg-linux-rg-postboot-check.out
 #+end_src
@@ -227,6 +233,7 @@ Root-only thermal evidence is collected by =rg-linux-rg-postboot-check= through
 | Stage | Command | Evidence |
 | Package payload | =scripts/rgx1gen11-reinstall-check-root --dry-run= | Required helpers, icon, modules, DKMS overlays present |
 | Installed boot contract | =rgx1gen11-boot-check --installed= | rEFInd, initramfs, encrypted btrfs, config checks pass |
+| Finish gates | =sudo rg-linux-rg-finish-userspace-gates= | Transparent rEFInd icon, root setup, postboot, and policy gates pass together |
 | Root repair | =sudo rg-linux-rg-userspace-root-setup= | DKMS overlays, sysctl/profile, initramfs, live bundle pass |
 | Postboot | =sudo rg-linux-rg-postboot-check= | Running kernel, DKMS, module probes, profile policy, OOMD policy, KSM policy, storage trim policy, zswap/zram policy, live checks pass |
 | Policy gate bundle | =rg-bench-matrix run gates= | Non-root artifacts for memory sysctl, PipeWire RT, OOMD, KSM, storage trim, zswap/zram, thermal, and active workload profile |
