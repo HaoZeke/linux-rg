@@ -149,6 +149,14 @@ Vissue: =linux-rg-1j07=.
 Kernel pins: none beyond USB stack and =CONFIG_MEDIA_CAMERA_SUPPORT= (Arch base).
 Policy focus: autosuspend, shutter integration, PipeWire portal permissions.
 
+Chezmoi policy installs =/etc/udev/rules.d/70-rg-uvc-autosuspend.rules= for
+=04f2:b751= so the integrated camera uses USB runtime PM =auto= with a 2000 ms
+autosuspend delay. Validate the live policy with:
+
+#+begin_src shell
+rg-uvc-camera-check --check
+#+end_src
+
 Vissue: =linux-rg-al83=.
 
 * Graphics (Iris Xe 8086:a7a1)
