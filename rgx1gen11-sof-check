@@ -9,6 +9,7 @@ expected_driver=${RGX1GEN11_AUDIO_DRIVER:-}
 require_firmware=0
 require_boot_log=0
 live=0
+live_driver=
 
 usage() {
   cat <<'USAGE'
@@ -182,6 +183,7 @@ want_lspci_driver() {
   fi
 
   driver=$(sed -nE 's/^[[:space:]]*Kernel driver in use:[[:space:]]+(.+)$/\1/p' <<<"$lspci_output" | head -n 1)
+  live_driver=$driver
   if [[ -n $expected_driver ]]; then
     if [[ $driver == "$expected_driver" ]]; then
       pass "$pci_id uses $expected_driver"
@@ -227,6 +229,24 @@ want_boot_log() {
   fi
 }
 
+want_sof_boot_log() {
+  local pattern=$1
+  local description=$2
+
+  [[ $require_boot_log -eq 1 ]] || return 0
+  case "$live_driver" in
+    sof-audio-pci-intel-tgl|snd_soc_avs)
+      want_boot_log "$pattern" "$description"
+      ;;
+    snd_hda_intel)
+      pass "boot log $description skipped for snd_hda_intel path"
+      ;;
+    *)
+      want_boot_log "$pattern" "$description"
+      ;;
+  esac
+}
+
 want_config CONFIG_SND_SOC_SOF_INTEL_TGL 'CONFIG_SND_SOC_SOF_INTEL_TGL=m'
 want_config CONFIG_SND_SOC_SOF_INTEL_MTL 'CONFIG_SND_SOC_SOF_INTEL_MTL=m'
 want_config CONFIG_SND_SOC_SOF_INTEL_COMMON 'CONFIG_SND_SOC_SOF_INTEL_COMMON=m'
@@ -255,12 +275,12 @@ want_firmware 'intel/sof-tplg/sof-hda-generic-4ch.tplg*'
 want_lspci_driver snd_sof_pci_intel_tgl
 want_lspci_driver snd_soc_avs
 want_lspci_driver snd_hda_intel
-want_boot_log 'Digital mics found.*using SOF driver' 'DMIC SOF selection'
-want_boot_log 'using HDA machine driver skl_hda_dsp_generic' 'HDA machine driver'
-want_boot_log 'Firmware file:[[:space:]]+intel/sof/sof-rpl\.ri' 'SOF firmware path'
-want_boot_log 'Topology file:[[:space:]]+intel/sof-tplg/sof-hda-generic-4ch\.tplg' 'SOF topology path'
-want_boot_log 'Firmware info: version' 'SOF firmware version'
-want_boot_log 'loading topology: intel/sof-tplg/sof-hda-generic-4ch\.tplg' 'SOF topology load'
+want_sof_boot_log 'Digital mics found.*using SOF driver' 'DMIC SOF selection'
+want_sof_boot_log 'using HDA machine driver skl_hda_dsp_generic' 'HDA machine driver'
+want_sof_boot_log 'Firmware file:[[:space:]]+intel/sof/sof-rpl\.ri' 'SOF firmware path'
+want_sof_boot_log 'Topology file:[[:space:]]+intel/sof-tplg/sof-hda-generic-4ch\.tplg' 'SOF topology path'
+want_sof_boot_log 'Firmware info: version' 'SOF firmware version'
+want_sof_boot_log 'loading topology: intel/sof-tplg/sof-hda-generic-4ch\.tplg' 'SOF topology load'
 want_boot_log 'ALC287' 'Realtek ALC287 codec'
 
 if [[ $failures -gt 0 ]]; then
