@@ -34,6 +34,11 @@ iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1
 EOF
 }
 
+write_white_matte_icon() {
+  local path=$1
+  magick -size 1x1 xc:'#FFFFFF00' PNG32:"$path"
+}
+
 make_pkg() {
   local pkg=$1
   local include_live=${2:-1}
@@ -59,6 +64,7 @@ make_pkg() {
     alpha) write_alpha_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
     rgb) write_rgb_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
     opaque-alpha) write_opaque_alpha_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
+    white-matte) write_white_matte_icon "$root/usr/share/linux-rg/refind/os_linux_rg.png" ;;
     *) fail "unknown icon mode: $icon_mode" ;;
   esac
   : > "$root/usr/lib/modules/9.9.9-rg/vmlinuz"
@@ -111,6 +117,19 @@ if "$script" --dry-run --artifact-dir "$bad_opaque_icon_dir" >"$bad_opaque_icon_
 fi
 rg -Fq 'package rEFInd icon corner is not transparent: usr/share/linux-rg/refind/os_linux_rg.png' "$bad_opaque_icon_out" \
   || fail "opaque RGBA icon rejection should name the rEFInd icon payload"
+
+if command -v magick >/dev/null 2>&1; then
+  bad_matte_icon_dir="$tmpdir/bad-matte-icon"
+  mkdir -p "$bad_matte_icon_dir"
+  make_pkg "$bad_matte_icon_dir/linux-rg-7.0.12.arch1-1-x86_64.pkg.tar.zst" 1 white-matte
+  make_pkg "$bad_matte_icon_dir/linux-rg-headers-7.0.12.arch1-1-x86_64.pkg.tar.zst"
+  bad_matte_icon_out="$tmpdir/bad-matte-icon-out"
+  if "$script" --dry-run --artifact-dir "$bad_matte_icon_dir" >"$bad_matte_icon_out" 2>&1; then
+    fail "dry-run should reject package rEFInd icon with a white transparent matte"
+  fi
+  rg -Fq 'package rEFInd icon transparent matte is white:' "$bad_matte_icon_out" \
+    || fail "white-matte icon rejection should name the rEFInd icon matte"
+fi
 
 out="$tmpdir/out"
 "$script" --dry-run --artifact-dir "$tmpdir" >"$out"

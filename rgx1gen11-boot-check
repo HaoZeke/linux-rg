@@ -138,7 +138,7 @@ png_color_type() {
 
 want_refind_icon_alpha() {
   local icon_path=$1
-  local color_type corner
+  local color_type corner matte
 
   color_type=$(png_color_type "$icon_path")
   case "$color_type" in
@@ -166,6 +166,21 @@ want_refind_icon_alpha() {
         ;;
       *)
         fail "rEFInd linux-rg icon corner is not transparent: $corner"
+        ;;
+    esac
+  fi
+
+  if command -v magick >/dev/null 2>&1; then
+    matte=$(magick "$icon_path" -alpha off -format '%[pixel:p{0,0}]' info: 2>/dev/null || true)
+    case "$matte" in
+      srgb\(25[0-5],25[0-5],25[0-5]\)|srgba\(25[0-5],25[0-5],25[0-5]*)
+        fail "rEFInd linux-rg icon transparent matte is white: $matte"
+        ;;
+      "")
+        fail "rEFInd linux-rg icon transparent matte unreadable: $icon_path"
+        ;;
+      *)
+        pass "rEFInd linux-rg icon transparent matte is dark"
         ;;
     esac
   fi

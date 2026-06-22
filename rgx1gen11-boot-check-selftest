@@ -107,6 +107,10 @@ if command -v identify >/dev/null 2>&1; then
   printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon has transparent corner' \
     || fail "installed check should require the linux-rg rEFInd icon corner alpha"
 fi
+if command -v magick >/dev/null 2>&1; then
+  printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon transparent matte is dark' \
+    || fail "installed check should require a non-white transparent icon matte"
+fi
 printf '%s\n' "$output" | rg -q 'ok: vconsole keymap colemak' \
   || fail "installed check should require Colemak for the LUKS prompt"
 
@@ -129,6 +133,26 @@ fi
 rg -q 'fail: rEFInd linux-rg icon lacks PNG alpha channel:' /tmp/rgx1gen11-boot-check.flat-icon \
   || fail "flattened-icon failure should be explicit"
 cp "$repo/os_linux_rg.png" "$tmpdir/boot/EFI/refind/icons/os_linux_rg.png"
+
+if command -v magick >/dev/null 2>&1; then
+  magick -size 1x1 xc:'#FFFFFF00' PNG32:"$tmpdir/boot/EFI/refind/icons/os_linux_rg.png"
+  if PATH="$tmpdir/bin:$PATH" \
+    RGX1GEN11_HELPER_DIR="$tmpdir/bin" \
+    "$checker" --installed \
+      --refind-conf "$refind_conf" \
+      --refind-root "$tmpdir/boot" \
+      --mkinitcpio-conf "$mkinitcpio_conf" \
+      --boot-kernel "$tmpdir/boot-kernel" \
+      --boot-initramfs "$tmpdir/boot-initramfs" \
+      --modules-root "$tmpdir/modules" \
+      --firmware-root "$tmpdir/firmware" \
+      --vconsole-conf "$vconsole_conf" >/tmp/rgx1gen11-boot-check.white-matte-icon 2>&1; then
+    fail "installed check should fail when transparent icon pixels use a white matte"
+  fi
+  rg -q 'fail: rEFInd linux-rg icon transparent matte is white:' /tmp/rgx1gen11-boot-check.white-matte-icon \
+    || fail "white-matte icon failure should be explicit"
+  cp "$repo/os_linux_rg.png" "$tmpdir/boot/EFI/refind/icons/os_linux_rg.png"
+fi
 
 bad_mkinitcpio="$tmpdir/mkinitcpio-no-encrypt.conf"
 sed 's/ encrypt//' "$mkinitcpio_conf" >"$bad_mkinitcpio"

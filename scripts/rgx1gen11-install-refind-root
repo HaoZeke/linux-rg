@@ -128,6 +128,26 @@ package_png_color_type() {
   rm -f "$tmp"
 }
 
+png_corner_matte() {
+  local path=$1
+  if ! command -v magick >/dev/null 2>&1; then
+    return 0
+  fi
+  magick "$path" -alpha off -format '%[pixel:p{0,0}]' info: 2>/dev/null || return 1
+}
+
+package_png_corner_matte() {
+  local pkg=$1 path=$2
+  local tmp
+  tmp=$(mktemp)
+  if ! bsdtar -xOf "$pkg" "$path" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
+  png_corner_matte "$tmp"
+  rm -f "$tmp"
+}
+
 want_png_alpha_color_type() {
   local color_type=$1 description=$2
   case "$color_type" in
@@ -145,8 +165,21 @@ want_png_alpha_color_type() {
   esac
 }
 
+want_png_nonwhite_transparent_matte() {
+  local matte=$1 description=$2
+  if [[ -z $matte ]]; then
+    return 0
+  fi
+  case "$matte" in
+    srgb\(25[0-5],25[0-5],25[0-5]\)|srgba\(25[0-5],25[0-5],25[0-5]*)
+      printf 'error: %s transparent matte is white: %s\n' "$description" "$matte" >&2
+      exit 1
+      ;;
+  esac
+}
+
 validate_package_payload() {
-  local kver path icon_path icon_color_type
+  local kver path icon_path icon_color_type icon_matte
   kver=$(package_kver)
   if [[ -z $kver ]]; then
     printf 'error: could not read linux-rg kernel version from %s\n' "$kernel_pkg" >&2
@@ -189,13 +222,17 @@ validate_package_payload() {
       exit 1
       ;;
   esac
+  icon_matte=$(package_png_corner_matte "$kernel_pkg" "$icon_path" || true)
+  want_png_nonwhite_transparent_matte "$icon_matte" "package rEFInd icon"
 }
 
 install_refind_icon() {
   need_file "$refind_icon_source"
   want_png_alpha_color_type "$(png_color_type "$refind_icon_source")" "rEFInd icon source $refind_icon_source"
+  want_png_nonwhite_transparent_matte "$(png_corner_matte "$refind_icon_source" || true)" "rEFInd icon source $refind_icon_source"
   install -Dm644 "$refind_icon_source" "$refind_icon_target"
   want_png_alpha_color_type "$(png_color_type "$refind_icon_target")" "rEFInd icon target $refind_icon_target"
+  want_png_nonwhite_transparent_matte "$(png_corner_matte "$refind_icon_target" || true)" "rEFInd icon target $refind_icon_target"
   echo "wrote: $refind_icon_target"
 }
 

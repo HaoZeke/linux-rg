@@ -49,6 +49,11 @@ iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1
 EOF
 }
 
+write_white_matte_icon() {
+  local path=$1
+  magick -size 1x1 xc:'#FFFFFF00' PNG32:"$path"
+}
+
 artifact_dir="$tmpdir/artifacts"
 pkgroot="$tmpdir/pkgroot"
 mkdir -p \
@@ -299,6 +304,25 @@ if LINUX_RG_ARTIFACT_DIR="$bad_icon_artifact_dir" \
 fi
 rg -Fq 'package rEFInd icon lacks PNG alpha channel: usr/share/linux-rg/refind/os_linux_rg.png' "$bad_icon_out" \
   || fail "RGB icon rejection should name the rEFInd icon payload"
+
+if command -v magick >/dev/null 2>&1; then
+  bad_matte_artifact_dir="$tmpdir/bad-matte-artifacts"
+  mkdir -p "$bad_matte_artifact_dir"
+  write_white_matte_icon "$bad_icon_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
+  bsdtar -cf "$bad_matte_artifact_dir/linux-rg-9.9.6-x86_64.pkg.tar.zst" -C "$bad_icon_pkgroot" usr
+  touch "$bad_matte_artifact_dir/linux-rg-headers-9.9.6-x86_64.pkg.tar.zst"
+  bad_matte_out="$tmpdir/bad-matte-dry-run.out"
+  if LINUX_RG_ARTIFACT_DIR="$bad_matte_artifact_dir" \
+    LINUX_RG_PROC_MOUNTS="$proc_mounts" \
+    LINUX_RG_VCONSOLE_CONF="$vconsole_conf" \
+    REFIND_CONF="$refind_conf" \
+    MKINITCPIO_BASE="$mkinitcpio_base" \
+    "$installer" --dry-run >"$bad_matte_out" 2>&1; then
+    fail "dry run should reject a package rEFInd icon with a white transparent matte"
+  fi
+  rg -Fq 'package rEFInd icon transparent matte is white:' "$bad_matte_out" \
+    || fail "white-matte icon rejection should name the rEFInd icon matte"
+fi
 
 rg -q "'scx-tools:.*scx_loader" "$pkgbuild" \
   || fail "PKGBUILD should name the Arch package that provides scx_loader"
