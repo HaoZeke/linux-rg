@@ -115,10 +115,12 @@ The daily =undocked-mixed= profile is the baseline for battery and thermals:
 | sched_ext | off by default; explicit ladder profiles choose scx schedulers |
 | DAMON reclaim | off by default; =memory-pressure= profile enables bounded policy |
 
-=build-heavy= may raise CPU policy and sched_ext selection, but it must keep
-memory and thermal caps active. It is the only laptop profile allowed to enable
-Intel HWP dynamic boost. =focus= may bias interactivity, but it must not disable
-PSI/oomd or the hibernate image-size cap.
+=focus= is the explicit warmer interactive profile: balanced platform profile,
+=balance_performance= EPP, Intel HWP dynamic boost enabled, and =scx_lavd=.
+It may bias interactivity, but it must not disable PSI/oomd or the hibernate
+image-size cap. =build-heavy= may raise CPU policy and sched_ext selection, but
+it must keep memory and thermal caps active. =focus= and =build-heavy= are the
+only laptop profiles allowed to enable Intel HWP dynamic boost.
 
 * Memory and OOM policy
 
@@ -179,6 +181,7 @@ policy, and SMT-idle support. Userspace controls when sched_ext participates:
 
 | Mode | Scheduler policy |
 | Daily laptop | BORE/fair path, sched_ext off |
+| Focus | =scx_lavd= with explicit HWP boost |
 | Interactive trial | =scx_p2dq= or ladder-selected low-latency scheduler |
 | Build-heavy | =scx_rusty= trial with PSI and wall-time capture |
 | ASA experiment | =asa-router= / =scx_loader= only with explicit profile |

@@ -83,6 +83,7 @@ Targets are scored per profile. Default daily driver: =undocked-mixed=.
 | Profile | Typical load | Priority metrics |
 | undocked-mixed | Sway, browser, terminals, sync, occasional =make -j9= | wakeup latency, scroll jank, fan noise, idle power |
 | docked-office | External 4K via TB4, DDCCI brightness, Ethernet/USB dock | hotplug reliability, display wake, DDCCI, idle with dock |
+| focus | Low-latency interactive writing/coding while accepting warmer operation | wakeup latency, scroll jank, fan noise |
 | travel | Wi-Fi roaming, VPN, suspend in bag | TCP setup latency, s2idle resume, battery drain |
 | build-heavy | =make -j9=, containers, scientific builds | build wall time, PSI memory, NVMe contention under desktop |
 | memory-pressure | browser + VM + build concurrently | swap thrash, oomd reaction, zram compression ratio |
