@@ -198,7 +198,7 @@ Userspace tuning (=linux-rg-pwr=) is higher priority than additional kernel patc
 | Webcam privacy | UVC loaded on USB | udev autosuspend, shutter | =linux-rg-al83= |
 | Touchpad feel | I2C designware + PS/2 trackpoint | libinput palm detect | =linux-rg-8mmb= |
 | Hardware video | Video calls, power | VAAPI + GuC/HuC policy | =linux-rg-r8jz= |
-| Discard / trim | LUKS+btrfs already discard=async | fstrim.timer policy | =linux-rg-7pnt= |
+| Discard / trim | LUKS+btrfs already =discard=async= | =fstrim.timer= disabled to avoid duplicate trim | =linux-rg-7pnt= |
 | Writeback stalls | Build + browser cache writes | vm.dirty_* sysctl | =linux-rg-5x78= |
 
 ** Initramfs and modules

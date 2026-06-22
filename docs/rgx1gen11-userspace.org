@@ -108,7 +108,7 @@ The daily =undocked-mixed= profile is the baseline for battery and thermals:
 | iwlwifi power_save | enabled |
 | zram | zstd, ram/2 sizing unless memory-pressure data says otherwise |
 | zswap | enabled, zstd, max pool 20%, accept threshold 90% |
-| storage trim | periodic =fstrim.timer=; encrypted passthrough; no continuous btrfs discard |
+| storage trim | btrfs =discard=async=; encrypted passthrough; =fstrim.timer= disabled |
 | systemd-oomd | enabled |
 | KSM | enabled for =MADV_MERGEABLE= pages; scan-time advisor; zero-page merge disabled |
 | sched_ext | off by default; explicit ladder profiles choose scx schedulers |
@@ -162,13 +162,13 @@ revised from evidence.
 
 * Storage policy
 
-The encrypted btrfs root uses explicit trim rather than continuous mount-time
-discard. =fstrim.timer= is enabled by the userspace root setup helper, while
-=rg-storage-trim-check --check= validates three live invariants: the timer is
-enabled, the LUKS mapping allows explicit discard passthrough for fstrim, and
-btrfs mounts do not carry =discard= or =discard= option prefixes. This matches
-the storage epic rule that default btrfs layout and compression changes need IO
-latency evidence under desktop plus build load.
+The encrypted btrfs root uses live asynchronous btrfs discard through the LUKS
+mapping. =fstrim.timer= is disabled by the userspace root setup helper so weekly
+trim does not duplicate the live discard path. =rg-storage-trim-check --check=
+validates three live invariants: the timer is disabled/inactive, the LUKS
+mapping allows discard passthrough, and btrfs mounts carry =discard=async=. This
+matches the storage epic rule that default btrfs layout and compression changes
+need IO latency evidence under desktop plus build load.
 
 * Scheduler policy
 
