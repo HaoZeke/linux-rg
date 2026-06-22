@@ -177,6 +177,9 @@ policy, and SMT-idle support. Userspace controls when sched_ext participates:
 Acceptance for a scheduler change is in =docs/rgx1gen11-targets.org=: build
 wall time within 5% of stock or faster, no sustained CPU pressure under desktop
 use, and an explicit A/B record for chosen sched_ext expert vs BORE-only.
+=rg-bench-matrix run sched= samples the default local expert set
+=off lavd rusty bpfland p2dq= for 20 seconds each. Override with
+=RG_BENCH_SCHED_SET= when a run needs =asa= or an experimental ladder entry.
 
 * Audio realtime policy
 
