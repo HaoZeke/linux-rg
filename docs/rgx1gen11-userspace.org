@@ -144,10 +144,12 @@ preserving the idle-power rule for daily profiles.
 =rg-zswap-tune check= is the live compressed-memory gate. It validates zswap
 =enabled=Y=, =compressor=zstd=, =max_pool_percent=20=,
 =accept_threshold_percent=90=, =shrinker_enabled=Y= where available, and zram0
-as the selected =zstd= compressor at swap priority =100=. The root setup helper
-applies the same laptop profile through =rg-zswap-tune laptop= so the runtime
-state matches the selected kernel and userspace compression policy before the
-postboot gate runs.
+as the selected =zstd= compressor at swap priority =100=. It also requires the
+zram writeback interface and memory tracking to be visible while keeping
+=backing_dev= at =none= for the daily profile. The root setup helper applies the
+same laptop profile through =rg-zswap-tune laptop= so the runtime state matches
+the selected kernel and userspace compression policy before the postboot gate
+runs.
 
 KSM is a userspace policy on top of =CONFIG_KSM=y=. The managed
 =rg-ksm-madvise.service= enables ksmd, selects the scan-time advisor when the
