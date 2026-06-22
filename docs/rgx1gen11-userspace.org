@@ -180,6 +180,8 @@ use, and an explicit A/B record for chosen sched_ext expert vs BORE-only.
 =rg-bench-matrix run sched= samples the default local expert set
 =off lavd rusty bpfland p2dq= for 20 seconds each. Override with
 =RG_BENCH_SCHED_SET= when a run needs =asa= or an experimental ladder entry.
+Set =RG_BENCH_SCHED_WORKLOAD= to time one shell workload under every sampled
+scheduler, for example a bounded kernel build target.
 
 * Audio realtime policy
 
