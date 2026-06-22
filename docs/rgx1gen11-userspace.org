@@ -136,6 +136,11 @@ The current 32 GiB laptop target keeps zram at ram/2 because live evidence in
 Changing that policy requires =memory-pressure= evidence, not a default swap-size
 guess.
 
+=rg-damon-reclaim systemd-unit memory-pressure= emits a root
+=rg-damon-reclaim-memory-pressure.service= unit for bounded reclaim trials. The
+unit is not installed or enabled by default; stopping it disables DAMON reclaim,
+preserving the idle-power rule for daily profiles.
+
 =rg-zswap-tune check= is the live compressed-memory gate. It validates zswap
 =enabled=Y=, =compressor=zstd=, =max_pool_percent=20=,
 =accept_threshold_percent=90=, =shrinker_enabled=Y= where available, and zram0
