@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+checker="$repo/scripts/linux-rg-headers-path-check"
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  exit 1
+}
+
+test -x "$checker" || fail "missing checker: $checker"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+make_headers_pkg() {
+  local pkg=$1
+  local payload=$2
+  local root=$tmpdir/root
+  rm -rf "$root"
+  mkdir -p \
+    "$root/usr/lib/modules/9.9.9-rg/build/rust" \
+    "$root/usr/lib/modules/9.9.9-rg/vdso"
+  printf '%s\n' "$payload" >"$root/usr/lib/modules/9.9.9-rg/build/rust/libkernel.rmeta"
+  printf '%s\n' "$payload" >"$root/usr/lib/modules/9.9.9-rg/build/rust/libmacros.so"
+  printf '%s\n' "$payload" >"$root/usr/lib/modules/9.9.9-rg/vdso/vdso64.so"
+  bsdtar --zstd -cf "$pkg" -C "$root" usr
+}
+
+leaky_pkg="$tmpdir/linux-rg-headers-leaky.pkg.tar.zst"
+safe_pkg="$tmpdir/linux-rg-headers-safe.pkg.tar.zst"
+make_headers_pkg "$leaky_pkg" '/home/rgoswami/.local/share/chezmoi/.kernel-build/linux-rg-build/linux-rg/src/linux-7.0.12/rust/kernel/lib.rs'
+make_headers_pkg "$safe_pkg" './rust/kernel/lib.rs'
+
+leaky_out="$tmpdir/leaky.out"
+if "$checker" "$leaky_pkg" >"$leaky_out" 2>&1; then
+  fail "checker should reject headers package paths containing host build roots"
+fi
+rg -Fq 'leaked source/build path:' "$leaky_out" \
+  || fail "checker should print the leaked path"
+rg -Fq 'usr/lib/modules/9.9.9-rg/build/rust/libkernel.rmeta' "$leaky_out" \
+  || fail "checker should name the leaky Rust metadata file"
+
+safe_out="$tmpdir/safe.out"
+"$checker" "$safe_pkg" >"$safe_out"
+rg -Fq 'ok: linux-rg headers package source paths are remapped' "$safe_out" \
+  || fail "checker should pass remapped Rust and VDSO package payloads"
+
+printf 'ok\n'

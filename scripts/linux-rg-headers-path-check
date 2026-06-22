@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: linux-rg-headers-path-check PATH
+
+Validate that linux-rg-headers Rust metadata and VDSO payloads do not carry
+host-specific build/source roots.
+EOF
+}
+
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+  usage
+  exit 0
+fi
+
+pkg=${1:-}
+if [[ -z $pkg ]]; then
+  usage >&2
+  exit 2
+fi
+if [[ ! -f $pkg ]]; then
+  printf 'error: package not found: %s\n' "$pkg" >&2
+  exit 1
+fi
+
+mapfile -t targets < <(
+  bsdtar -tf "$pkg" |
+    rg 'usr/lib/modules/[^/]+/(build/rust/.*\.(rmeta|so)|vdso/vdso.*\.so)$'
+)
+
+if (( ${#targets[@]} == 0 )); then
+  printf 'error: no Rust metadata or VDSO payloads found in %s\n' "$pkg" >&2
+  exit 1
+fi
+
+status=0
+for target in "${targets[@]}"; do
+  while IFS= read -r leak; do
+    [[ -n $leak ]] || continue
+    printf 'fail: leaked source/build path: %s: %s\n' "$target" "$leak" >&2
+    status=1
+  done < <(
+    bsdtar -xOf "$pkg" "$target" |
+      strings -a |
+      rg -o '(/home/[^[:space:]]*(\.kernel-build|/Git/Github/Tools/linux-rg)[^[:space:]]*|/tmp/[^[:space:]]*linux-rg[^[:space:]]*|/build/[^[:space:]]*linux-rg[^[:space:]]*)' || true
+  )
+done
+
+if (( status != 0 )); then
+  exit "$status"
+fi
+
+printf 'ok: linux-rg headers package source paths are remapped\n'
