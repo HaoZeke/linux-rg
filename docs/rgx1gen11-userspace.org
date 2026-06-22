@@ -105,6 +105,7 @@ The daily =undocked-mixed= profile is the baseline for battery and thermals:
 | Platform profile | =low-power= |
 | CPU governor | =powersave= |
 | EPP | =balance_power= |
+| Intel HWP dynamic boost | disabled |
 | iwlwifi power_save | enabled |
 | zram | zstd, ram/2 sizing unless memory-pressure data says otherwise |
 | zswap | enabled, zstd, max pool 20%, accept threshold 90% |
@@ -115,8 +116,9 @@ The daily =undocked-mixed= profile is the baseline for battery and thermals:
 | DAMON reclaim | off by default; =memory-pressure= profile enables bounded policy |
 
 =build-heavy= may raise CPU policy and sched_ext selection, but it must keep
-memory and thermal caps active. =focus= may bias interactivity, but it must not
-disable PSI/oomd or the hibernate image-size cap.
+memory and thermal caps active. It is the only laptop profile allowed to enable
+Intel HWP dynamic boost. =focus= may bias interactivity, but it must not disable
+PSI/oomd or the hibernate image-size cap.
 
 * Memory and OOM policy
 
@@ -223,7 +225,7 @@ Daily laptop policy prioritizes cool operation and battery endurance:
   sched_ext, and DAMON status.
 - =rg-x1gen11-profile doctor --check= fails if the active profile drifts from
   live platform profile, CPU governor, EPP, iwlwifi power-save policy, or
-  scheduler ladder =scx_mode=.
+  Intel HWP dynamic boost policy, or scheduler ladder =scx_mode=.
 - =rg-thermal-stack-check --check= reports platform thermal zones, ThinkPad ACPI
   fan/thermal exposure, and service ownership. TLP remains the primary laptop
   power daemon; =power-profiles-daemon= must be inactive, and =thermald= must
