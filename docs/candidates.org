@@ -60,7 +60,7 @@ each carried / candidate section.
 | 0026 newidle revert | n/a | evaluating | alt to 0025 |
 | 0027 BT USB quirks | n/a | probe-gated | cachyos-fixes #04 delta |
 | 0028 in-kernel r8125 | n/a | probe-gated | alt to DKMS |
-| 0029 udmabuf sg fix | shared? | candidate | cachyos-fixes #11 |
+| 0029 udmabuf sg fix | shared | satisfied-by-base | cachyos-fixes #11 |
 | 0040 poc-selector dual-CCD | n/a | evaluating | sirlucjan |
 | 0042 NAP cpuidle | n/a | evaluating | amd idle ML gov |
 | T41-T44 cmdline matrix | n/a | probe | AMD idle/IOMMU/NVMe |
@@ -271,7 +271,7 @@ In-tree Realtek r8125 driver series instead of CachyOS DKMS packaging
 ** Status
 
 | Field | Value |
-| Decision | shared carry |
+| Decision | satisfied by Arch base |
 | Evidence grade | B (dma-buf stability) |
 | Source | cachyos-fixes-patches-v27 #11 |
 | Patch file | =0029-udmabuf-sg-table-from-pages.patch= |
@@ -280,14 +280,15 @@ In-tree Realtek r8125 driver series instead of CachyOS DKMS packaging
 ** What it is
 
 Replaces the =sg_set_folio= loop with a page-array based
-=sg_alloc_table_from_pages= call in the udmabuf path. Arch 7.0.12 still uses
-the older pattern; the linux-rg carry resolves each folio+offset pair to the
-exact backing page before building the scatterlist.
+=sg_alloc_table_from_pages= call in the udmabuf path. Arch 7.0.12 already uses
+=ubuf->pages= with =sg_alloc_table_from_pages= in the Arch-patched source, so
+the linux-rg source list does not apply the older folio-offset carry.
 
 ** Applicability
 
-Carried in the shared patch queue for every profile. This is a small dma-buf
-stability fix and does not depend on rgam5terra live hardware probes.
+Satisfied by the shared base source for every profile. This remains tracked as
+a dma-buf stability requirement and does not depend on rgam5terra live hardware
+probes.
 
 * Candidate: CachyOS CONFIG_CACHY fair (explicit block for rgam5terra)
 
