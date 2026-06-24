@@ -227,10 +227,18 @@ export KBUILD_BUILD_USER=$pkgbase
 export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
 
 _linux_rg_apply_path_remap() {
-  local map_src="$srcdir"
-  export KCPPFLAGS="${KCPPFLAGS:+$KCPPFLAGS }-fmacro-prefix-map=$map_src=."
-  export KCFLAGS="${KCFLAGS:+$KCFLAGS }-fdebug-prefix-map=$map_src=. -ffile-prefix-map=$map_src=."
-  export KRUSTFLAGS="${KRUSTFLAGS:+$KRUSTFLAGS }--remap-path-prefix=$map_src=."
+  local map_path
+  local map_paths=(
+    "$PWD"
+    "$srcdir"
+    "$startdir"
+  )
+  for map_path in "${map_paths[@]}"; do
+    [[ -n $map_path ]] || continue
+    export KCPPFLAGS="${KCPPFLAGS:+$KCPPFLAGS }-fmacro-prefix-map=$map_path=."
+    export KCFLAGS="${KCFLAGS:+$KCFLAGS }-fdebug-prefix-map=$map_path=. -ffile-prefix-map=$map_path=. -fmacro-prefix-map=$map_path=."
+    export KRUSTFLAGS="${KRUSTFLAGS:+$KRUSTFLAGS }--remap-path-prefix=$map_path=."
+  done
 }
 
 prepare() {
@@ -451,6 +459,7 @@ _package-headers() {
   provides=(LINUX-HEADERS)
 
   cd $_srcname
+  _linux_rg_apply_path_remap
   local builddir="$pkgdir/usr/lib/modules/$(<version)/build"
 
   local karch
