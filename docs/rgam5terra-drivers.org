@@ -268,7 +268,7 @@ File: =/usr/lib/modprobe.d/rgam5terra-nvidia.conf= (packaged by =linux-rg=)
 options nvidia_drm modeset=1
 options nvidia NVreg_PreserveVideoMemoryAllocations=1
 options nvidia NVreg_DynamicPowerManagement=0x02
-options nvidia NVreg_UsePageAttributeTable=1
+# removed: NVreg_UsePageAttributeTable invalid on nvidia-open 610.x
 #+end_example
 
 Userspace (grade C for SFF thermals):
