@@ -1,0 +1,30 @@
+#+title: linux-rg rgSURFLat targets
+#+date: [2026-06-30 Mon]
+
+* Machine
+
+| Field | Value |
+| Hostname / profile slug | rgSURFLat |
+| Model | Dell Latitude 7430 |
+| Class | Intel Alder Lake-U business ultrabook |
+| Kernel profile | =LINUX_RG_PROFILE=rgSURFLat= |
+| Installer profile | hzArchiso =--profile rgSURFLat= |
+
+* Workload profiles
+
+1. Docked external display + USB-C/TB peripherals (i915/xe, Type-C, UCSI)
+2. Battery / TLP balanced vs performance (thermald, intel_pstate)
+3. Wi-Fi roaming / VPN (iwlwifi, NetworkManager, openfortivpn)
+4. Video conference (SOF audio, PipeWire, optional v4l2loopback)
+
+* Acceptance (software bar without physical soak)
+
+- Profile accepted by linux-rg PKGBUILD prepare and hz-install
+- Package delta includes Intel microcode, Mesa/Vulkan Intel, SOF firmware, TLP stack
+- Kernel overlay enables Dell platform + Intel GPU/Wi-Fi/SOF pins
+- CachyOS sync notes record reviewed vs deferred patches for this class
+
+* Live verification (on hardware; not gated in CI here)
+
+- =lspci -nnk=, =lsusb=, =journalctl -b -k= for i915/iwlwifi/sof/dell-wmi
+- Suspend/resume and optional hibernation only after firmware review

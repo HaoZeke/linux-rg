@@ -1,0 +1,67 @@
+#+title: linux-rg rgSURFLat driver map
+#+date: [2026-06-30 Mon]
+
+* Purpose
+
+Driver and firmware map for Dell Latitude 7430 (=rgSURFLat=). Live PCI/USB IDs
+should be recorded after first boot; defaults below follow public Latitude 7430
+Intel configurations and ArchWiki laptop guidance.
+
+See =docs/profiles.org=.
+
+* Microcode and GPU
+
+| Stack | Packages / modules |
+| CPU microcode | =intel-ucode= (installer profile); early load via initramfs |
+| iGPU | =i915= / =xe=; userspace =mesa=, =vulkan-intel=, =intel-media-driver= |
+| Firmware | =linux-firmware= |
+
+** Kernel config pins (=rgSURFLat.config=)
+
+- =CONFIG_DRM_I915=m=, =CONFIG_DRM_XE=m= + display
+- =CONFIG_X86_INTEL_PSTATE=y=, =CONFIG_INTEL_IDLE=y=
+
+* Wi-Fi / Bluetooth (Intel CNVi)
+
+| Field | Value |
+| Kernel modules | =iwlwifi= / =iwlmvm=; BT via =btusb= + =btintel= |
+| Firmware | =linux-firmware= iwlwifi ucode + =wireless-regdb= |
+| Modprobe | =/usr/lib/modprobe.d/rgSURFLat-iwlwifi.conf= (=bt_coex_active=1=) |
+
+Typical Latitude 7430 units use AX201- or AX211-class CNVi; confirm with
+=lspci -nnk= / =lsusb= after install.
+
+* Audio (SOF)
+
+| Field | Value |
+| Driver | SOF Intel (=snd_sof_pci_intel_tgl= / ADL path) |
+| Firmware | =sof-firmware= (installer) + =linux-firmware= |
+| Config | =CONFIG_SND_SOC_SOF_INTEL_TGL=m=, =CONFIG_SND_SOC_SOF_INTEL_ADL=m= |
+
+* Dell platform
+
+| Driver | Config |
+| =dell-laptop= | =CONFIG_DELL_LAPTOP=m= |
+| =dell-wmi= / privacy / descriptor / DDV | =CONFIG_DELL_WMI*= |
+| =dell-smbios= | =CONFIG_DELL_SMBIOS=m= (+ WMI/SMM) |
+| =dell-rbtn= | =CONFIG_DELL_RBTN=m= |
+| =dell-smm-hwmon= | =CONFIG_SENSORS_DELL_SMM=m= |
+
+* Power and thermal (userspace)
+
+Installer profile keeps =tlp=, =tlp-rdw=, =thermald=, =zram-generator=, =fwupd=.
+Modern Latitude firmware often prefers S0ix over legacy S3; hibernation is
+sensitive — see =docs/rgSURFLat-boot-safety.org=.
+
+* Fingerprint (optional)
+
+Many Latitude 7430 SKUs use a Broadcom fingerprint reader requiring a proprietary
+TOD blob (=libfprint-2-tod1-broadcom= AUR or vendor package). =fprintd= is
+installed from official repos; the Broadcom TOD library is **not** a hard
+installer gate. Install from AUR only if the reader is present and needed.
+
+* What we are not doing
+
+- NVIDIA/AMD dGPU stacks (this SKU is Intel graphics)
+- ThinkPad ACPI as primary platform driver
+- Out-of-tree iwlwifi patches

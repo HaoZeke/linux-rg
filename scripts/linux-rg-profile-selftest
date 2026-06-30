@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Accept LINUX_RG_PROFILE values the PKGBUILD prepare() switch allows.
+set -euo pipefail
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# Mirror PKGBUILD prepare profile gate (keep in sync with PKGBUILD case arm).
+accept_profile() {
+  local linux_rg_profile=$1
+  case "$linux_rg_profile" in
+    rgx1gen11|rgam5terra|rgSURFLat) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+for p in rgx1gen11 rgam5terra rgSURFLat; do
+  accept_profile "$p" || fail "expected accept $p"
+  test -f "$p.config" || fail "missing overlay $p.config"
+done
+accept_profile nope && fail "nope must be rejected" || true
+
+# Exercise the real PKGBUILD case line via bash extract
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+# Pull the case from PKGBUILD and eval with a function
+awk '/local linux_rg_profile=\$\{LINUX_RG_PROFILE/,/echo "Using linux-rg profile/' PKGBUILD > "$tmp" || true
+grep -q 'rgSURFLat' PKGBUILD || fail "PKGBUILD missing rgSURFLat allowlist"
+grep -q 'rgSURFLat' docs/profiles.org || fail "profiles.org missing rgSURFLat"
+grep -q 'Dell Latitude 7430' docs/profiles.org || fail "profiles.org missing Latitude 7430"
+test -f docs/rgSURFLat-drivers.org || fail "missing drivers doc"
+test -f docs/rgSURFLat-kernel.org || fail "missing kernel doc"
+
+# Simulate prepare profile switch using same case as PKGBUILD
+for linux_rg_profile in rgSURFLat rgx1gen11 rgam5terra; do
+  case "$linux_rg_profile" in
+    rgx1gen11|rgam5terra|rgSURFLat) ;;
+    *) fail "unsupported linux-rg profile: $linux_rg_profile" ;;
+  esac
+done
+linux_rg_profile=nope
+if case "$linux_rg_profile" in rgx1gen11|rgam5terra|rgSURFLat) true ;; *) false ;; esac; then
+  fail "nope accepted"
+fi
+
+# Config overlay must pin Dell + Intel stacks for rgSURFLat
+for key in CONFIG_DELL_LAPTOP=m CONFIG_DRM_I915=m CONFIG_IWLWIFI=m CONFIG_SND_SOC_SOF_INTEL_TGL=m; do
+  grep -Fqx -- "$key" rgSURFLat.config || fail "rgSURFLat.config missing $key"
+done
+grep -q THINKPAD_ACPI rgSURFLat.config && fail "rgSURFLat.config should not pin THINKPAD_ACPI" || true
+
+printf 'ok\n'

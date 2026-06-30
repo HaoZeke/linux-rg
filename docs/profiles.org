@@ -81,6 +81,30 @@ Research plan: gather primary sources for Zen 5 scheduling, AM5 power/thermal,
 NVIDIA firmware paths, NVMe (SN850X) behavior, and memory pressure on 48 GiB,
 then feed the profile contract into Archiso and NixOS provisioning work.
 
+
+** rgSURFLat (Dell Latitude 7430)
+
+| Attribute | Value |
+|-----------|-------|
+| Slug | rgSURFLat |
+| Form | Ultrabook / business laptop (Dell Latitude 7430) |
+| CPU | Intel Alder Lake-U class (e.g. Core i5-1245U / i7-1265U variants) |
+| iGPU | Intel Iris Xe (Alder Lake GT2) |
+| Network | Intel CNVi Wi-Fi 6 (AX201/AX211 class) + BT combo |
+| Audio | SOF Intel Alder Lake / Tiger Lake path |
+| Platform | Dell WMI / SMBIOS laptop drivers |
+| Status | Active profile (installer + kernel overlay) |
+| Config overlay | =rgSURFLat.config= |
+
+Docs:
+- =docs/rgSURFLat-kernel.org=
+- =docs/rgSURFLat-targets.org=
+- =docs/rgSURFLat-drivers.org=
+- =docs/rgSURFLat-boot-safety.org=
+
+Build with =LINUX_RG_PROFILE=rgSURFLat makepkg=. Shares the carried CachyOS-derived
+patch series with other profiles; AMD-only =0022= is skipped (same as rgx1gen11).
+
 * Patch and area discovery across profiles
 
 When evaluating a new patch or policy area:
@@ -101,7 +125,7 @@ A patch can be:
 
 * Naming conventions
 
-- Profile slugs are short, lowercase, no separators when possible (rgx1gen11, rgam5terra).
+- Profile slugs are short, lowercase, no separators when possible (rgx1gen11, rgam5terra, rgSURFLat).
 - All per-profile files in docs/ use the =${slug}-= prefix.
 - The machine overlay in the repo root is =${slug}.config=.
 - Checker / helper scripts that ship in the package are currently =${slug}-*= (this

@@ -64,6 +64,7 @@ source=(
   0022-amd-znver5-rdseed.patch
   rgx1gen11.config
   rgam5terra.config
+  rgSURFLat.config
   os_linux_rg.png
   asa-router
   rg-terra-power
@@ -89,6 +90,8 @@ source=(
   69-linux-rg-dkms-overlays.hook
   rgx1gen11-iwlwifi.conf
   rgx1gen11-btusb.conf
+  rgSURFLat-iwlwifi.conf
+  rgSURFLat-btusb.conf
   rgam5terra-nvidia.conf
   ddcci-0.4.5-linux-7.0.patch
   rtl88xxau-r1298-linux-7.0.patch
@@ -246,7 +249,7 @@ prepare() {
   echo "${pkgbase#linux}" > localversion.20-pkgname
   local linux_rg_profile=${LINUX_RG_PROFILE:-rgx1gen11}
   case "$linux_rg_profile" in
-    rgx1gen11|rgam5terra) ;;
+    rgx1gen11|rgam5terra|rgSURFLat) ;;
     *) echo "unsupported linux-rg profile: $linux_rg_profile" >&2; exit 1 ;;
   esac
   echo "Using linux-rg profile: $linux_rg_profile"
@@ -328,7 +331,7 @@ prepare() {
   local module_count module_budget
   module_count=$(grep -c '^CONFIG_.*=m$' .config || :)
   case "$linux_rg_profile" in
-    rgx1gen11) module_budget=${LINUX_RG_MODULE_BUDGET:-1500} ;;
+    rgx1gen11|rgSURFLat) module_budget=${LINUX_RG_MODULE_BUDGET:-1500} ;;
     *) module_budget=${LINUX_RG_MODULE_BUDGET:-0} ;;
   esac
   if (( module_budget > 0 )); then
@@ -395,6 +398,7 @@ _package() {
   # Used by mkinitcpio to name the kernel
   install -Dm644 "$srcdir/rgx1gen11.config" "$pkgdir/usr/share/linux-rg/profiles/rgx1gen11.config"
   install -Dm644 "$srcdir/rgam5terra.config" "$pkgdir/usr/share/linux-rg/profiles/rgam5terra.config"
+  install -Dm644 "$srcdir/rgSURFLat.config" "$pkgdir/usr/share/linux-rg/profiles/rgSURFLat.config"
   install -Dm644 "$srcdir/os_linux_rg.png" "$pkgdir/usr/share/linux-rg/refind/os_linux_rg.png"
   echo "$pkgbase" | install -Dm644 /dev/stdin "$modulesdir/pkgbase"
 
@@ -428,6 +432,8 @@ _package() {
     "$pkgdir/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
   install -Dm644 "$srcdir/rgx1gen11-iwlwifi.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf"
   install -Dm644 "$srcdir/rgx1gen11-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-btusb.conf"
+  install -Dm644 "$srcdir/rgSURFLat-iwlwifi.conf" "$pkgdir/usr/lib/modprobe.d/rgSURFLat-iwlwifi.conf"
+  install -Dm644 "$srcdir/rgSURFLat-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rgSURFLat-btusb.conf"
   install -Dm644 "$srcdir/rgam5terra-nvidia.conf" "$pkgdir/usr/lib/modprobe.d/rgam5terra-nvidia.conf"
   install -Dm644 "$srcdir/ddcci-0.4.5-linux-7.0.patch" \
     "$pkgdir/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"

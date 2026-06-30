@@ -1,0 +1,27 @@
+#+title: linux-rg rgSURFLat boot safety
+#+date: [2026-06-30 Mon]
+
+* Boot contract
+
+- systemd-boot + LUKS2 + Btrfs subvolumes from hzArchiso native installer
+- Stock =linux= / =linux-lts= remain available; =linux-rg= built with
+  =LINUX_RG_PROFILE=rgSURFLat= is optional daily driver
+- Early =intel-ucode= via initramfs / ESP layout from installer packages
+
+* Suspend / hibernation
+
+Latitude 7430 firmware commonly implements modern standby (S0ix) rather than
+classic S3. Do not assume hibernation works until:
+
+1. Resume from suspend is stable on the target firmware revision
+2. Swap / hibernation image size is validated (see rgx1gen11 hibernate helpers
+   as a pattern if enabling hibernation later)
+3. Dell BIOS sleep settings are explicit (not "OS controlled" surprises)
+
+Prefer suspend-to-idle; treat hibernation as best-effort.
+
+* Rollback
+
+Keep at least one stock Arch kernel in the boot menu. Profile-specific modprobe
+snippets are under =/usr/lib/modprobe.d/rgSURFLat-*.conf= and can be overridden
+in =/etc/modprobe.d/=.

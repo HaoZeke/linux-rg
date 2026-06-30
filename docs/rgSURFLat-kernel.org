@@ -1,0 +1,55 @@
+#+title: linux-rg rgSURFLat kernel profile
+#+date: [2026-06-30 Mon]
+
+* Purpose
+
+Kernel overlay and patch applicability for =rgSURFLat= (Dell Latitude 7430,
+Intel Alder Lake–U class). See =docs/profiles.org= for the index.
+
+* Hardware class
+
+- Intel Alder Lake-U hybrid CPU with Intel P-state + intel_idle
+- Iris Xe iGPU (=i915= / =xe= display paths on 7.x)
+- Intel CNVi Wi-Fi + USB BT
+- SOF audio on Intel ADL/TGL PCI audio
+- Dell platform WMI / SMBIOS / laptop drivers (not ThinkPad ACPI)
+
+* Config overlay
+
+=rgSURFLat.config= starts from the Intel ultrabook pins used on =rgx1gen11=
+(i915/xe, iwlwifi, SOF Intel, PSI/zswap/BORE/sched_ext stack) and replaces
+ThinkPad ACPI pins with Dell =CONFIG_DELL_*= / =CONFIG_SENSORS_DELL_SMM= and
+pins =CONFIG_SND_SOC_SOF_INTEL_ADL=m= alongside TGL SOF.
+
+Build: =LINUX_RG_PROFILE=rgSURFLat makepkg= (module budget default 1500, same
+laptop class as rgx1gen11). AMD-only =0022-amd-znver5-rdseed.patch= is skipped.
+
+* CachyOS-derived carry (shared series)
+
+This profile uses the same carried patch set as other active profiles unless a
+patch is explicitly profile-gated in the PKGBUILD. Survey date for upstream
+sync: 2026-06-30 against sirlucjan =7.0/cachyos-fixes-patches-v27= (latest vN on
+7.0; no v28+) and CachyOS =kernel-patches/7.0/sched= (BORE/prjc trees).
+
+| Area | Patch / policy | Decision for rgSURFLat |
+| Scheduler BORE | 0001 + 0002 adapt | carried (shared) |
+| BBRv3 | 0003 + 0004 adapt | carried (shared) |
+| Block / ADIOS | 0007 / 0008 | carried (shared, modular) |
+| Hot-path / hybrid | 0010-0013, 0016 TEO | carried — hybrid laptop fit |
+| MM ratios / mglru / cache | 0018-0021 | carried (shared) |
+| znver5 RDSEED 0022 | PKGBUILD gate | skipped (Intel host) |
+| CONFIG_CACHY fair | CachyOS omnibus | not carried (BORE) |
+| Handheld / aufs / -O3 | CachyOS packaging | not carried |
+| i915 RC6 InfinityBook quirks (v27 #01-02) | hardware-specific | deferred (not Latitude DMI) |
+| Panther Lake / Framework mic (v27) | wrong silicon | deferred |
+| BT USB VID quirks (v27 #03-04) | probe if BT IDs match | deferred until live IDs |
+
+Full candidate matrix rationale remains in =docs/rgx1gen11-kernel.org= and
+=docs/candidates.org=; this profile inherits Intel laptop decisions and adds
+Dell platform config only.
+
+* Non-goals
+
+- Proprietary Dell Windows drivers
+- Fingerprint Broadcom TOD blobs in-tree (userspace/AUR note in drivers.org)
+- Guaranteeing every CachyOS 7.1/7.2-rc patch on Arch 7.0.13 base
