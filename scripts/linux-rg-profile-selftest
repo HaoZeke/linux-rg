@@ -134,4 +134,19 @@ for name in profile_locals:
 print(f"source/checksum parity ok ({len(expanded)} entries)")
 PY
 
+# Never ship invalid NVIDIA PAT modprobe (610.x open: unknown parameter).
+# Comments may mention the name; active options lines must not.
+while IFS= read -r f; do
+  if grep -E '^[[:space:]]*options[[:space:]].*NVreg_UsePageAttributeTable' "$f" >/dev/null; then
+    fail "invalid NVreg_UsePageAttributeTable in $f"
+  fi
+done < <(find "$repo_root" -maxdepth 1 -name '*.conf' -print)
+# Packaged install path on a system with linux-rg must also be clean when present.
+if [[ -f /usr/lib/modprobe.d/rgam5terra-nvidia.conf ]]; then
+  if grep -E '^[[:space:]]*options[[:space:]].*NVreg_UsePageAttributeTable' \
+    /usr/lib/modprobe.d/rgam5terra-nvidia.conf >/dev/null; then
+    fail "installed /usr/lib/modprobe.d/rgam5terra-nvidia.conf still sets NVreg_UsePageAttributeTable (rebuild/reinstall linux-rg)"
+  fi
+fi
+
 printf 'ok\n'
