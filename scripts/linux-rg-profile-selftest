@@ -50,4 +50,88 @@ for key in CONFIG_DELL_LAPTOP=m CONFIG_DRM_I915=m CONFIG_IWLWIFI=m CONFIG_SND_SO
 done
 grep -q THINKPAD_ACPI rgSURFLat.config && fail "rgSURFLat.config should not pin THINKPAD_ACPI" || true
 
+# PKGBUILD source= vs sha256sums/b2sums parity (expanded brace sources, not ${...}).
+# Ensures new profile assets cannot land without matching integrity hashes.
+python3 - "$repo_root/PKGBUILD" <<'PY' || fail "PKGBUILD source/checksum parity check failed"
+import hashlib, re, subprocess, sys
+from pathlib import Path
+
+pkgbuild = Path(sys.argv[1])
+text = pkgbuild.read_text()
+root = pkgbuild.parent
+
+def extract_sums(name: str) -> list[str]:
+    start = text.find(f"{name}=(")
+    if start < 0:
+        raise SystemExit(f"missing {name}")
+    m = re.match(rf"{re.escape(name)}=\(((\s*'[^']*')+)\s*\)", text[start:], re.S)
+    if not m:
+        raise SystemExit(f"cannot parse {name}")
+    return re.findall(r"'([^']*)'", m.group(1))
+
+def source_lines() -> list[str]:
+    m = re.search(r"^source=\((.*?)^\)", text, re.M | re.S)
+    if not m:
+        raise SystemExit("missing source=(")
+    out = []
+    for line in m.group(1).splitlines():
+        line = line.split("#")[0].strip()
+        if line:
+            out.append(line)
+    return out
+
+def expand_makepkg_braces(entry: str) -> list[str]:
+    holes: list[str] = []
+
+    def protect(m: re.Match[str]) -> str:
+        holes.append(m.group(0))
+        return f"\x00{len(holes) - 1}\x00"
+
+    protected = re.sub(r"\$\{[^}]+\}", protect, entry)
+    if "{" not in protected:
+        return [entry]
+    m = re.search(r"\{([^{}]+)\}", protected)
+    if not m:
+        return [entry]
+    pre, mid, post = protected[: m.start()], m.group(1), protected[m.end() :]
+    out = []
+    for alt in mid.split(","):
+        s = pre + alt + post
+        s = re.sub(r"\x00(\d+)\x00", lambda mm: holes[int(mm.group(1))], s)
+        out.append(s)
+    return out
+
+expanded: list[str] = []
+for e in source_lines():
+    expanded.extend(expand_makepkg_braces(e))
+sha = extract_sums("sha256sums")
+b2 = extract_sums("b2sums")
+if not (len(expanded) == len(sha) == len(b2)):
+    raise SystemExit(
+        f"parity fail: expanded={len(expanded)} sha256sums={len(sha)} b2sums={len(b2)}"
+    )
+
+profile_locals = (
+    "rgSURFLat.config",
+    "rgSURFLat-iwlwifi.conf",
+    "rgSURFLat-btusb.conf",
+    "rgx1gen11.config",
+    "rgam5terra.config",
+)
+for name in profile_locals:
+    if name not in expanded:
+        raise SystemExit(f"source= missing {name}")
+    idx = expanded.index(name)
+    path = root / name
+    if not path.is_file():
+        raise SystemExit(f"missing file {name}")
+    got_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    got_b2 = subprocess.check_output(["b2sum", str(path)], text=True).split()[0]
+    if sha[idx] != got_sha:
+        raise SystemExit(f"sha256sums[{idx}] mismatch for {name}")
+    if b2[idx] != got_b2:
+        raise SystemExit(f"b2sums[{idx}] mismatch for {name}")
+print(f"source/checksum parity ok ({len(expanded)} entries)")
+PY
+
 printf 'ok\n'
