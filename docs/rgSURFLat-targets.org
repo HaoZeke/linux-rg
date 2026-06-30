@@ -5,10 +5,48 @@
 
 | Field | Value |
 | Hostname / profile slug | rgSURFLat |
-| Model | Dell Latitude 7430 |
-| Class | Intel Alder Lake-U business ultrabook |
+| OEM model | Dell Latitude 7430 (laptop or 7430 2-in-1) |
+| Class | 14" Intel Alder Lake business ultrabook |
 | Kernel profile | =LINUX_RG_PROFILE=rgSURFLat= |
 | Installer profile | hzArchiso =--profile rgSURFLat= |
+| Cross-repo hardware manifest | hzArchiso =docs/orgmode/hardware-manifest.org= |
+
+* Factory CPU option matrix (Dell Setup & Specifications)
+
+All options use Intel Iris Xe iGPU (no dGPU on this family).
+
+| Processor | Notes |
+| Intel Core i5-1235U | U15, 10C/12T, 12 MB |
+| Intel Core i7-1255U | U15, 10C/12T, 12 MB |
+| Intel Core i5-1240P | P28, 12C/16T, 12 MB |
+| Intel Core i5-1245U (vPro Enterprise) | U15 |
+| Intel Core i7-1265U (vPro Enterprise) | U15 |
+| Intel Core i5-1250P (vPro Enterprise) | P28 |
+| Intel Core i7-1270P (vPro Enterprise) | P28, 18 MB cache |
+
+* Family I/O (exact ports)
+
+| Port / feature | Spec |
+| Thunderbolt | 2× USB-C Thunderbolt 4 (PD + DP 1.4 Alt Mode) |
+| USB-A | 1× USB 3.2 Gen 1 Type-A PowerShare |
+| HDMI | HDMI 2.0 |
+| Audio | Universal headset jack |
+| Card reader | microSD |
+| Lock | Wedge security lock |
+| Wireless (typical) | Intel Wi-Fi 6E AX211 2×2 + Bluetooth |
+| Optional | WWAN (LTE/5G), Smart Card, fingerprint, IR camera |
+
+* This unit (fill on first boot)
+
+| Field | Value |
+| Service Tag | |
+| CPU (=lscpu= Model name) | |
+| RAM | |
+| NVMe model | |
+| Display / touch / 2-in-1 | |
+| WLAN PCI ID | |
+| Fingerprint USB ID | |
+| BIOS version | |
 
 * Workload profiles
 
@@ -22,9 +60,14 @@
 - Profile accepted by linux-rg PKGBUILD prepare and hz-install
 - Package delta includes Intel microcode, Mesa/Vulkan Intel, SOF firmware, TLP stack
 - Kernel overlay enables Dell platform + Intel GPU/Wi-Fi/SOF pins
-- CachyOS sync notes record reviewed vs deferred patches for this class
+- Hardware manifest documents CPU matrix and port list (hzArchiso org doc)
 
 * Live verification (on hardware; not gated in CI here)
 
-- =lspci -nnk=, =lsusb=, =journalctl -b -k= for i915/iwlwifi/sof/dell-wmi
-- Suspend/resume and optional hibernation only after firmware review
+#+begin_src shell
+sudo dmidecode -s system-product-name
+lscpu
+lspci -nnk
+lsusb
+journalctl -b -k | rg -i 'iwlwifi|i915|sof|dell'
+#+end_src

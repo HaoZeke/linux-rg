@@ -1,4 +1,9 @@
 #+title: linux-rg rgSURFLat driver map
+
+Exact family ports, CPU SKUs, and installer rationale: hzArchiso
+=docs/orgmode/hardware-manifest.org= (cross-repo). Fill *This unit* IDs in
+=docs/rgSURFLat-targets.org= after first boot.
+
 #+date: [2026-06-30 Mon]
 
 * Purpose
