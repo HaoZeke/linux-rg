@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Apply the linux-rg carry series onto an unpacked Arch kernel tree.
+# No compile. Prints a reject report.
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+tree=${1:-}
+if [[ -z $tree || ! -d $tree ]]; then
+  printf 'usage: %s /path/to/linux-7.1.8\n' "$0" >&2
+  exit 2
+fi
+cd -- "$tree"
+
+fail=0
+applied=0
+skipped=0
+
+skip_src() {
+  case "$1" in
+    0002-bore-fair-arch-adapt.patch|0004-bbr3-arch7-adapt.patch) return 0 ;;
+    ddcci-0.4.5-linux-7.0.patch|rtl88xxau-r1314-linux-7.0.patch|evdi-1.14.7-linux-7.0.patch) return 0 ;;
+    0022-amd-znver5-rdseed.patch|0029-udmabuf-sg-table-from-pages.patch) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+apply_one() {
+  local src=$1
+  local rc=0
+  echo "Applying $src..."
+  if [[ $src == 0001-bore-cachy.patch ]]; then
+    if ! patch -Np1 --batch --forward --fuzz=0 < "$repo/$src"; then
+      if [[ -s kernel/sched/fair.c.rej ]] && grep -q 'sysctl_sched_tunable_scaling' kernel/sched/fair.c.rej; then
+        echo "Applying Arch fair.c adaptation for BORE..."
+        patch -Np1 --batch --forward --fuzz=0 < "$repo/0002-bore-fair-arch-adapt.patch" || rc=$?
+      else
+        rc=1
+      fi
+    fi
+  elif [[ $src == 0003-bbr3-cachy.patch ]]; then
+    if ! patch -Np1 --batch --forward --fuzz=0 < "$repo/$src"; then
+      echo "Applying Arch TCP adaptation for BBRv3..."
+      patch -Np1 --batch --forward --fuzz=0 < "$repo/0004-bbr3-arch7-adapt.patch" || rc=$?
+    fi
+  else
+    patch -Np1 --batch --forward --fuzz=0 < "$repo/$src" || rc=$?
+  fi
+  if (( rc == 0 )); then
+    applied=$((applied + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL: %s\n' "$src" >&2
+  fi
+}
+
+for src in "$repo"/00*.patch; do
+  base=${src##*/}
+  if skip_src "$base"; then
+    echo "skip $base"
+    skipped=$((skipped + 1))
+    continue
+  fi
+  apply_one "$base"
+done
+
+echo
+echo "applied=$applied skipped=$skipped fail=$fail"
+echo '===== leftover rejects ====='
+find . -name '*.rej' -print | sort
+echo '===== leftover orig ====='
+find . -name '*.orig' -print | sort | wc -l
+exit "$fail"
