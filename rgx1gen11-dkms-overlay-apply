@@ -83,7 +83,7 @@ if [[ -z $target_kver ]]; then
   target_kver=$(
     find /usr/lib/modules -maxdepth 2 -type d -path '*/build' -printf '%h\n' |
       sed 's|.*/||' |
-      grep -- '-rg$' |
+      { grep -- '-rg$' || true; } |
       sort -V |
       tail -n 1
   )
@@ -98,7 +98,7 @@ if [[ -z $target_kver ]]; then
   exit 1
 fi
 
-if [[ ! -d /usr/lib/modules/$target_kver/build ]]; then
+if [[ ! -e /usr/lib/modules/$target_kver/build/Makefile ]]; then
   if ((if_present)); then
     printf 'skip: missing headers for %s\n' "$target_kver"
     exit 0
@@ -206,6 +206,43 @@ patch_module() {
   fi
 }
 
+skip_duplicate_ddcci() {
+  local module=ddcci
+  local version=0.4.5
+  local src_name=ddcci-0.4.5
+  local src_dir=/usr/src/$src_name
+  local stamp=$1
+  local marker='linux-rg ships ddcci in-tree'
+
+  printf '\n== skip %s/%s for %s ==\n' "$module" "$version" "$target_kver"
+
+  [[ -d $src_dir ]] || {
+    if ((if_present)); then
+      printf 'skip: missing DKMS source: %s\n' "$src_dir"
+      return 0
+    fi
+    printf 'error: missing DKMS source: %s\n' "$src_dir" >&2
+    return 1
+  }
+
+  backup_source "$src_name" "$stamp"
+  for dkms_conf in "$src_dir/dkms.conf" "/var/lib/dkms/$module/$version/build/dkms.conf"; do
+    [[ -f $dkms_conf ]] || continue
+    if grep -Fq -- "$marker" "$dkms_conf"; then
+      printf 'already patched: %s\n' "$dkms_conf"
+      continue
+    fi
+    cat >>"$dkms_conf" <<'EOF'
+
+# linux-rg ships ddcci in-tree; keep this DKMS package for fallback kernels.
+case "${kernelver:-}" in
+  *-rg) BUILD_EXCLUSIVE_KERNEL="linux-rg ships ddcci in-tree" ;;
+esac
+EOF
+    printf 'patched: %s\n' "$dkms_conf"
+  done
+}
+
 skip_duplicate_v4l2loopback() {
   local module=v4l2loopback
   local version=0.15.3
@@ -228,7 +265,7 @@ skip_duplicate_v4l2loopback() {
   backup_source "$src_name" "$stamp"
   for dkms_conf in "$src_dir/dkms.conf" "/var/lib/dkms/$module/$version/build/dkms.conf"; do
     [[ -f $dkms_conf ]] || continue
-    if rg -q --fixed-strings "$marker" "$dkms_conf"; then
+    if grep -Fq -- "$marker" "$dkms_conf"; then
       printf 'already patched: %s\n' "$dkms_conf"
       continue
     fi
@@ -259,8 +296,18 @@ printf 'jobs: %s\n' "$jobs"
 
 refresh_module_symvers
 
-patch_module ddcci 0.4.5 ddcci-0.4.5 dkms-overlays/ddcci-0.4.5-linux-7.0.patch "$stamp"
-patch_module rtl88xxau r1298.b44d288 rtl88xxau-r1298.b44d288 dkms-overlays/rtl88xxau-r1298-linux-7.0.patch "$stamp"
+skip_duplicate_ddcci "$stamp"
+rtl_src=$(find /usr/src -maxdepth 1 -type d -name 'rtl88xxau-r1314*' | sort -V | tail -n 1 || true)
+if [[ -n $rtl_src ]]; then
+  rtl_name=${rtl_src#/usr/src/}
+  rtl_ver=${rtl_name#rtl88xxau-}
+  patch_module rtl88xxau "$rtl_ver" "$rtl_name" dkms-overlays/rtl88xxau-r1314-linux-7.0.patch "$stamp"
+elif ((if_present)); then
+  printf 'skip: missing DKMS source: rtl88xxau-r1314*\n'
+else
+  printf 'error: missing DKMS source: rtl88xxau-r1314*\n' >&2
+  exit 1
+fi
 patch_module evdi 1.14.7 evdi-1.14.7 dkms-overlays/evdi-1.14.7-linux-7.0.patch "$stamp"
 skip_duplicate_v4l2loopback "$stamp"
 
@@ -269,8 +316,9 @@ if ((patch_only)); then
   exit 0
 fi
 
-rebuild_module ddcci 0.4.5
-rebuild_module rtl88xxau r1298.b44d288
+if [[ -n ${rtl_ver:-} ]]; then
+  rebuild_module rtl88xxau "$rtl_ver"
+fi
 rebuild_module evdi 1.14.7
 
 depmod "$target_kver"

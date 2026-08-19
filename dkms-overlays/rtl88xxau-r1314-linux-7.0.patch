@@ -1,0 +1,104 @@
+diff -ruN a/rtl88xxau-r1314.7344855/include/osdep_service_linux.h b/rtl88xxau-r1314.7344855/include/osdep_service_linux.h
+--- a/rtl88xxau-r1314.7344855/include/osdep_service_linux.h	2026-06-26 17:35:01.000000000 -0500
++++ b/rtl88xxau-r1314.7344855/include/osdep_service_linux.h	2026-08-19 18:32:06.075372512 -0500
+@@ -57,6 +57,7 @@
+ #include <linux/ip.h>
+ #include <linux/kthread.h>
+ #include <linux/list.h>
++#include <linux/timer.h>
+ #include <linux/vmalloc.h>
+ 
+ #if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 5, 41))
+@@ -356,7 +357,11 @@
+ #endif
+ {
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0))
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0))
++	_timer *ptimer = timer_container_of(ptimer, in_timer, timer);
++#else
+ 	_timer *ptimer = from_timer(ptimer, in_timer, timer);
++#endif
+ #else
+ 	_timer *ptimer = (_timer *)cntx;
+ #endif
+@@ -385,7 +390,11 @@
+ 
+ __inline static void _cancel_timer(_timer *ptimer, u8 *bcancelled)
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0))
++	*bcancelled = timer_delete_sync(&ptimer->timer) == 1 ? 1 : 0;
++#else
+ 	*bcancelled = del_timer_sync(&ptimer->timer) == 1 ? 1 : 0;
++#endif
+ }
+ 
+ static inline void _init_workitem(_workitem *pwork, void *pfunc, void *cntx)
+diff -ruN a/rtl88xxau-r1314.7344855/Makefile b/rtl88xxau-r1314.7344855/Makefile
+--- a/rtl88xxau-r1314.7344855/Makefile	2026-06-26 17:35:01.000000000 -0500
++++ b/rtl88xxau-r1314.7344855/Makefile	2026-08-19 18:32:06.074924252 -0500
+@@ -1661,6 +1661,8 @@
+ ifneq ($(KERNELRELEASE),)
+ 
+ ########### this part for *.mk ############################
++ccflags-y += $(EXTRA_CFLAGS)
++
+ include $(src)/hal/phydm/phydm.mk
+ 
+ rtk_core :=	core/rtw_cmd.o \
+diff -ruN a/rtl88xxau-r1314.7344855/os_dep/linux/ioctl_cfg80211.c b/rtl88xxau-r1314.7344855/os_dep/linux/ioctl_cfg80211.c
+--- a/rtl88xxau-r1314.7344855/os_dep/linux/ioctl_cfg80211.c	2026-06-26 17:35:01.000000000 -0500
++++ b/rtl88xxau-r1314.7344855/os_dep/linux/ioctl_cfg80211.c	2026-08-19 18:32:06.077811087 -0500
+@@ -3365,8 +3365,15 @@
+ 	return ret;
+ }
+ 
+-static int cfg80211_rtw_set_wiphy_params(struct wiphy *wiphy, u32 changed)
++static int cfg80211_rtw_set_wiphy_params(struct wiphy *wiphy,
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0))
++	int radio_idx,
++#endif
++	u32 changed)
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0))
++	(void)radio_idx;
++#endif
+ #if 0
+ 	struct iwm_priv *iwm = wiphy_to_iwm(wiphy);
+ 
+@@ -4267,12 +4274,18 @@
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	struct wireless_dev *wdev,
+ #endif
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0))
++	int radio_idx,
++#endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)) || defined(COMPAT_KERNEL_RELEASE)
+ 	enum nl80211_tx_power_setting type, int mbm)
+ #else
+ 	enum tx_power_setting type, int dbm)
+ #endif
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0))
++	(void)radio_idx;
++#endif
+ 
+ _adapter *padapter = wiphy_to_adapter(wiphy);
+ HAL_DATA_TYPE   *pHalData = GET_HAL_DATA(padapter);
+@@ -4328,11 +4341,17 @@
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ 	struct wireless_dev *wdev,
+ #endif
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0))
++	int radio_idx,
++#endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0))
+ 	unsigned int link_id,
+ #endif
+ 	int *dbm)
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0))
++	(void)radio_idx;
++#endif
+ 	_adapter *padapter = wiphy_to_adapter(wiphy);
+ 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
+ 

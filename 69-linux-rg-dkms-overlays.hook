@@ -5,6 +5,12 @@ Type = Package
 Target = linux-rg
 Target = linux-rg-headers
 
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/src/*/dkms.conf
+
 [Action]
 Description = Patch linux-rg DKMS compatibility overlays
 Depends = dkms

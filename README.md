@@ -229,7 +229,7 @@ After selecting `Arch Linux linux-rg` in rEFInd:
 sudo rg-linux-rg-postboot-check
 ```
 
-The postboot helper is managed by chezmoi and installed to
+The postboot helper is installed to
 `~/.local/bin/rg-linux-rg-postboot-check`. It checks the running linux-rg
 kernel, module export table, external DKMS modules, in-tree v4l2loopback,
 boot/live contracts, active userspace profile policy, and a thermal snapshot.
@@ -263,15 +263,15 @@ symbols, rebuilds the linux-rg initramfs, runs `rgx1gen11-boot-check
 The package ships compatibility overlays for out-of-tree modules that lag the
 Linux 7.0 kernel API:
 
-- `ddcci/0.4.5`
-- `rtl88xxau/r1298.b44d288`
+- `ddcci/0.4.5` (in-tree on linux-rg; DKMS kept for fallback kernels)
+- `rtl88xxau/r1314.7344855`
 - `evdi/1.14.7`
 
 After installing `linux-rg` and `linux-rg-headers`, apply the overlays and
 rebuild the modules for the installed kernel:
 
 ```sh
-sudo RG_DKMS_JOBS=9 rgx1gen11-dkms-overlay-apply 7.0.12-arch1-1-rg
+sudo RG_DKMS_JOBS=9 rgx1gen11-dkms-overlay-apply 7.0.13-arch1-1-rg
 ```
 
 The helper backs up the DKMS sources under
@@ -294,15 +294,6 @@ Shared evidence (applies across profiles unless noted):
 
 - `docs/literature-review.org` -- research sources, evidence grades, venue map
 - `docs/candidates.org` -- patch and policy candidates with per-profile applicability notes
-
-### Issue tracking (vissues)
-
-```sh
-vissue ready --root ~/Git/Gitlab/obsidian-notes --project linux-rg
-vissue tree --root ~/Git/Gitlab/obsidian-notes linux-rg-ln3w
-```
-
-Vault file: `~/Git/Gitlab/obsidian-notes/Software/linux-rg/issues.org`
 
 ### Patch and policy rules
 
