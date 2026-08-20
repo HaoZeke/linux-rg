@@ -8,11 +8,12 @@ SCX_LOADER=(scx_loader)
 
 usage() {
 	cat <<'EOF'
-Usage: asa-router [--enable] [--dry-run] [--mapping FILE]
+Usage: asa-router [--enable] [--dry-run] [--mapping FILE] [--seat-cgroup PATH]
 
-  --enable     Write 1 to asa/enabled after starting
-  --dry-run    Print recommendations without loading schedulers
-  --mapping    Optional mapping file (class=scheduler per line)
+  --enable         Write 1 to asa/enabled after starting
+  --dry-run        Print recommendations without loading schedulers
+  --mapping        Optional mapping file (class=scheduler per line)
+  --seat-cgroup    cgroup v2 path for ASA PSI (auto = this uid user.slice)
 
 Requires: kernel with CONFIG_SCHED_ASA, sched_ext enabled, scx_loader.
 EOF
@@ -21,12 +22,14 @@ EOF
 enable_asa=0
 dry_run=0
 mapping_file=
+seat_cgroup=
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--enable) enable_asa=1 ;;
 	--dry-run) dry_run=1 ;;
 	--mapping) mapping_file=$2; shift ;;
+	--seat-cgroup) seat_cgroup=$2; shift ;;
 	-h|--help) usage; exit 0 ;;
 	*) echo "unknown arg: $1" >&2; usage; exit 1 ;;
 	esac
@@ -36,6 +39,17 @@ done
 if [[ ! -d $ASA_SYSFS ]]; then
 	echo "ASA sysfs missing; boot a CONFIG_SCHED_ASA kernel" >&2
 	exit 1
+fi
+
+if [[ -n $seat_cgroup ]]; then
+	if [[ $seat_cgroup == auto ]]; then
+		seat_cgroup=/user.slice/user-$(id -u).slice
+	fi
+	if [[ ! -e $ASA_SYSFS/seat_cgroup ]]; then
+		echo "ASA seat_cgroup sysfs missing; boot a kernel with the workqueue ASA patch" >&2
+		exit 1
+	fi
+	echo "$seat_cgroup" >"$ASA_SYSFS/seat_cgroup"
 fi
 
 if [[ -n $mapping_file ]]; then

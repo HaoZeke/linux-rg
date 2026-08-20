@@ -33,6 +33,12 @@ test -f docs/rgSURFLat-drivers.org || fail "missing drivers doc"
 test -f docs/rgSURFLat-kernel.org || fail "missing kernel doc"
 test -f docs/grokos-kernel.org || fail "missing grokos kernel doc"
 "$repo_root/scripts/linux-rg-grokos-seat-check-selftest" || fail "grokos seat check"
+grep -q '0023-asa-workqueue-seat.patch' PKGBUILD || fail "PKGBUILD missing ASA workqueue patch"
+grep -q 'seat_cgroup' 0023-asa-workqueue-seat.patch || fail "0023 missing seat_cgroup"
+grep -q 'delayed_work' 0023-asa-workqueue-seat.patch || fail "0023 missing delayed_work"
+grep -q 'cancel_delayed_work_sync' 0023-asa-workqueue-seat.patch || fail "0023 missing disable cancel"
+grep -q 'seat_cgroup' docs/grokos-kernel.org || fail "grokos-kernel.org missing seat_cgroup"
+grep -q -- '--seat-cgroup' asa-router || fail "asa-router missing --seat-cgroup"
 
 # Simulate prepare profile switch using same case as PKGBUILD
 for linux_rg_profile in rgSURFLat rgx1gen11 rgam5terra; do

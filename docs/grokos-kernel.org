@@ -22,7 +22,8 @@ plane already uses.
 | Session event ring | =memfd_create= |
 | Same-uid ACL | =SO_PEERCRED= on =CONFIG_UNIX= |
 | Later FS sandbox | Landlock LSM |
-| Expert scheduler switch | =CONFIG_SCHED_CLASS_EXT= + ASA |
+| Expert scheduler switch | =CONFIG_SCHED_CLASS_EXT= + ASA (=seat_cgroup= PSI) |
+| IRQ-subtracted CPU time | =CONFIG_IRQ_TIME_ACCOUNTING= |
 
 * Overlay pin
 
@@ -32,6 +33,21 @@ enables most of it; the overlay makes =CONFIG_CGROUP_FAVOR_DYNMODS=y=
 and repeats the rest so a slim =localmodconfig= cannot drop them.
 
 =scripts/linux-rg-grokos-seat-check= asserts the pin.
+
+* ASA seat sample
+
+=0009= adds the router. =0023= moves sampling onto a freezable workqueue
+so PSI and cgroup lookup run in process context, and adds:
+
+| Sysfs | Role |
+|-------|------|
+| =/sys/kernel/sched_ext/asa/seat_cgroup= | cgroup v2 path; =/= is host PSI |
+| =perception= =seat_cgroup= / =goal_leaves= | slice PSI plus descendant-cgroup bias |
+
+Write the sessiond user slice (or =asa-router --seat-cgroup auto=) so
+classification follows =grokos-goal-*= leaves instead of host-wide
+noise. =echo 0 > enabled= cancels the work without taking the sample
+lock.
 
 * Not a kernel job
 

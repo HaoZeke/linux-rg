@@ -1,0 +1,550 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Wed, 19 Aug 2026 00:00:00 +0000
+Subject: [PATCH] sched/asa: sample on workqueue and classify from seat PSI
+
+Move ASA sampling off a timer so PSI and cgroup lookup run in process
+context. Add seat_cgroup sysfs for optional per-slice PSI, clamp the
+vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
+
+---
+--- a/kernel/sched/asa.c
++++ b/kernel/sched/asa.c
+@@ -2,22 +2,28 @@
+ /*
+  * Adaptive Scheduling Agent (ASA) prototype for linux-rg.
+  *
+- * Implements the perception/decision/action split from arXiv:2511.11628 using
+- * heuristic workload classification and time-weighted probability voting.
+- * Expert sched_ext BPF programs are loaded from userspace; the kernel exports
+- * sysfs state under /sys/kernel/sched_ext/asa/.
++ * Perception/decision split from arXiv:2511.11628. Sampling runs on a
++ * freezable workqueue so PSI and optional seat-cgroup lookup can sleep.
++ * Userspace loads expert sched_ext BPF via /sys/kernel/sched_ext/asa/.
+  */
+-#include <linux/timer.h>
++#include <linux/cgroup.h>
++#include <linux/err.h>
+ #include <linux/kobject.h>
+ #include <linux/mutex.h>
+ #include <linux/psi.h>
+ #include <linux/sched/loadavg.h>
++#include <linux/slab.h>
++#include <linux/string.h>
++#include <linux/workqueue.h>
+ 
+ #include "sched.h"
+ 
+ #define ASA_CLASS_NR		4
+ #define ASA_NAME_LEN		32
+ #define ASA_MAP_LINE_LEN	64
++#define ASA_WINDOW_MAX		64
++#define ASA_SEAT_PATH_LEN	128
++#define ASA_SAMPLE_MIN_MS	50
+ 
+ enum asa_workload_class {
+ 	ASA_CLASS_INTERACTIVE = 0,
+@@ -46,10 +52,11 @@
+ };
+ 
+ struct asa_router {
+-	struct timer_list	sample_timer;
++	struct delayed_work	sample_work;
+ 
+ 	char			schedulers[ASA_CLASS_NR][ASA_NAME_LEN];
+ 	char			recommended[ASA_NAME_LEN];
++	char			seat_path[ASA_SEAT_PATH_LEN];
+ 	enum asa_workload_class	voted_class;
+ 
+ 	unsigned int		enabled;
+@@ -78,11 +85,25 @@
+ 	return load * 100U / LOAD_AVG_MAX;
+ }
+ 
+-static void asa_collect_features(u32 *rq_avg, u32 *csw_per_sec,
+-				 u32 *cpu_psi, u32 *io_psi, u32 *mem_psi)
++static void asa_read_psi_group(struct psi_group *psi, u32 *cpu_psi,
++			       u32 *io_psi, u32 *mem_psi)
++{
++	if (!psi) {
++		*cpu_psi = 0;
++		*io_psi = 0;
++		*mem_psi = 0;
++		return;
++	}
++	mutex_lock(&psi->avgs_lock);
++	*cpu_psi = asa_load_pct(psi->avg[PSI_CPU_SOME][0]);
++	*io_psi = asa_load_pct(psi->avg[PSI_IO_SOME][0]);
++	*mem_psi = asa_load_pct(psi->avg[PSI_MEM_SOME][0]);
++	mutex_unlock(&psi->avgs_lock);
++}
++
++static void asa_read_rq_avg(u32 *rq_avg)
+ {
+ 	unsigned int cpu, nr = 0, sum = 0;
+-	u64 now, ctxsw, dt_jiffies;
+ 
+ 	cpus_read_lock();
+ 	for_each_online_cpu(cpu) {
+@@ -91,24 +112,48 @@
+ 	}
+ 	cpus_read_unlock();
+ 	*rq_avg = nr ? DIV_ROUND_UP(sum * 100, nr) : 0;
++}
++
++static u32 asa_ctxsw_rate(u64 last_ctxsw, unsigned long last_jiffies,
++			  u64 *ctxsw_out, unsigned long *now_out)
++{
++	u64 now = jiffies;
++	u64 ctxsw = nr_context_switches();
++	unsigned long dt_jiffies = max(now - last_jiffies, 1UL);
++
++	*ctxsw_out = ctxsw;
++	*now_out = now;
++	return div64_u64((ctxsw - last_ctxsw) * HZ * 100, dt_jiffies);
++}
+ 
+-	now = jiffies;
+-	ctxsw = nr_context_switches();
+-	dt_jiffies = max(now - asa.last_sample_jiffies, 1UL);
+-	*csw_per_sec = div64_u64((ctxsw - asa.last_ctxsw) * HZ * 100,
+-				 dt_jiffies);
+-	asa.last_ctxsw = ctxsw;
+-	asa.last_sample_jiffies = now;
+-
+-	mutex_lock(&psi_system.avgs_lock);
+-	*cpu_psi = asa_load_pct(psi_system.avg[PSI_CPU_SOME][0]);
+-	*io_psi = asa_load_pct(psi_system.avg[PSI_IO_SOME][0]);
+-	*mem_psi = asa_load_pct(psi_system.avg[PSI_MEM_SOME][0]);
+-	mutex_unlock(&psi_system.avgs_lock);
++static void asa_read_seat_psi(const char *seat_path, u32 *cpu_psi,
++			      u32 *io_psi, u32 *mem_psi, u32 *goal_leaves)
++{
++	struct cgroup *cgrp = NULL;
++	struct psi_group *psi = &psi_system;
++
++	*goal_leaves = 0;
++	if (seat_path && seat_path[0]) {
++		cgrp = cgroup_get_from_path(seat_path);
++		if (IS_ERR(cgrp))
++			cgrp = NULL;
++	}
++	if (cgrp) {
++		struct psi_group *seat_psi = cgroup_psi(cgrp);
++
++		if (seat_psi)
++			psi = seat_psi;
++		if (cgrp->nr_descendants > 0)
++			*goal_leaves = 1;
++	}
++	asa_read_psi_group(psi, cpu_psi, io_psi, mem_psi);
++	if (cgrp)
++		cgroup_put(cgrp);
+ }
+ 
+ static void asa_classify(u32 rq_avg, u32 csw_per_sec, u32 cpu_psi,
+-			 u32 io_psi, u32 mem_psi, u16 probs[ASA_CLASS_NR])
++			 u32 io_psi, u32 mem_psi, u32 goal_leaves,
++			 u16 probs[ASA_CLASS_NR])
+ {
+ 	u32 scores[ASA_CLASS_NR] = { 0 };
+ 	u32 total = 0;
+@@ -122,6 +167,10 @@
+ 	if (csw_per_sec > 200 && io_psi < 15)
+ 		scores[ASA_CLASS_INTERACTIVE] += 60;
+ 	scores[ASA_CLASS_MIXED] = 25 + (rq_avg / 4) + (cpu_psi / 4) + (io_psi / 4);
++	if (goal_leaves) {
++		scores[ASA_CLASS_MIXED] += 20;
++		scores[ASA_CLASS_CPU] += 15;
++	}
+ 
+ 	for (i = 0; i < ASA_CLASS_NR; i++)
+ 		total += scores[i];
+@@ -137,28 +186,43 @@
+ static enum asa_workload_class asa_vote_locked(void)
+ {
+ 	u64 scores[ASA_CLASS_NR] = { 0 };
++	u64 total = 0;
+ 	unsigned int i, w, window = max(asa.voting_window, 1U);
+ 	enum asa_workload_class best = ASA_CLASS_MIXED;
+ 	u64 best_score = 0;
+ 
++	if (!asa.vote_ring || !asa.vote_count)
++		return asa.voted_class;
++
+ 	for (i = 0; i < asa.vote_count; i++) {
+ 		unsigned int idx = (asa.vote_head - 1 - i) % window;
+ 		struct asa_vote_slot *slot = &asa.vote_ring[idx];
+-		u64 weight = asa.decay_pct ?
+-			max(1ULL, (100ULL - asa.decay_pct) / 10ULL) : 1;
++		u64 weight = 100;
+ 		int c;
+ 
++		if (asa.decay_pct) {
++			unsigned int keep = 100 - min(asa.decay_pct, 99U);
++			unsigned int age;
++
++			for (age = 0; age < i; age++)
++				weight = max(1ULL, weight * keep / 100);
++		}
+ 		for (c = 0; c < ASA_CLASS_NR; c++)
+ 			scores[c] += (u64)slot->probs[c] * weight;
+ 	}
+ 
+ 	for (w = 0; w < ASA_CLASS_NR; w++) {
++		total += scores[w];
+ 		if (scores[w] > best_score) {
+ 			best_score = scores[w];
+ 			best = w;
+ 		}
+ 	}
+ 
++	if (total && asa.vote_threshold_pct &&
++	    (best_score * 10000ULL) / total < asa.vote_threshold_pct)
++		return asa.voted_class;
++
+ 	asa.voted_class = best;
+ 	return best;
+ }
+@@ -178,7 +242,7 @@
+ 	changed = force_notify || strcmp(asa.recommended, new_rec);
+ 	strscpy(asa.recommended, new_rec);
+ 
+-	if (changed && time_after(jiffies,
++	if (changed && asa_kobj && time_after(jiffies,
+ 	    asa.last_switch_jiffies + msecs_to_jiffies(asa.cooldown_ms))) {
+ 		asa.last_switch_jiffies = jiffies;
+ 		kobject_uevent(asa_kobj, KOBJ_CHANGE);
+@@ -187,28 +251,47 @@
+ 
+ static void asa_sample(struct asa_router *r)
+ {
+-	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi;
++	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, goal_leaves;
+ 	u16 probs[ASA_CLASS_NR];
+ 	struct asa_vote_slot *slot;
+-	unsigned int idx;
++	unsigned int idx, window;
++	char path[ASA_SEAT_PATH_LEN];
++	u64 last_ctxsw, ctxsw;
++	unsigned long last_jiffies, now;
+ 
+ 	mutex_lock(&r->lock);
++	if (!r->enabled || !r->vote_ring) {
++		mutex_unlock(&r->lock);
++		return;
++	}
++	strscpy(path, r->seat_path);
++	last_ctxsw = r->last_ctxsw;
++	last_jiffies = r->last_sample_jiffies;
++	mutex_unlock(&r->lock);
++
++	asa_read_rq_avg(&rq_avg);
++	csw_per_sec = asa_ctxsw_rate(last_ctxsw, last_jiffies, &ctxsw, &now);
++	asa_read_seat_psi(path, &cpu_psi, &io_psi, &mem_psi, &goal_leaves);
++	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
++		     goal_leaves, probs);
+ 
+-	if (!r->enabled) {
++	mutex_lock(&r->lock);
++	if (!r->enabled || !r->vote_ring) {
+ 		mutex_unlock(&r->lock);
+ 		return;
+ 	}
+ 
+-	asa_collect_features(&rq_avg, &csw_per_sec, &cpu_psi, &io_psi, &mem_psi);
+-	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, probs);
++	r->last_ctxsw = ctxsw;
++	r->last_sample_jiffies = now;
+ 
+-	idx = r->vote_head % max(r->voting_window, 1U);
++	window = max(r->voting_window, 1U);
++	idx = r->vote_head % window;
+ 	slot = &r->vote_ring[idx];
+ 	slot->timestamp = jiffies;
+ 	memcpy(slot->probs, probs, sizeof(probs));
+ 
+ 	r->vote_head++;
+-	if (r->vote_count < r->voting_window)
++	if (r->vote_count < window)
+ 		r->vote_count++;
+ 
+ 	asa_vote_locked();
+@@ -217,42 +300,49 @@
+ 	mutex_unlock(&r->lock);
+ }
+ 
+-static void asa_timer_fn(struct timer_list *t)
++static void asa_work_fn(struct work_struct *work)
+ {
+-	struct asa_router *r = container_of(t, struct asa_router, sample_timer);
++	struct asa_router *r = container_of(to_delayed_work(work),
++					    struct asa_router, sample_work);
++	unsigned int period;
+ 
+ 	asa_sample(r);
+-	mod_timer(&r->sample_timer, jiffies + msecs_to_jiffies(r->sample_ms));
++	if (!READ_ONCE(r->enabled))
++		return;
++	period = max(READ_ONCE(r->sample_ms), ASA_SAMPLE_MIN_MS);
++	mod_delayed_work(system_freezable_wq, &r->sample_work,
++			 msecs_to_jiffies(period));
+ }
+ 
+-static ssize_t asa_attr_show(char *buf, ssize_t (*fill)(char *buf))
++static ssize_t perception_show(struct kobject *kobj, struct kobj_attribute *a,
++			       char *buf)
+ {
+-	ssize_t ret;
++	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, goal_leaves;
++	char path[ASA_SEAT_PATH_LEN];
++	u64 last_ctxsw, ctxsw;
++	unsigned long last_jiffies, now;
+ 
+ 	mutex_lock(&asa.lock);
+-	ret = fill(buf);
++	strscpy(path, asa.seat_path);
++	last_ctxsw = asa.last_ctxsw;
++	last_jiffies = asa.last_sample_jiffies;
+ 	mutex_unlock(&asa.lock);
+-	return ret;
+-}
+ 
+-static ssize_t asa_perception_show(char *buf)
+-{
+-	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi;
++	asa_read_rq_avg(&rq_avg);
++	csw_per_sec = asa_ctxsw_rate(last_ctxsw, last_jiffies, &ctxsw, &now);
++	asa_read_seat_psi(path, &cpu_psi, &io_psi, &mem_psi, &goal_leaves);
+ 
+-	asa_collect_features(&rq_avg, &csw_per_sec, &cpu_psi, &io_psi, &mem_psi);
+ 	return sysfs_emit(buf,
+ 			  "rq_avg_pct=%u\n"
+ 			  "ctxsw_per_sec=%u\n"
+ 			  "cpu_psi_pct=%u\n"
+ 			  "io_psi_pct=%u\n"
+-			  "mem_psi_pct=%u\n",
+-			  rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi);
+-}
+-
+-static ssize_t perception_show(struct kobject *kobj, struct kobj_attribute *a,
+-			       char *buf)
+-{
+-	return asa_attr_show(buf, asa_perception_show);
++			  "mem_psi_pct=%u\n"
++			  "seat_cgroup=%s\n"
++			  "goal_leaves=%u\n",
++			  rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
++			  path[0] ? path : "/",
++			  goal_leaves);
+ }
+ 
+ static ssize_t workload_show(struct kobject *kobj, struct kobj_attribute *a,
+@@ -283,46 +373,42 @@
+ 			     const char *buf, size_t count)
+ {
+ 	char line[ASA_MAP_LINE_LEN];
+-	char key[ASA_NAME_LEN], val[ASA_NAME_LEN];
+-	const char *p = buf;
+-	size_t len = count;
+-	int i;
++	char *eq, *key, *val;
++	int i, found = 0;
+ 
+-	while (len > 0) {
+-		size_t chunk = min(len, sizeof(line) - 1);
+-		const char *eq;
+-
+-		memcpy(line, p, chunk);
+-		line[chunk] = '\0';
+-		p += chunk;
+-		len -= chunk;
+-
+-		eq = strchr(line, '=');
+-		if (!eq)
+-			continue;
+-
+-		strscpy(key, line);
+-		key[eq - line] = '\0';
+-		strscpy(val, eq + 1);
+-
+-		mutex_lock(&asa.lock);
+-		for (i = 0; i < ASA_CLASS_NR; i++) {
+-			if (!strcmp(key, asa_class_names[i])) {
+-				strscpy(asa.schedulers[i], val);
+-				break;
+-			}
++	if (count == 0 || count >= sizeof(line))
++		return -EINVAL;
++	memcpy(line, buf, count);
++	line[count] = '\0';
++	strim(line);
++	eq = strchr(line, '=');
++	if (!eq || eq == line)
++		return -EINVAL;
++	*eq = '\0';
++	key = strim(line);
++	val = strim(eq + 1);
++	if (!key[0] || strlen(key) >= ASA_NAME_LEN || strlen(val) >= ASA_NAME_LEN)
++		return -EINVAL;
++
++	mutex_lock(&asa.lock);
++	for (i = 0; i < ASA_CLASS_NR; i++) {
++		if (!strcmp(key, asa_class_names[i])) {
++			strscpy(asa.schedulers[i], val);
++			found = 1;
++			break;
+ 		}
+-		asa_update_recommendation_locked(true);
+-		mutex_unlock(&asa.lock);
+ 	}
++	if (found)
++		asa_update_recommendation_locked(true);
++	mutex_unlock(&asa.lock);
+ 
+-	return count;
++	return found ? count : -EINVAL;
+ }
+ 
+ static ssize_t enabled_show(struct kobject *kobj, struct kobj_attribute *a,
+ 			    char *buf)
+ {
+-	return sysfs_emit(buf, "%u\n", asa.enabled);
++	return sysfs_emit(buf, "%u\n", READ_ONCE(asa.enabled));
+ }
+ 
+ static ssize_t enabled_store(struct kobject *kobj, struct kobj_attribute *a,
+@@ -335,14 +421,76 @@
+ 	if (ret)
+ 		return ret;
+ 
++	if (val) {
++		WRITE_ONCE(asa.enabled, 1);
++		mod_delayed_work(system_freezable_wq, &asa.sample_work, 0);
++	} else {
++		WRITE_ONCE(asa.enabled, 0);
++		cancel_delayed_work_sync(&asa.sample_work);
++	}
++
++	return count;
++}
++
++static ssize_t seat_cgroup_show(struct kobject *kobj, struct kobj_attribute *a,
++				char *buf)
++{
++	return sysfs_emit(buf, "%s\n",
++			  asa.seat_path[0] ? asa.seat_path : "/");
++}
++
++static ssize_t seat_cgroup_store(struct kobject *kobj, struct kobj_attribute *a,
++				 const char *buf, size_t count)
++{
++	char path[ASA_SEAT_PATH_LEN];
++
++	if (count == 0 || count >= sizeof(path))
++		return -EINVAL;
++	memcpy(path, buf, count);
++	path[count] = '\0';
++	strim(path);
++	if (path[0] != '/')
++		return -EINVAL;
++
+ 	mutex_lock(&asa.lock);
+-	asa.enabled = !!val;
+-	if (asa.enabled && !timer_pending(&asa.sample_timer))
+-		mod_timer(&asa.sample_timer, jiffies + msecs_to_jiffies(asa.sample_ms));
+-	else if (!asa.enabled)
+-		timer_delete_sync(&asa.sample_timer);
++	if (!strcmp(path, "/"))
++		asa.seat_path[0] = '\0';
++	else
++		strscpy(asa.seat_path, path);
+ 	mutex_unlock(&asa.lock);
++	return count;
++}
++
++static ssize_t voting_window_show(struct kobject *kobj, struct kobj_attribute *a,
++				  char *buf)
++{
++	return sysfs_emit(buf, "%u\n", asa.voting_window);
++}
++
++static ssize_t voting_window_store(struct kobject *kobj, struct kobj_attribute *a,
++				   const char *buf, size_t count)
++{
++	struct asa_vote_slot *ring;
++	unsigned int val;
++	int ret;
++
++	ret = kstrtouint(buf, 10, &val);
++	if (ret)
++		return ret;
++	if (val < 1 || val > ASA_WINDOW_MAX)
++		return -EINVAL;
+ 
++	ring = kcalloc(val, sizeof(*ring), GFP_KERNEL);
++	if (!ring)
++		return -ENOMEM;
++
++	mutex_lock(&asa.lock);
++	kfree(asa.vote_ring);
++	asa.vote_ring = ring;
++	asa.voting_window = val;
++	asa.vote_head = 0;
++	asa.vote_count = 0;
++	mutex_unlock(&asa.lock);
+ 	return count;
+ }
+ 
+@@ -373,7 +521,6 @@
+ 
+ ASA_UINT_ATTR(cooldown_ms, cooldown_ms);
+ ASA_UINT_ATTR(sample_ms, sample_ms);
+-ASA_UINT_ATTR(voting_window, voting_window);
+ ASA_UINT_ATTR(vote_threshold_pct, vote_threshold_pct);
+ ASA_UINT_ATTR(decay_pct, decay_pct);
+ 
+@@ -404,12 +551,25 @@
+ 	.store = enabled_store,
+ };
+ 
++static struct kobj_attribute asa_attr_seat_cgroup = {
++	.attr = { .name = "seat_cgroup", .mode = 0644 },
++	.show = seat_cgroup_show,
++	.store = seat_cgroup_store,
++};
++
++static struct kobj_attribute asa_attr_voting_window = {
++	.attr = { .name = "voting_window", .mode = 0644 },
++	.show = voting_window_show,
++	.store = voting_window_store,
++};
++
+ static struct attribute *asa_attrs[] = {
+ 	&asa_attr_perception.attr,
+ 	&asa_attr_workload.attr,
+ 	&asa_attr_recommended_scheduler.attr,
+ 	&asa_attr_mapping.attr,
+ 	&asa_attr_enabled.attr,
++	&asa_attr_seat_cgroup.attr,
+ 	&asa_attr_cooldown_ms.attr,
+ 	&asa_attr_sample_ms.attr,
+ 	&asa_attr_voting_window.attr,
+@@ -427,6 +587,7 @@
+ 	int i, ret;
+ 
+ 	mutex_init(&asa.lock);
++	INIT_DELAYED_WORK(&asa.sample_work, asa_work_fn);
+ 	asa.cooldown_ms = 5000;
+ 	asa.sample_ms = 1000;
+ 	asa.voting_window = 8;
+@@ -458,8 +619,6 @@
+ 		return ret;
+ 	}
+ 
+-	timer_setup(&asa.sample_timer, asa_timer_fn, 0);
+-
+-	pr_info("sched_asa: router initialized (arXiv:2511.11628 prototype)\n");
++	pr_info("sched_asa: workqueue router, optional seat_cgroup PSI\n");
+ 	return 0;
+ }
