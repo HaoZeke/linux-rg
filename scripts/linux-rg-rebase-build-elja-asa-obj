@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Compile kernel/sched/asa.o on the Elja login node even when BTF/EXT is off.
+set -euo pipefail
+
+export LINUX_RG_REPO=${LINUX_RG_REPO:-$HOME/tmp/linux-rg}
+export LINUX_RG_REBASE_TREE=${LINUX_RG_REBASE_TREE:-$HOME/tmp/linux-rg-rebase/linux-7.1.8}
+export LINUX_RG_BUILD_LOG=${LINUX_RG_BUILD_LOG:-$HOME/tmp/linux-rg-rebase/build-asa-obj.log}
+export LINUX_RG_JOBS=${LINUX_RG_JOBS:-20}
+
+tree=$LINUX_RG_REBASE_TREE
+asa=$tree/kernel/sched/asa.c
+mk=$tree/kernel/sched/Makefile
+
+if [[ ! -f $asa ]]; then
+  echo "missing $asa" >&2
+  exit 2
+fi
+if ! grep -q ASA_GOAL_PFX "$asa"; then
+  echo "0027 not applied to $asa" >&2
+  exit 2
+fi
+
+if [[ -f /opt/ohpc/admin/lmod/lmod/init/bash ]]; then
+  set +u
+  # shellcheck disable=SC1091
+  source /opt/ohpc/admin/lmod/lmod/init/bash
+  set -u
+fi
+export MODULEPATH=${MODULEPATH:-/opt/ohpc/pub/modulefiles}
+module load gnu12
+
+if [[ ! -f /usr/include/sys/types.h ]]; then
+  echo "no libc headers on $(hostname); cannot compile" >&2
+  exit 2
+fi
+
+if ! grep -q 'asa.o' "$mk"; then
+  printf '\nobj-y += asa.o\n' >>"$mk"
+fi
+
+{
+  echo "host=$(hostname) gcc=$(gcc -dumpfullversion 2>/dev/null || gcc -dumpversion)"
+  date -Is
+  echo "CONFIG_SCHED_ASA=$(grep -E 'SCHED_ASA|DEBUG_INFO_BTF=' "$tree/.config" || true)"
+  make -C "$tree" -j"${LINUX_RG_JOBS}" kernel/sched/asa.o
+  ls -l --full-time "$tree/kernel/sched/asa.o"
+  strings "$tree/kernel/sched/asa.o" | grep -E 'grokos-goal-|goal_leaves=' || true
+  date -Is
+} >>"$LINUX_RG_BUILD_LOG" 2>&1

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Apply 0028 on the already-0027 Elja tree, keep SCHED_ASA without BTF, compile.
+set -euo pipefail
+
+export LINUX_RG_REPO=${LINUX_RG_REPO:-$HOME/tmp/linux-rg}
+export LINUX_RG_REBASE_TREE=${LINUX_RG_REBASE_TREE:-$HOME/tmp/linux-rg-rebase/linux-7.1.8}
+export LINUX_RG_BUILD_LOG=${LINUX_RG_BUILD_LOG:-$HOME/tmp/linux-rg-rebase/build-0028.log}
+export LINUX_RG_JOBS=${LINUX_RG_JOBS:-20}
+
+tree=$LINUX_RG_REBASE_TREE
+asa=$tree/kernel/sched/asa.c
+mk=$tree/kernel/sched/Makefile
+patch=$LINUX_RG_REPO/0028-asa-standalone-obj.patch
+
+if [[ ! -f $asa ]]; then
+  echo "missing asa.c under $tree" >&2
+  exit 2
+fi
+if ! grep -q ASA_GOAL_PFX "$asa"; then
+  echo "0027 not applied to $asa" >&2
+  exit 2
+fi
+if [[ ! -f $patch ]]; then
+  echo "missing $patch" >&2
+  exit 2
+fi
+
+# Drop the one-off obj-y probe line from the asa.o compile check.
+if grep -qx 'obj-y += asa.o' "$mk"; then
+  tmp=$(mktemp)
+  grep -vx 'obj-y += asa.o' "$mk" >"$tmp"
+  cat "$tmp" >"$mk"
+  rm -f "$tmp"
+fi
+
+if ! grep -q 'obj-$(CONFIG_SCHED_ASA)' "$mk"; then
+  patch -Np1 -d "$tree" <"$patch"
+fi
+
+if [[ ! -f $tree/kernel/sched/asa.h ]]; then
+  echo "0028 did not land asa.h" >&2
+  exit 2
+fi
+if ! grep -q 'depends on PSI && SYSFS' "$tree/kernel/Kconfig.preempt"; then
+  echo "0028 did not change SCHED_ASA depends" >&2
+  exit 2
+fi
+
+# Make the patched sources newer than any NFS-skewed auto.conf.
+touch "$tree/kernel/sched/asa.c" "$tree/kernel/sched/asa.h" \
+  "$tree/kernel/sched/Makefile" "$tree/kernel/sched/build_policy.c" \
+  "$tree/kernel/sched/ext.c" "$tree/kernel/Kconfig.preempt"
+
+exec bash "$LINUX_RG_REPO/scripts/linux-rg-rebase-build-elja-login"

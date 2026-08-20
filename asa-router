@@ -1,9 +1,15 @@
 #!/bin/bash
 # ASA userspace action module (arXiv:2511.11628 prototype).
-# Watches /sys/kernel/sched_ext/asa/ and loads expert sched_ext schedulers.
+# Watches ASA sysfs and loads expert sched_ext schedulers.
 set -euo pipefail
 
-ASA_SYSFS=/sys/kernel/sched_ext/asa
+if [[ -d /sys/kernel/sched_ext/asa ]]; then
+	ASA_SYSFS=/sys/kernel/sched_ext/asa
+elif [[ -d /sys/kernel/asa ]]; then
+	ASA_SYSFS=/sys/kernel/asa
+else
+	ASA_SYSFS=/sys/kernel/sched_ext/asa
+fi
 SCX_LOADER=(scx_loader)
 
 usage() {

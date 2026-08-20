@@ -65,7 +65,10 @@ success path on these profiles.
 
 * ASA seat sample
 
-=0009= adds the router. =0023= moves sampling onto a freezable workqueue
+=0009= adds the router. =0028= builds it as =kernel/sched/asa.o= so
+=CONFIG_SCHED_ASA= does not depend on BTF or =SCHED_CLASS_EXT=. Sysfs
+is =/sys/kernel/sched_ext/asa/= when sched_ext is on, otherwise
+=/sys/kernel/asa/=. =0023= moves sampling onto a freezable workqueue
 so PSI and cgroup lookup run in process context, and adds:
 
 | Sysfs | Role |
