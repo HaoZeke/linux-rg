@@ -78,6 +78,28 @@ classification follows =grokos-goal-*= leaves instead of host-wide
 noise. =echo 0 > enabled= cancels the work without taking the sample
 lock.
 
+* Workflow tune
+
+Kconfig on/off is the surface. The seat still needs runtime policy for
+the workflows that actually run: instant Cap'n, PSI-admitted goals in
+bwrap leaves, optional CRIU dump of an agent tree.
+
+| Layer | What it owns |
+|-------|----------------|
+| Compiled overlay | =CGROUP_FAVOR_DYNMODS=, BORE =MIN_BASE_SLICE_NS=, =0013= migration cost |
+| =/usr/lib/sysctl.d/50-linux-rg-grokos.conf= | autogroup off, =max_map_count= / =pid_max= / inotify floors, RT bandwidth cap |
+| ASA | =asa-router= writes =seat_cgroup= to the sessiond user slice |
+| Per-machine =99-memory.conf= | swappiness, dirty, watermark (laptop zram contract) |
+| CRIU dump | =CAP_CHECKPOINT_RESTORE=; do not lower =yama.ptrace_scope= |
+
+Autogroup is off so =grokos-goal-*= =cpu.weight= is visible. =max_map_count=
+and =pid_max= are the CRIU/VMA and restore-pid floors. Dirty ratios stay
+out of this file so a zram laptop and a RAM-heavy workstation can keep
+different writeback contracts. A later =/etc/sysctl.d/99-*= file still
+wins on any overlapping key.
+
+=scripts/linux-rg-grokos-tune-check= asserts the packaged sysctl.
+
 * Not a kernel job
 
 - Cap'n schema, peercred userspace, policyd, and scx expert BPF stay

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Check the packaged GrokOS/CRIU sysctl contract.
+# Usage: linux-rg-grokos-tune-check [file ...]
+# Default: 50-linux-rg-grokos.conf in this repo.
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if (($# == 0)); then
+  set -- "$repo/50-linux-rg-grokos.conf"
+fi
+
+need=(
+  'kernel.sched_autogroup_enabled = 0'
+  'vm.max_map_count = 1048576'
+  'kernel.pid_max = 4194304'
+  'fs.inotify.max_user_instances = 1024'
+  'fs.inotify.max_user_watches = 524288'
+  'net.unix.max_dgram_qlen = 512'
+  'kernel.sched_rt_runtime_us = 950000'
+)
+
+forbid=(
+  yama.ptrace_scope
+  unprivileged_userfaultfd
+  vm.swappiness
+  vm.dirty_ratio
+  vm.dirty_background_ratio
+)
+
+fail=0
+for cfg in "$@"; do
+  if [[ ! -f $cfg ]]; then
+    printf 'FAIL: missing %s\n' "$cfg" >&2
+    fail=1
+    continue
+  fi
+  for key in "${need[@]}"; do
+    if ! grep -Fqx -- "$key" "$cfg"; then
+      printf 'FAIL: %s missing %s\n' "$cfg" "$key" >&2
+      fail=1
+    fi
+  done
+  for key in "${forbid[@]}"; do
+    if grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$cfg"; then
+      printf 'FAIL: %s must not set %s\n' "$cfg" "$key" >&2
+      fail=1
+    fi
+  done
+done
+
+if ((fail)); then
+  exit 1
+fi
+printf 'ok: %s file(s)\n' "$#"

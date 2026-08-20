@@ -13,7 +13,7 @@ Usage: asa-router [--enable] [--dry-run] [--mapping FILE] [--seat-cgroup PATH]
   --enable         Write 1 to asa/enabled after starting
   --dry-run        Print recommendations without loading schedulers
   --mapping        Optional mapping file (class=scheduler per line)
-  --seat-cgroup    cgroup v2 path for ASA PSI (auto = this uid user.slice)
+  --seat-cgroup    cgroup v2 path for ASA PSI (default auto = sessiond user.slice)
 
 Requires: kernel with CONFIG_SCHED_ASA, sched_ext enabled, scx_loader.
 EOF
@@ -41,9 +41,18 @@ if [[ ! -d $ASA_SYSFS ]]; then
 	exit 1
 fi
 
+if [[ -z $seat_cgroup && -e $ASA_SYSFS/seat_cgroup ]]; then
+	seat_cgroup=auto
+fi
 if [[ -n $seat_cgroup ]]; then
 	if [[ $seat_cgroup == auto ]]; then
-		seat_cgroup=/user.slice/user-$(id -u).slice
+		if [[ $(id -u) -eq 0 && -n ${SUDO_UID:-} && -d /sys/fs/cgroup/user.slice/user-${SUDO_UID}.slice ]]; then
+			seat_cgroup=/user.slice/user-${SUDO_UID}.slice
+		elif [[ $(id -u) -eq 0 ]]; then
+			seat_cgroup=/user.slice
+		else
+			seat_cgroup=/user.slice/user-$(id -u).slice
+		fi
 	fi
 	if [[ ! -e $ASA_SYSFS/seat_cgroup ]]; then
 		echo "ASA seat_cgroup sysfs missing; boot a kernel with the workqueue ASA patch" >&2
