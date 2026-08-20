@@ -30,7 +30,10 @@ plane already uses.
 | Later FS sandbox | Landlock LSM |
 | Expert scheduler switch | =CONFIG_SCHED_CLASS_EXT= + ASA (=seat_cgroup= PSI) |
 | I/O niceness | =io.prio.class= / =io.weight= / =io.latency= (=BLK_CGROUP_IOPRIO=, =IOCOST=, =IOLATENCY=); BFQ group + Kyber available; ADIOS module only |
+| CPU share / cap | =cpu.weight= / =cpu.max= (=FAIR_GROUP_SCHED=, =CFS_BANDWIDTH=); autogroup off so those files matter |
 | Preempt / util clamp | =PREEMPT_DYNAMIC=, =UCLAMP_TASK_GROUP=; =RT_GROUP_SCHED= off so PipeWire RT is not cgroup-gated |
+| memcg writeback | =CGROUP_WRITEBACK= so dirty is per-cgroup once a leaf exists |
+| io_uring / time ns / net class | =IO_URING=, =TIME_NS=, =CGROUP_NET_CLASSID= / =NET_PRIO= for tool IO and jail net |
 | IRQ-subtracted CPU time | =CONFIG_IRQ_TIME_ACCOUNTING= |
 | Optional warm process restore | CRIU (=CONFIG_CHECKPOINT_RESTORE= plus sock-diag / uffd / soft-dirty) |
 
