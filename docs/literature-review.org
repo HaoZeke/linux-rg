@@ -140,6 +140,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3643991.3644902 | Patch porting (Li et al., MSR 2024) | Rebase onto LTS/Arch; no OEM fork |
 | 10.1109/SP40001.2021.00074 | OEM kernel compliance (Possemato et al., S&P 2021) | Seat-check is the hardening CDD |
 | 10.1145/2741948.2741964 | Borg (Verma et al., EuroSys 2015) | Isolation frame; not the files to write |
+| 10.1145/1272996.1273004 | Thread clustering (Tam et al., EuroSys 2007) | Ancestor of cache-aware LLC placement |
+| 10.1145/1736020.1736036 | Shared-resource contention (Zhuravlev et al., ASPLOS 2010) | Opposite of clustering; keep as A/B |
+| 10.1145/3502181.3531464 | Holmes (Pi et al., HPDC 2022) | SMT sibling contention; userspace place |
+| 10.1145/3297858.3304005 | PARTIES (Chen et al., ASPLOS 2019) | Multi-LC partition; userspace |
+| 10.1109/TC.2022.3187351 | OS noise (Bristot de Oliveira et al., TC 2023) | isolcpus model; not a laptop |
+| 10.1109/RTSS62706.2024.00034 | Interference-free OS (Deng et al., RTSS 2024) | Isolation boot params leak; do not stack |
+| 10.2197/ipsjjip.31.78 | PREEMPT_RT UnixBench (Li et al., 2023) | 6% throughput hit; BE stays off RT |
+| 10.1145/3774317 | RDT/QoSE survey (Larsson et al., CSUR 2026) | resctrl map; no CAT on these SKUs |
+| 10.1145/3534879.3534882 | Intel RDT close look (Sohal et al., RTNS 2022) | Xeon CAT/MBA; MBA is coarse |
+| 10.1007/s11227-023-05070-0 | BALANCER (Navarro-Torres et al., 2023) | AMD CCD L3; Intel CAT does not port |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -536,6 +546,40 @@ MemAvailable poller, not the agent policy.
 - Verma et al., EuroSys 2015, *Borg*. OokCite 10.1145/2741948.2741964.
   Multi-tenant isolation frame. Not the cgroup files to write (those
   are TMO/fbtax2 / =memory.high= then =memory.max=).
+
+** SMT, cache placement, RDT, PREEMPT_RT, isolcpus**
+
+- Tam, Azimi, Stumm, EuroSys 2007. OokCite 10.1145/1272996.1273004.
+  PMU clustering onto a shared LLC. Ancestor of =CONFIG_SCHED_CACHE=
+  (0020). Dual-CCD Zen 5 is the real test; one-LLC 1365U is a no-op.
+- Zhuravlev, Blagodurov, Fedorova, ASPLOS 2010.
+  OokCite 10.1145/1736020.1736036. Best vs worst LLC pairing differs
+  ~20%. Opposite policy to clustering (separate cache-hungry threads).
+  Keep 0020 as an A/B, do not grow a second classifier into fair.c.
+- Pi, Zhou, Xu, HPDC 2022, *Holmes*. OokCite 10.1145/3502181.3531464.
+  SMT sibling memory-access contention. USERSPACE placement, not
+  =SCHED_CORE= (same-uid is not a hostile tenant).
+- Chen, Delimitrou, Martinez, ASPLOS 2019, *PARTIES*.
+  OokCite 10.1145/3297858.3304005. Multi-LC partition on CAT/cores.
+  USERSPACE. Agents have no tail SLO for that search.
+- Larsson et al., CSUR 2026. OokCite 10.1145/3774317. RDT/AMD QoSE
+  map. Keep =CONFIG_X86_CPU_RESCTRL= compiled. Do not mount
+  =/sys/fs/resctrl= for allocation: 1365U and 9950X have no CAT/MBA.
+- Sohal et al., RTNS 2022. OokCite 10.1145/3534879.3534882. Xeon CAT
+  works; MBA is coarse and generation-incomplete. REJECT as a seat QoS.
+- Navarro-Torres et al., 2023, *BALANCER*. OokCite 10.1007/s11227-023-05070-0.
+  Intel CAT controllers do not port to AMD CCD victim L3. USERSPACE
+  CCD placement on terra; not =resctrl=.
+- Li et al., IPSJ 2023. OokCite 10.2197/ipsjjip.31.78. Native
+  PREEMPT_RT UnixBench -6%; they put GUI/BE in a stock-Linux guest.
+  Confirms the daily-driver contract: =PREEMPT_DYNAMIC=, not RT.
+- Bristot de Oliveira, Casini, Cucinotta, IEEE TC 2023.
+  OokCite 10.1109/TC.2022.3187351. OS-noise model for a partitioned
+  HPC/NFV box. Measure with =osnoise=/=rtla=. Not a laptop cmdline.
+- Deng et al., RTSS 2024. OokCite 10.1109/RTSS62706.2024.00034.
+  =isolcpus= / =irqaffinity= / =rcu_nocbs= / =nohz_full= are
+  orthogonal and leak. Fixes were in-kernel, not more boot flags.
+  REJECT those flags on a mixed seat.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
