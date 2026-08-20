@@ -200,6 +200,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3731599.3767537 | MGLRU vs 2Q (Liu and Ren, ROSS 2025) | Keep LRU_GEN; no profiler C |
 | 10.1145/3731569.3764816 | Aeolia (Li et al., SOSP 2025) | Storage stack drives scx; userspace |
 | 10.14778/3685800.3685825 | Aurora Serverless (Barnhart et al., VLDB 2024) | Production DAMON reclaim |
+| 10.1145/2485732.2485740 | blk-mq (Bjørling et al., SYSTOR 2013) | Multi-queue NVMe path; already the only path |
+| 10.1145/3629526.3645053 | NVMe elevators (Ren et al., ICPE 2024) | Kyber/BFQ isolate; none wins peak IOPS |
+| 10.1016/j.sysarc.2024.103157 | Live CRIU migrate (Guitart, 2024) | Page-server recipe; knobs already pinned |
+| 10.1007/978-3-030-02465-9_13 | Container live migrate (Stoyanov and Kollingbaum, 2018) | Soft-dirty + uffd pre/post-copy |
+| 10.1145/3538643.3539746 | Fragmentation vs io.weight (Park and Eom, HotStorage 2022) | iocost shares break on fragments |
+| 10.1145/3611386 | FS fragmentation (Park and Eom, TOCS 2023) | Fairness, not only MB/s |
+| 10.1145/3310148 | FUSE writeback (Vangoor et al., TOS 2019) | Only dirty_ratio pair exists |
+| 10.1145/3524059.3532378 | ULL mixed I/O (Liu et al., ICS 2022) | Device-internal mix; no elevator fix |
+| 10.1145/3698038.3698545 | PCLive (Tripathi and Mishra, SoCC 2024) | Pipeline restore; userspace |
+| 10.1016/j.jnca.2022.103494 | iContainer (Choi and Park, 2022) | Incremental dump; SoftDirty stays |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -830,6 +840,42 @@ CachyOS, or zen-kernel as products. Adjacent literature:
   =rg-damon-reclaim= profile, not a host default.
 - Li et al., SOSP 2025, *Aeolia*. OokCite 10.1145/3731569.3764816.
   Userspace-interrupt NVMe stack that names an scx expert. USERSPACE.
+
+** blk-mq, NVMe elevators, CRIU incremental, dirty writeback**
+
+KVM dirty ring is a vCPU GPA log (kernel 5.11, no standalone paper).
+CRIU incremental dumps use =MEM_SOFT_DIRTY= / =clear_refs=, not that
+ring. Clark et al., NSDI 2005 (URL only) is the pre-copy ancestor.
+
+- Bjørling, Axboe, Nellans, Bonnet, SYSTOR 2013.
+  OokCite 10.1145/2485732.2485740. blk-mq is the only NVMe path.
+  Does not pick an elevator.
+- Ren, Doekemeijer, Tehrany, Trivedi, ICPE 2024.
+  OokCite 10.1145/3629526.3645053. On consumer Gen4 NVMe, none wins
+  peak IOPS; Kyber/BFQ cut P99 under mixed latency+throughput. Do
+  not default none just because the device is NVMe. Replicate at
+  laptop queue depth (open NVMe A/B).
+- Liu et al., ICS 2022. OokCite 10.1145/3524059.3532378. ULL mixed
+  I/O is also device-internal (GC, channels). Elevator A/B can look
+  flat. REJECT their out-of-tree FastResponse stack.
+- Park and Eom, HotStorage 2022 / TOCS 2023. OokCite
+  10.1145/3538643.3539746 and 10.1145/3611386. Weight/iocost shares
+  break when files fragment. Defrag is userspace if isolation fails.
+- Vangoor et al., TOS 2019. OokCite 10.1145/3310148. The only dirty
+  knobs are =dirty_background_ratio= (wake flushers) and
+  =dirty_ratio= (hard throttle). Do not invent a third =dirty_*=.
+- Stoyanov and Kollingbaum, VHPC 2018.
+  OokCite 10.1007/978-3-030-02465-9_13. CRIU pre-copy is SoftDirty;
+  post-copy is uffd. Already pinned.
+- Guitart, JSA 2024. OokCite 10.1016/j.sysarc.2024.103157. Diskless
+  iterative CRIU + TCP repair. Userspace recipe; same kconfig.
+- Tripathi and Mishra, SoCC 2024, *PCLive*. OokCite 10.1145/3698038.3698545.
+  Pipeline restorer while the next pre-dump runs. USERSPACE.
+- Choi and Park, JNCA 2022. OokCite 10.1016/j.jnca.2022.103494.
+  Consecutive dumps via dirty tracking. SoftDirty stays the ABI.
+  TIME_NS (Vagin/Safonov LPC 2018, URL only) keeps monotonic clocks
+  across restore; overlays already pin it; the CRIU check now asserts
+  it.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
