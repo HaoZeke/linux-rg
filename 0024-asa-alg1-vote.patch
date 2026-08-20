@@ -21,7 +21,7 @@ ring without unsigned underflow. All-zero scores keep the previous class.
  		probs[i] = DIV_ROUND_CLOSEST(scores[i] * 10000U, total);
  }
  
-+#define ASA_VOTE_SCALE		10000ULL
++#define ASA_VOTE_SCALE 10000ULL
 +
 +/* Newest written slot: sample stores at vote_head % window then increments. */
 +static unsigned int asa_ring_idx(unsigned int head, unsigned int age,
