@@ -21,20 +21,10 @@ if [[ ! -f /usr/include/sys/types.h ]]; then
   exit 2
 fi
 
-if ! command -v pahole >/dev/null 2>&1; then
-  echo "pahole missing; disabling DEBUG_INFO_BTF for this compile"
-fi
-
 export LINUX_RG_JOBS="$jobs"
 {
   echo "host=$(hostname) gcc=$(gcc -dumpfullversion 2>/dev/null || gcc -dumpversion) jobs=$jobs"
   date -Is
-  if ! command -v pahole >/dev/null 2>&1 && [[ -x $tree/scripts/config ]]; then
-    if [[ ! -f $tree/.config ]]; then
-      cp -- "$repo/config.x86_64" "$tree/.config"
-    fi
-    (cd "$tree" && scripts/config --disable DEBUG_INFO_BTF --disable DEBUG_INFO_BTF_MODULES || true)
-  fi
   bash "$repo/scripts/linux-rg-rebase-build" "$tree" rgam5terra
   date -Is
 } >>"$log" 2>&1

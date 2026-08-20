@@ -22,12 +22,5 @@ tree=${LINUX_RG_REBASE_TREE:?set LINUX_RG_REBASE_TREE}
 
 echo "host=$(hostname) job=${SLURM_JOB_ID:-none} gcc=$(gcc -dumpfullversion 2>/dev/null || gcc -dumpversion)"
 date -Is
-# BTF needs pahole (dwarves). Skip it on this farm if pahole is absent.
-if ! command -v pahole >/dev/null 2>&1; then
-  echo "pahole missing; disabling DEBUG_INFO_BTF for this compile"
-  if [[ -x $tree/scripts/config ]]; then
-    (cd "$tree" && scripts/config --disable DEBUG_INFO_BTF --disable DEBUG_INFO_BTF_MODULES || true)
-  fi
-fi
 bash "$repo/scripts/linux-rg-rebase-build" "$tree" rgam5terra
 date -Is
