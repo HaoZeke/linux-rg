@@ -150,6 +150,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3774317 | RDT/QoSE survey (Larsson et al., CSUR 2026) | resctrl map; no CAT on these SKUs |
 | 10.1145/3534879.3534882 | Intel RDT close look (Sohal et al., RTNS 2022) | Xeon CAT/MBA; MBA is coarse |
 | 10.1007/s11227-023-05070-0 | BALANCER (Navarro-Torres et al., 2023) | AMD CCD L3; Intel CAT does not port |
+| 10.1145/3173162.3173203 | Huge pages useful (Panwar et al., ASPLOS 2018) | Compaction stalls; not THP always |
+| 10.1145/3297858.3304064 | HawkEye (Panwar et al., ASPLOS 2019) | Promote hot regions; madvise not always |
+| 10.1145/3459898.3463905 | Huge-page subrelease (Maas et al., ISMM 2021) | Allocator holes; userspace |
+| 10.1145/3698783.3699378 | Memory fragmentation (Halbuer et al., DIMES 2024) | Cache pins frames; no new compactor |
+| 10.1002/spe.3075 | EESSI (Dröge et al., SPE 2023) | CVMFS userspace stack |
+| 10.1051/epjconf/202024507012 | Unprivileged CVMFS (Blomer et al., 2020) | FUSE + userns; no suid helper |
+| 10.1051/epjconf/202429504012 | CVMFS at scale (Promberger et al., 2024) | Client cache; not a kernel FS |
+| 10.1109/CLUSTER51413.2022.00070 | FLASH huge pages (Calder et al., 2022) | Compiler enablement; madvise |
+| 10.1145/3332186.3333043 | Arbiter (Gardner et al., PEARC 2019) | Login-node cgroup caps; userspace |
+| 10.1109/SBAC-PAD55451.2022.00044 | CFS bandwidth throttle (Ugedal and Kumar, 2022) | Prefer cpu.max.burst; no fair.c weld |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -580,6 +590,53 @@ MemAvailable poller, not the agent policy.
   =isolcpus= / =irqaffinity= / =rcu_nocbs= / =nohz_full= are
   orthogonal and leak. Fixes were in-kernel, not more boot flags.
   REJECT those flags on a mixed seat.
+
+** Huge pages, CVMFS/FUSE, login-node HPC**
+
+Kubernetes CPU/Topology/Memory Manager docs have no Crossref DOI.
+Static exclusive cpusets are kubelet policy. A mixed laptop is not a
+kube node. Leftover: reserved vs exclusive cpusets in userspace, not
+=isolcpus= (already rejected above).
+
+- Kwon et al., OSDI 2016, *Ingens*. USENIX URL only
+  (https://www.usenix.org/conference/osdi16/technical-sessions/presentation/kwon).
+  THP =always= bloated Redis 69% and raised Cloudstone tail. Mixed seat
+  stays =madvise= (already locked).
+- Panwar, Prasad, Gopinath, ASPLOS 2018. OokCite 10.1145/3173162.3173203.
+  Unmovable kernel pages stall compaction. Same pin: not =always=.
+- Panwar, Bansal, Gopinath, ASPLOS 2019, *HawkEye*.
+  OokCite 10.1145/3297858.3304064. Promote by access coverage, not
+  contiguity. Do not port HawkEye; =madvise= is the stock opt-in.
+- Maas et al., ISMM 2021. OokCite 10.1145/3459898.3463905. Non-moving
+  allocators keep empty 2 MiB pages mapped. USERSPACE allocator
+  subrelease, not a host =always= pin.
+- Halbuer et al., DIMES 2024. OokCite 10.1145/3698783.3699378.
+  Compaction fails at large grains; droppable cache still pins frames.
+  No new compactor.
+- Calder et al., CLUSTER 2022. OokCite 10.1109/CLUSTER51413.2022.00070.
+  FLASH/AMR huge pages: compiler/runtime enablement. USERSPACE
+  =madvise= / hugetlbfs for those jobs.
+- Dröge et al., SPE 2023, *EESSI*. OokCite 10.1002/spe.3075. Scientific
+  stack via CVMFS, not a kernel FS.
+- Blomer et al., CHEP 2019. OokCite 10.1051/epjconf/202024507012.
+  Unprivileged CVMFS FUSE. PIN =CONFIG_FUSE_FS= + user namespaces.
+  No suid mount helper, no in-tree CVMFS.
+- Promberger et al., CHEP 2023. OokCite 10.1051/epjconf/202429504012.
+  Client cache/zstd. USERSPACE.
+- Vangoor, Tarasov, Zadok, FAST 2017. USENIX URL only
+  (https://www.usenix.org/conference/fast17/technical-sessions/presentation/vangoor).
+  FUSE overhead is workload-dependent. Do not rewrite CVMFS in-kernel.
+- Gardner, Migacz, Haymore, PEARC 2019, *Arbiter*.
+  OokCite 10.1145/3332186.3333043. Login-node =user.slice= caps.
+  USERSPACE on a shared Slurm login only; not the ultrabook.
+- Ugedal and Kumar, SBAC-PAD 2022.
+  OokCite 10.1109/SBAC-PAD55451.2022.00044. Early quota throttle.
+  Prefer =cpu.max.burst= already pinned; no fair.c slush-fund.
+
+Hildenbrand/Schulz/Amit, ATC 2024 folio accounting, and Zhu/Cox/Rixner,
+ATC 2020 superpage survey, are USENIX URL-only. Both support the same
+=madvise= pin and conservative khugepaged. =MADV_COLLAPSE= after a
+dense fill is userspace (LWN https://lwn.net/Articles/887753/).
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
