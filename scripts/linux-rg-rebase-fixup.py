@@ -205,6 +205,32 @@ def main() -> None:
 
     replace_once(
         root / "kernel/sched/fair.c",
+        "#ifdef CONFIG_SCHED_BORE\n"
+        "\tif ((flags & DEQUEUE_SLEEP) && entity_is_task(&p->se)) {\n"
+        "\t\tstruct cfs_rq *cfs_rq = cfs_rq_of(&p->se);\n"
+        "\n"
+        "\t\tif (cfs_rq->curr == &p->se)\n"
+        "\t\t\tupdate_curr(cfs_rq);\n"
+        "\t\trestart_burst_bore(p);\n"
+        "\t}\n"
+        "#endif /* CONFIG_SCHED_BORE */\n",
+        "#ifdef CONFIG_SCHED_BORE\n"
+        "\t{\n"
+        "\t\tstruct sched_entity *se = &p->se;\n"
+        "\n"
+        "\t\tif ((flags & DEQUEUE_SLEEP) && entity_is_task(se)) {\n"
+        "\t\t\tstruct cfs_rq *cfs_rq = cfs_rq_of(se);\n"
+        "\n"
+        "\t\t\tif (cfs_rq->curr == se)\n"
+        "\t\t\t\tupdate_curr(cfs_rq);\n"
+        "\t\t\trestart_burst_bore(p);\n"
+        "\t\t}\n"
+        "\t}\n"
+        "#endif /* CONFIG_SCHED_BORE */\n",
+        "fair.c restart_burst_bore se ptr",
+    )
+    replace_once(
+        root / "kernel/sched/fair.c",
         "\tif (!p->se.sched_delayed)\n"
         "\t\tutil_est_dequeue(&rq->cfs, p);\n"
         "\n"
@@ -214,12 +240,16 @@ def main() -> None:
         "\t\tutil_est_dequeue(&rq->cfs, p);\n"
         "\n"
         "#ifdef CONFIG_SCHED_BORE\n"
-        "\tif ((flags & DEQUEUE_SLEEP) && entity_is_task(&p->se)) {\n"
-        "\t\tstruct cfs_rq *cfs_rq = cfs_rq_of(&p->se);\n"
+        "\t{\n"
+        "\t\tstruct sched_entity *se = &p->se;\n"
         "\n"
-        "\t\tif (cfs_rq->curr == &p->se)\n"
-        "\t\t\tupdate_curr(cfs_rq);\n"
-        "\t\trestart_burst_bore(p);\n"
+        "\t\tif ((flags & DEQUEUE_SLEEP) && entity_is_task(se)) {\n"
+        "\t\t\tstruct cfs_rq *cfs_rq = cfs_rq_of(se);\n"
+        "\n"
+        "\t\t\tif (cfs_rq->curr == se)\n"
+        "\t\t\t\tupdate_curr(cfs_rq);\n"
+        "\t\t\trestart_burst_bore(p);\n"
+        "\t\t}\n"
         "\t}\n"
         "#endif /* CONFIG_SCHED_BORE */\n"
         "\n"
@@ -246,6 +276,103 @@ def main() -> None:
         "\tupdate_load_avg(cfs_rq, se, 0);\n"
         "\tclear_delayed(se);\n",
         "fair.c requeue place_entity flags",
+    )
+    replace_once(
+        root / "kernel/sched/fair.c",
+        "static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,\n",
+        "void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,\n",
+        "fair.c reweight_entity linkage",
+    )
+
+    replace_once(
+        root / "mm/vmscan.c",
+        "\tif (type == LRU_GEN_FILE)\n"
+        "\t\tsc->nr.file_taken += isolated;\n",
+        "",
+        "vmscan drop file_taken",
+    )
+    replace_once(
+        root / "mm/vmscan.c",
+        "\tscanned += try_to_inc_min_seq(lruvec, swappiness);\n",
+        "\ttry_to_inc_min_seq(lruvec, swappiness);\n",
+        "vmscan try_to_inc_min_seq void",
+    )
+    replace_once(
+        root / "mm/vmscan.c",
+        "static bool try_to_shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)\n"
+        "{\n"
+        "\tlong nr_to_scan;\n"
+        "\tunsigned long scanned = 0;\n"
+        "\tint swappiness = get_swappiness(lruvec, sc);\n"
+        "\n"
+        "\twhile (true) {\n"
+        "\t\tint delta;\n"
+        "\n"
+        "\t\tnr_to_scan = get_nr_to_scan(lruvec, sc, swappiness);\n",
+        "static bool try_to_shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)\n"
+        "{\n"
+        "\tlong nr_to_scan;\n"
+        "\tunsigned long scanned = 0;\n"
+        "\tint swappiness = get_swappiness(lruvec, sc);\n"
+        "\tstruct mem_cgroup *memcg = lruvec_memcg(lruvec);\n"
+        "\n"
+        "\twhile (true) {\n"
+        "\t\tint delta;\n"
+        "\n"
+        "\t\tnr_to_scan = get_nr_to_scan(lruvec, sc, memcg, swappiness);\n",
+        "vmscan get_nr_to_scan memcg",
+    )
+    replace_once(
+        root / "mm/vmscan.c",
+        "\tif (sc->nr.unqueued_dirty && sc->nr.unqueued_dirty == sc->nr.file_taken) {\n"
+        "\t\tstruct pglist_data *pgdat = lruvec_pgdat(lruvec);\n"
+        "\n"
+        "\t\twakeup_flusher_threads(WB_REASON_VMSCAN);\n"
+        "\n"
+        "\t\t/*\n"
+        "\t\t * For cgroupv1 dirty throttling is achieved by waking up\n"
+        "\t\t * the kernel flusher here and later waiting on folios\n"
+        "\t\t * which are in writeback to finish (see shrink_folio_list()).\n"
+        "\t\t *\n"
+        "\t\t * Flusher may not be able to issue writeback quickly\n"
+        "\t\t * enough for cgroupv1 writeback throttling to work\n"
+        "\t\t * on a large system.\n"
+        "\t\t */\n"
+        "\t\tif (!writeback_throttling_sane(sc))\n"
+        "\t\t\treclaim_throttle(pgdat, VMSCAN_THROTTLE_WRITEBACK);\n"
+        "\t}\n"
+        "\n"
+        "\t/* whether this lruvec should be rotated */\n"
+        "\treturn nr_to_scan < 0;\n",
+        "\t/* whether this lruvec should be rotated */\n"
+        "\treturn nr_to_scan < 0;\n",
+        "vmscan drop unqueued_dirty",
+    )
+    replace_once(
+        root / "mm/vmscan.c",
+        "static int shrink_one(struct lruvec *lruvec, struct scan_control *sc)\n"
+        "{\n"
+        "\tbool success;\n"
+        "\tbool need_rotate;\n"
+        "\tbool need_rotate;\n",
+        "static int shrink_one(struct lruvec *lruvec, struct scan_control *sc)\n"
+        "{\n"
+        "\tbool success;\n"
+        "\tbool need_rotate;\n",
+        "vmscan need_rotate dedupe",
+    )
+    replace_once(
+        root / "mm/vmscan.c",
+        "static int shrink_one(struct lruvec *lruvec, struct scan_control *sc)\n"
+        "{\n"
+        "\tbool success;\n"
+        "\tunsigned long scanned = sc->nr_scanned;\n",
+        "static int shrink_one(struct lruvec *lruvec, struct scan_control *sc)\n"
+        "{\n"
+        "\tbool success;\n"
+        "\tbool need_rotate;\n"
+        "\tunsigned long scanned = sc->nr_scanned;\n",
+        "vmscan need_rotate",
     )
 
     replace_once(
