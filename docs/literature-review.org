@@ -220,6 +220,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/1629575.1629579 | Multikernel (Baumann et al., SOSP 2009) | No shared kernel; not a CONFIG |
 | 10.1145/2628071.2628104 | COLORIS (Ye et al., PACT 2014) | Page coloring; hashed LLC breaks it |
 | 10.1109/HPCA.2016.7446082 | CATalyst (Liu et al., HPCA 2016) | CAT+color; resctrl, no color allocator |
+| 10.1145/3579371.3589079 | Contiguitas (Zhao et al., ISCA 2023) | Unmovable scatter; in-tree grouping, no HW carry |
+| 10.1145/3319647.3325839 | MEGA (Michailidis et al., SYSTOR 2019) | Cost-benefit compact; no MEGA C |
+| 10.1145/2754169.2754179 | Mobile fragmentation (Kim et al., ISMM 2015) | Migrate types / CMA already in-tree |
+| 10.1109/TPDS.2015.2453960 | qcAffin (Huang and Tsai, 2016) | Topology IRQ map; userspace |
+| 10.1016/j.future.2015.09.012 | Core affinities (Hanford et al., 2016) | Static MSI; disable irqbalance |
+| 10.1145/3626780 | Kernel vs bypass net (Cai and Karsten, 2023) | Static IRQ map; keep NAPI |
+| 10.1109/ISORC49007.2020.00012 | Timer slack (Reif and Schroder-Preikschat, 2020) | prctl slack; not a global 1 ns |
+| 10.1109/CCWC.2018.8301733 | Full dynticks (Aljuhni et al., 2018) | NO_HZ_FULL unused; reject boot |
+| 10.1109/ECRTS.2012.20 | IRQ servers (Elliott and Anderson, 2012) | Against naive IRQ-thread priority |
+| 10.1145/3386367.3432730 | Metronome (Faltelli et al., CoNEXT 2020) | 50 us slack is prctl, not a patch |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -916,6 +926,44 @@ ring. Clark et al., NSDI 2005 (URL only) is the pre-copy ancestor.
 - Liu et al., HPCA 2016, *CATalyst*. OokCite 10.1109/HPCA.2016.7446082.
   CAT plus coloring against Prime+Probe. Isolation primitive is
   =resctrl=, already compiled. These SKUs still have no CAT.
+
+** Compaction, IRQ affinity, timer slack**
+
+- Zhao et al., ISCA 2023, *Contiguitas*. OokCite 10.1145/3579371.3589079.
+  Unmovable kernel pages (slab, page tables, net, fs) scatter 2 MiB
+  blocks on long-lived boxes. The OS half is migrate-type grouping,
+  already in-tree (Gorman/Whitcroft OLS 2007). Do not carry their
+  LLC-migration hardware.
+- Michailidis, Delis, Roussopoulos, SYSTOR 2019, *MEGA*.
+  OokCite 10.1145/3319647.3325839. kcompactd fires too late; a
+  cost-benefit scan beats compact-on-failed-alloc. Policy analog is
+  =vm.compaction_proactiveness=, not MEGA C.
+- Kim, Kwon, Kim, Jeong, ISMM 2015. OokCite 10.1145/2754169.2754179.
+  Ancestor of migrate types and CMA. Pin those, not a second grouping
+  scheme. Overlays already set =COMPACT_UNEVICTABLE_DEFAULT=0=.
+- Huang and Tsai, IEEE TPDS 2016, *qcAffin*.
+  OokCite 10.1109/TPDS.2015.2453960. Queue-to-core IRQ maps follow
+  cache/NUMA, not round-robin. USERSPACE =smp_affinity=.
+- Hanford et al., FGCS 2016. OokCite 10.1016/j.future.2015.09.012.
+  IRQ+app affinity pairing changes the bottleneck. Static MSI plus
+  irqbalance off is the reproducible baseline.
+- Cai and Karsten, POMACS 2023. OokCite 10.1145/3626780. Kernel
+  NAPI plus a static IRQ map stays competitive with bypass. Keep the
+  in-kernel stack (already the HotOS 2021 verdict).
+- Elliott and Anderson, ECRTS 2012. OokCite 10.1109/ECRTS.2012.20.
+  Fixed-priority threaded IRQs are not a schedulable server. REJECT
+  naive IRQ-thread priority on a mixed seat.
+- Reif and Schroder-Preikschat, ISORC 2020.
+  OokCite 10.1109/ISORC49007.2020.00012. Default 50 us timer slack
+  stretches sleeps. USERSPACE =prctl(PR_SET_TIMERSLACK)= on timed
+  seats only. Do not globally zero slack.
+- Faltelli et al., CoNEXT 2020, *Metronome*. OokCite 10.1145/3386367.3432730.
+  The ~50 us =nanosleep= overshoot *is* timer slack. Do not carry
+  =hr_sleep=.
+- Aljuhni et al., CCWC 2018. OokCite 10.1109/CCWC.2018.8301733.
+  =NO_HZ_FULL= only helps a CPU with at most one runnable task.
+  Mixed seats share the fair pool. Compile it unused (Arch); do not
+  boot =nohz_full=.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
