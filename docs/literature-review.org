@@ -110,6 +110,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3342195.3387522 | Fastswap (Amaro et al., EuroSys 2020) | RDMA far memory; reject |
 | 10.1145/3297858.3304024 | Nimble (Yan et al., ASPLOS 2019) | Tiered-page migrate; no second tier here |
 | 10.1145/3578353.3589545 | Storage stacks (Ren and Trivedi, CHEOPS 2023) | io_uring edge shrinks on VFS |
+| 10.1109/REAL.1996.563725 | EEVDF (Stoica et al., RTSS 1996) | Original algorithm; keep mainline fair class |
+| 10.1109/REAL.1998.739726 | CBS (Abeni and Buttazzo, RTSS 1998) | Reservation class; do not wrap seats in DL |
+| 10.1002/spe.2335 | SCHED_DEADLINE (Lelli et al., SPE 2016) | Keep compiled; seats stay fair/cgroup |
+| 10.1145/1508293.1508301 | Postcopy + prepaging (Hines and Gopalan, VEE 2009) | CRIU lazy-pages framing |
+| 10.1145/3492321.3524270 | FaaSnap (Ao et al., EuroSys 2022) | uffd prefetch; already pinned |
+| 10.1145/3445814.3446714 | REAP snapshots (Ustiugov et al., ASPLOS 2021) | Working-set prefetch; userspace |
+| 10.1145/3302424.3303978 | Replayable Execution (Wang et al., EuroSys 2019) | Runtime snapshot; userspace |
+| 10.1145/3342195.3392698 | SEUSS (Cadden et al., EuroSys 2020) | Unikernel snapshot; reject |
+| 10.1145/3357526.3357542 | VAS-CRIU (Venkatesh et al., MEMSYS 2019) | In-memory CRIU; pin already done |
+| 10.1109/TC.2021.3129366 | Weight-aware cache (Park and Eom, TC 2022) | Dirty does not follow io.weight; writeback pin stays |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -394,6 +404,42 @@ USENIX proceedings often have **no Crossref DOI**. Keep the PDF URL.
 - Ren and Trivedi, CHEOPS 2023. OokCite 10.1145/3578353.3589545.
   io_uring's polling edge shrinks once the path is VFS, not raw NVMe.
   USERSPACE: keep =IO_URING=; do not treat it as a userspace storage stack.
+
+** Supervisor APIs, deadline class, and CRIU restore**
+
+pidfd / =clone3= / =CLONE_INTO_CGROUP= / =process_mrelease= are the
+supervisor surface for a race-free spawn and cancel. Primary sources are
+Brauner LPC 2019 (https://lpc.events/event/4/contributions/289/) and the
+LWN series (https://lwn.net/Articles/794707/,
+https://lwn.net/Articles/784831/, https://lwn.net/Articles/807882/,
+https://lwn.net/Articles/864184/). No Crossref DOI. Grade B. That is
+userspace: obtain a pidfd at spawn, signal and wait on it, optionally
+=process_mrelease= after SIGKILL. The kernel already has the syscalls.
+=kill(-pgid)= remains racy under pid reuse.
+
+- Stoica et al., RTSS 1996. OokCite 10.1109/REAL.1996.563725. Original
+  EEVDF. Request length is the latency knob; weight is the share knob.
+  PIN-CONFIG: stay on mainline EEVDF. CFS =latency_nice= never landed
+  and must not be welded onto 7.x fair.c (LWN https://lwn.net/Articles/887842/).
+- Abeni and Buttazzo, RTSS 1998. OokCite 10.1109/REAL.1998.739726. CBS
+  reservations. REJECT as the seat class: agents have no (runtime, period).
+- Lelli, Scordino, Abeni, Faggioli, SPE 2016. OokCite 10.1002/spe.2335.
+  Canonical =SCHED_DEADLINE= map. Keep the class compiled. Do not put
+  seats on DL (a mis-parameterized DL task sits above RT and the desktop).
+- Park and Eom, IEEE TC 2022. OokCite 10.1109/TC.2021.3129366. memcg
+  dirty ratio does not follow =io.weight=. PIN-CONFIG: keep
+  =CGROUP_WRITEBACK= so dirty I/O hits the io controller. Do not carry
+  their cache split.
+- Hines and Gopalan, VEE 2009. OokCite 10.1145/1508293.1508301.
+  Postcopy + prepaging. USERSPACE: CRIU =--lazy-pages= on the already
+  pinned =USERFAULTFD= / =MEM_SOFT_DIRTY= set.
+- Ustiugov et al., ASPLOS 2021, REAP. OokCite 10.1145/3445814.3446714.
+  Snapshot restore is dominated by a stable working set of faults.
+  USERSPACE prefetch, not a new knob.
+- Ao et al., EuroSys 2022, *FaaSnap*. OokCite 10.1145/3492321.3524270.
+  Firecracker + uffd prefetch. Same pin, same userspace policy.
+- Cadden et al., EuroSys 2020, *SEUSS*. OokCite 10.1145/3342195.3392698.
+  Unikernel snapshots. REJECT: drops the PSI/cgroup/CRIU surface.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
