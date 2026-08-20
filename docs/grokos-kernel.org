@@ -73,9 +73,11 @@ so PSI and cgroup lookup run in process context, and adds:
 | =/sys/kernel/sched_ext/asa/seat_cgroup= | cgroup v2 path; =/= is host PSI |
 | =perception= =seat_cgroup= / =seat_descendants= | slice PSI; descendant count is observational |
 
-Write the sessiond user slice (or =asa-router --seat-cgroup auto=) so
-classification follows =grokos-goal-*= leaves instead of host-wide
-noise. =echo 0 > enabled= cancels the work without taking the sample
+Write the sessiond user slice (or =asa-router --seat-cgroup auto=).
+The kernel holds that cgroup and classifies from its descendant
+tasks' runnable count and =nvcsw= plus slice PSI, not host
+=nr_context_switches=. =perception= also prints =irq_pct=,
+=nr_iowait=, and =load1= (Wang Table 1 kernel-visible fields). =echo 0 > enabled= cancels the work without taking the sample
 lock.
 
 Voting follows Wang et al. Algorithm 1: each sample class below

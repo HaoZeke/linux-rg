@@ -44,6 +44,8 @@ grep -q 'p <= theta' 0024-asa-alg1-vote.patch || fail "0024 missing per-sample t
 grep -q '0025-asa-review-fixes.patch' PKGBUILD || fail "PKGBUILD missing ASA review-fix patch"
 grep -q 'LOAD_INT' 0025-asa-review-fixes.patch || fail "0025 missing FIXED_1 PSI percent"
 grep -q 'asa_store_clamped' 0025-asa-review-fixes.patch || fail "0025 missing clamped stores"
+grep -q '0026-asa-seat-sched.patch' PKGBUILD || fail "PKGBUILD missing ASA seat-sched patch"
+grep -q 'asa_read_seat_sched' 0026-asa-seat-sched.patch || fail "0026 missing seat sched walk"
 grep -q 'seat_cgroup' 0023-asa-workqueue-seat.patch || fail "0023 missing seat_cgroup"
 grep -q 'delayed_work' 0023-asa-workqueue-seat.patch || fail "0023 missing delayed_work"
 grep -q 'cancel_delayed_work_sync' 0023-asa-workqueue-seat.patch || fail "0023 missing disable cancel"

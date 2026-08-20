@@ -1,0 +1,373 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Wed, 19 Aug 2026 00:00:00 +0000
+Subject: [PATCH] sched/asa: classify from seat-scoped runqueue and ctxsw
+
+BARMA 16/16: next change is seat-local nr_running and nvcsw, plus
+irq/iowait/load1 from Wang Table 1. Hold a seat cgroup ref on store.
+
+---
+--- a/kernel/sched/asa.c
++++ b/kernel/sched/asa.c
+@@ -12,6 +12,7 @@
+ #include <linux/mutex.h>
+ #include <linux/psi.h>
+ #include <linux/sched/loadavg.h>
++#include <linux/sched/stat.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
+ #include <linux/workqueue.h>
+@@ -57,6 +58,7 @@
+ 	char			schedulers[ASA_CLASS_NR][ASA_NAME_LEN];
+ 	char			recommended[ASA_NAME_LEN];
+ 	char			seat_path[ASA_SEAT_PATH_LEN];
++	struct cgroup		*seat;
+ 	enum asa_workload_class	voted_class;
+ 
+ 	unsigned int		enabled;
+@@ -73,6 +75,7 @@
+ 
+ 	unsigned long		last_switch_jiffies;
+ 	u64			last_ctxsw;
++	u64			last_irq_ns;
+ 	unsigned long		last_sample_jiffies;
+ 
+ 	struct mutex		lock;
+@@ -115,61 +118,124 @@
+ 	*rq_avg = nr ? DIV_ROUND_UP(sum * 100, nr) : 0;
+ }
+ 
+-static u32 asa_ctxsw_rate(u64 last_ctxsw, unsigned long last_jiffies,
+-			  u64 *ctxsw_out, unsigned long *now_out)
++static u32 asa_ctxsw_rate(u64 last_ctxsw, u64 ctxsw, unsigned long last_jiffies,
++			  unsigned long *now_out)
+ {
+ 	u64 now = jiffies;
+-	u64 ctxsw = nr_context_switches();
+ 	unsigned long dt_jiffies = max(now - last_jiffies, 1UL);
+ 
+-	*ctxsw_out = ctxsw;
+ 	*now_out = now;
+ 	return div64_u64((ctxsw - last_ctxsw) * HZ, dt_jiffies);
+ }
+ 
+-static void asa_read_seat_psi(const char *seat_path, u32 *cpu_psi,
+-			      u32 *io_psi, u32 *mem_psi, u32 *n_desc)
++#ifdef CONFIG_IRQ_TIME_ACCOUNTING
++static u64 asa_irq_ns_sum(void)
+ {
+-	struct cgroup *cgrp = NULL;
+-	struct psi_group *psi = &psi_system;
++	unsigned int cpu;
++	u64 sum = 0;
+ 
+-	if (n_desc)
+-		*n_desc = 0;
+-	if (seat_path && seat_path[0]) {
+-		cgrp = cgroup_get_from_path(seat_path);
+-		if (IS_ERR(cgrp))
+-			cgrp = NULL;
+-	}
+-	if (cgrp) {
+-		struct psi_group *seat_psi = cgroup_psi(cgrp);
+-
+-		if (seat_psi)
+-			psi = seat_psi;
+-		if (n_desc)
+-			*n_desc = cgrp->nr_descendants;
+-	}
+-	asa_read_psi_group(psi, cpu_psi, io_psi, mem_psi);
+-	if (cgrp)
+-		cgroup_put(cgrp);
++	cpus_read_lock();
++	for_each_online_cpu(cpu)
++		sum += irq_time_read(cpu);
++	cpus_read_unlock();
++	return sum;
++}
++
++static u32 asa_irq_pct(u64 last_irq_ns, unsigned long dt_jiffies, u64 *irq_out)
++{
++	u64 now = asa_irq_ns_sum();
++	u64 dt_ns, ncpus;
++
++	*irq_out = now;
++	if (!irqtime_enabled())
++		return 0;
++	dt_ns = jiffies_to_nsecs(max(dt_jiffies, 1UL));
++	ncpus = max(1U, num_online_cpus());
++	return (u32)min(100ULL, div64_u64((now - last_irq_ns) * 100ULL,
++					  dt_ns * ncpus));
++}
++#else
++static u32 asa_irq_pct(u64 last_irq_ns, unsigned long dt_jiffies, u64 *irq_out)
++{
++	*irq_out = 0;
++	return 0;
++}
++#endif
++
++#define ASA_SEAT_TASK_CAP	4096
++
++static void asa_read_host_rq(u32 *rq_avg)
++{
++	asa_read_rq_avg(rq_avg);
++}
++
++static void asa_read_seat_sched(struct cgroup *seat, u32 *rq_avg, u64 *csw_sum,
++				u32 *n_tasks)
++{
++	struct cgroup_subsys_state *css;
++	unsigned int nr = 0, running = 0;
++	u64 csw = 0;
++
++	if (!seat) {
++		*rq_avg = 0;
++		*csw_sum = 0;
++		*n_tasks = 0;
++		return;
++	}
++
++	rcu_read_lock();
++	css_for_each_descendant_pre(css, &seat->self) {
++		struct css_task_iter it;
++		struct task_struct *p;
++
++		if (!css_tryget(css))
++			continue;
++		rcu_read_unlock();
++
++		css_task_iter_start(css, 0, &it);
++		while ((p = css_task_iter_next(&it))) {
++			if (nr >= ASA_SEAT_TASK_CAP)
++				break;
++			nr++;
++			if (task_on_rq_queued(p))
++				running++;
++			csw += p->nvcsw + p->nivcsw;
++		}
++		css_task_iter_end(&it);
++		css_put(css);
++
++		rcu_read_lock();
++		if (nr >= ASA_SEAT_TASK_CAP)
++			break;
++	}
++	rcu_read_unlock();
++
++	*n_tasks = nr;
++	*csw_sum = csw;
++	*rq_avg = nr ? DIV_ROUND_UP(running * 100, nr) : 0;
+ }
+ 
+ static void asa_classify(u32 rq_avg, u32 csw_per_sec, u32 cpu_psi,
+-			 u32 io_psi, u32 mem_psi, u16 probs[ASA_CLASS_NR])
++			 u32 io_psi, u32 mem_psi, u32 irq_pct, u32 iowait,
++			 u32 load1, u16 probs[ASA_CLASS_NR])
+ {
+ 	u32 scores[ASA_CLASS_NR] = { 0 };
+ 	u32 total = 0;
++	u32 cpu_work = cpu_psi > irq_pct ? cpu_psi - irq_pct : 0;
+ 	int i;
+ 
+ 	memset(probs, 0, sizeof(u16) * ASA_CLASS_NR);
+ 
+-	scores[ASA_CLASS_IO] = io_psi * 3 + mem_psi;
+-	scores[ASA_CLASS_CPU] = cpu_psi * 2 + rq_avg;
+-	scores[ASA_CLASS_INTERACTIVE] = csw_per_sec / 20 + (rq_avg < 200) * 40;
+-	if (rq_avg > 150 && cpu_psi > 20)
++	scores[ASA_CLASS_IO] = io_psi * 3 + mem_psi + iowait * 8;
++	scores[ASA_CLASS_CPU] = cpu_work * 2 + rq_avg + load1 * 10;
++	scores[ASA_CLASS_INTERACTIVE] = csw_per_sec / 20 +
++		(rq_avg < 200) * 40 + irq_pct;
++	if (rq_avg > 150 && cpu_work > 20)
+ 		scores[ASA_CLASS_CPU] += rq_avg / 2;
+-	if (csw_per_sec > 400 && io_psi < 15)
++	if (csw_per_sec > 400 && io_psi < 15 && iowait < 2)
+ 		scores[ASA_CLASS_INTERACTIVE] += 60;
+-	scores[ASA_CLASS_MIXED] = 25 + (rq_avg / 4) + (cpu_psi / 4) + (io_psi / 4);
++	scores[ASA_CLASS_MIXED] = 25 + (rq_avg / 4) + (cpu_work / 4) +
++		(io_psi / 4);
+ 
+ 	for (i = 0; i < ASA_CLASS_NR; i++)
+ 		total += scores[i];
+@@ -278,35 +344,55 @@
+ static void asa_sample(struct asa_router *r)
+ {
+ 	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi;
++	u32 irq_pct, iowait, load1, n_tasks;
+ 	u16 probs[ASA_CLASS_NR];
+ 	struct asa_vote_slot *slot;
++	struct cgroup *seat;
+ 	unsigned int idx, window;
+-	char path[ASA_SEAT_PATH_LEN];
+-	u64 last_ctxsw, ctxsw;
+-	unsigned long last_jiffies, now;
++	u64 last_ctxsw, ctxsw, last_irq, irq_now;
++	unsigned long last_jiffies, now, av[3];
+ 
+ 	mutex_lock(&r->lock);
+ 	if (!r->enabled || !r->vote_ring) {
+ 		mutex_unlock(&r->lock);
+ 		return;
+ 	}
+-	strscpy(path, r->seat_path);
++	seat = r->seat;
++	if (seat)
++		cgroup_get(seat);
+ 	last_ctxsw = r->last_ctxsw;
++	last_irq = r->last_irq_ns;
+ 	last_jiffies = r->last_sample_jiffies;
+ 	mutex_unlock(&r->lock);
+ 
+-	asa_read_rq_avg(&rq_avg);
+-	csw_per_sec = asa_ctxsw_rate(last_ctxsw, last_jiffies, &ctxsw, &now);
+-	asa_read_seat_psi(path, &cpu_psi, &io_psi, &mem_psi, NULL);
+-	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, probs);
++	if (seat) {
++		asa_read_seat_sched(seat, &rq_avg, &ctxsw, &n_tasks);
++		(void)n_tasks;
++		asa_read_psi_group(cgroup_psi(seat) ? cgroup_psi(seat) :
++				   &psi_system, &cpu_psi, &io_psi, &mem_psi);
++	} else {
++		asa_read_host_rq(&rq_avg);
++		ctxsw = nr_context_switches();
++		asa_read_psi_group(&psi_system, &cpu_psi, &io_psi, &mem_psi);
++	}
++	csw_per_sec = asa_ctxsw_rate(last_ctxsw, ctxsw, last_jiffies, &now);
++	irq_pct = asa_irq_pct(last_irq, max(now - last_jiffies, 1UL), &irq_now);
++	iowait = nr_iowait();
++	get_avenrun(av, 0, 0);
++	load1 = LOAD_INT(av[0]);
++	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
++		     irq_pct, iowait, load1, probs);
+ 
+ 	mutex_lock(&r->lock);
+ 	if (!r->enabled || !r->vote_ring) {
+ 		mutex_unlock(&r->lock);
++		if (seat)
++			cgroup_put(seat);
+ 		return;
+ 	}
+ 
+ 	r->last_ctxsw = ctxsw;
++	r->last_irq_ns = irq_now;
+ 	r->last_sample_jiffies = now;
+ 
+ 	window = max(r->voting_window, 1U);
+@@ -323,6 +409,8 @@
+ 	asa_update_recommendation_locked(false);
+ 
+ 	mutex_unlock(&r->lock);
++	if (seat)
++		cgroup_put(seat);
+ }
+ 
+ static void asa_work_fn(struct work_struct *work)
+@@ -343,20 +431,41 @@
+ 			       char *buf)
+ {
+ 	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, n_desc;
++	u32 irq_pct, iowait, load1, n_tasks;
+ 	char path[ASA_SEAT_PATH_LEN];
+-	u64 last_ctxsw, ctxsw, vote[ASA_CLASS_NR];
+-	unsigned long last_jiffies, now;
++	struct cgroup *seat;
++	u64 last_ctxsw, ctxsw, last_irq, irq_now, vote[ASA_CLASS_NR];
++	unsigned long last_jiffies, now, av[3];
+ 
+ 	mutex_lock(&asa.lock);
+ 	strscpy(path, asa.seat_path);
++	seat = asa.seat;
++	if (seat)
++		cgroup_get(seat);
+ 	last_ctxsw = asa.last_ctxsw;
++	last_irq = asa.last_irq_ns;
+ 	last_jiffies = asa.last_sample_jiffies;
+ 	memcpy(vote, asa.vote_score, sizeof(vote));
+ 	mutex_unlock(&asa.lock);
+ 
+-	asa_read_rq_avg(&rq_avg);
+-	csw_per_sec = asa_ctxsw_rate(last_ctxsw, last_jiffies, &ctxsw, &now);
+-	asa_read_seat_psi(path, &cpu_psi, &io_psi, &mem_psi, &n_desc);
++	if (seat) {
++		asa_read_seat_sched(seat, &rq_avg, &ctxsw, &n_tasks);
++		asa_read_psi_group(cgroup_psi(seat) ? cgroup_psi(seat) :
++				   &psi_system, &cpu_psi, &io_psi, &mem_psi);
++		n_desc = seat->nr_descendants;
++		cgroup_put(seat);
++	} else {
++		asa_read_host_rq(&rq_avg);
++		ctxsw = nr_context_switches();
++		asa_read_psi_group(&psi_system, &cpu_psi, &io_psi, &mem_psi);
++		n_desc = 0;
++		n_tasks = 0;
++	}
++	csw_per_sec = asa_ctxsw_rate(last_ctxsw, ctxsw, last_jiffies, &now);
++	irq_pct = asa_irq_pct(last_irq, max(now - last_jiffies, 1UL), &irq_now);
++	iowait = nr_iowait();
++	get_avenrun(av, 0, 0);
++	load1 = LOAD_INT(av[0]);
+ 
+ 	return sysfs_emit(buf,
+ 			  "rq_avg_pct=%u\n"
+@@ -364,6 +473,10 @@
+ 			  "cpu_psi_pct=%u\n"
+ 			  "io_psi_pct=%u\n"
+ 			  "mem_psi_pct=%u\n"
++			  "irq_pct=%u\n"
++			  "nr_iowait=%u\n"
++			  "load1=%u\n"
++			  "seat_tasks=%u\n"
+ 			  "seat_cgroup=%s\n"
+ 			  "seat_descendants=%u\n"
+ 			  "vote_interactive=%llu\n"
+@@ -371,6 +484,7 @@
+ 			  "vote_io=%llu\n"
+ 			  "vote_mixed=%llu\n",
+ 			  rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
++			  irq_pct, iowait, load1, n_tasks,
+ 			  path[0] ? path : "/",
+ 			  n_desc,
+ 			  vote[ASA_CLASS_INTERACTIVE],
+@@ -493,6 +607,7 @@
+ 				 const char *buf, size_t count)
+ {
+ 	char path[ASA_SEAT_PATH_LEN];
++	struct cgroup *new_cgrp, *old;
+ 
+ 	if (count == 0 || count >= sizeof(path))
+ 		return -EINVAL;
+@@ -502,12 +617,28 @@
+ 	if (path[0] != '/')
+ 		return -EINVAL;
+ 
+-	mutex_lock(&asa.lock);
+-	if (!strcmp(path, "/"))
++	if (!strcmp(path, "/")) {
++		mutex_lock(&asa.lock);
++		old = asa.seat;
++		asa.seat = NULL;
+ 		asa.seat_path[0] = '\0';
+-	else
+-		strscpy(asa.seat_path, path);
++		mutex_unlock(&asa.lock);
++		if (old)
++			cgroup_put(old);
++		return count;
++	}
++
++	new_cgrp = cgroup_get_from_path(path);
++	if (IS_ERR(new_cgrp))
++		return PTR_ERR(new_cgrp);
++
++	mutex_lock(&asa.lock);
++	old = asa.seat;
++	asa.seat = new_cgrp;
++	strscpy(asa.seat_path, path);
+ 	mutex_unlock(&asa.lock);
++	if (old)
++		cgroup_put(old);
+ 	return count;
+ }
+ 
