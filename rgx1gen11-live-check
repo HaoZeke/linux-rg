@@ -14,7 +14,7 @@ Run the rgx1gen11 post-reboot linux-rg validation bundle.
 Options:
   --dry-run          Print commands without running them
   --no-boot-log      Do not require GPU/SOF boot-log signatures
-  --with-userspace   Also run chezmoi userspace policy checks from PATH
+  --with-userspace   Also run host userspace policy checks from PATH
   -h, --help         Show this help
 USAGE
 }
@@ -52,6 +52,8 @@ resolve_cmd() {
   local name=$1
   if [[ -x $script_dir/$name ]]; then
     printf '%s\n' "$script_dir/$name"
+  elif [[ -x $script_dir/scripts/$name ]]; then
+    printf '%s\n' "$script_dir/scripts/$name"
   elif command -v "$name" >/dev/null 2>&1; then
     command -v "$name"
   else
@@ -90,6 +92,9 @@ if (( require_boot_log )); then
   boot_args+=(--require-boot-log)
 fi
 
+run_check linux-rg-grokos-seat-check /usr/share/linux-rg/profiles/rgx1gen11.config
+run_check linux-rg-criu-check /usr/share/linux-rg/profiles/rgx1gen11.config
+run_check linux-rg-grokos-tune-check /usr/lib/sysctl.d/50-linux-rg-grokos.conf
 run_check rgx1gen11-boot-check "${boot_args[@]}"
 run_check rgx1gen11-memory-check --live --require-oomd
 run_check rgx1gen11-nvme-check --live --require-feature

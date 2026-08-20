@@ -6,7 +6,11 @@ set -euo pipefail
 
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 if (($# == 0)); then
-  set -- "$repo/50-linux-rg-grokos.conf"
+  if [[ -f $repo/50-linux-rg-grokos.conf ]]; then
+    set -- "$repo/50-linux-rg-grokos.conf"
+  else
+    set -- /usr/lib/sysctl.d/50-linux-rg-grokos.conf
+  fi
 fi
 
 need=(

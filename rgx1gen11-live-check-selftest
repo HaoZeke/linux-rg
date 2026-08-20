@@ -12,6 +12,12 @@ fail() {
 test -x "$checker" || fail "missing executable live checker"
 
 out=$("$checker" --dry-run --no-boot-log)
+printf '%s\n' "$out" | rg -Fq 'linux-rg-grokos-seat-check /usr/share/linux-rg/profiles/rgx1gen11.config' \
+  || fail "dry-run should include grokos seat overlay check"
+printf '%s\n' "$out" | rg -Fq 'linux-rg-criu-check /usr/share/linux-rg/profiles/rgx1gen11.config' \
+  || fail "dry-run should include CRIU overlay check"
+printf '%s\n' "$out" | rg -Fq 'linux-rg-grokos-tune-check /usr/lib/sysctl.d/50-linux-rg-grokos.conf' \
+  || fail "dry-run should include grokos sysctl check"
 printf '%s\n' "$out" | rg -Fq 'rgx1gen11-boot-check --live' \
   || fail "dry-run should include boot live check"
 printf '%s\n' "$out" | rg -Fq 'rgx1gen11-memory-check --live --require-oomd' \
