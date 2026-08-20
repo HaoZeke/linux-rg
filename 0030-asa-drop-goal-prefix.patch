@@ -1,0 +1,139 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Thu, 20 Aug 2026 00:00:00 +0000
+Subject: [PATCH] sched/asa: drop userspace goal-prefix classify bias
+
+ASA classifies from seat PSI and seat-scoped runqueue/ctxsw. A
+directory-name prefix is not a kernel contract.
+
+---
+--- a/kernel/sched/asa.c
++++ b/kernel/sched/asa.c
+@@ -167,32 +167,6 @@
+ #endif
+ 
+ #define ASA_SEAT_TASK_CAP	4096
+-#define ASA_GOAL_PFX		"grokos-goal-"
+-#define ASA_GOAL_PFX_LEN	12
+-
+-static u32 asa_count_goal_leaves(struct cgroup *seat)
+-{
+-	struct cgroup_subsys_state *css;
+-	u32 n = 0;
+-	char name[64];
+-
+-	if (!seat)
+-		return 0;
+-
+-	rcu_read_lock();
+-	css_for_each_descendant_pre(css, &seat->self) {
+-		if (css == &seat->self)
+-			continue;
+-		if (cgroup_name(css->cgroup, name, sizeof(name)) < 0)
+-			continue;
+-		if (strncmp(name, ASA_GOAL_PFX, ASA_GOAL_PFX_LEN))
+-			continue;
+-		if (cgroup_is_populated(css->cgroup))
+-			n++;
+-	}
+-	rcu_read_unlock();
+-	return n;
+-}
+ 
+ static void asa_read_host_rq(u32 *rq_avg)
+ {
+@@ -247,7 +221,7 @@
+ 
+ static void asa_classify(u32 rq_avg, u32 csw_per_sec, u32 cpu_psi,
+ 			 u32 io_psi, u32 mem_psi, u32 irq_pct, u32 iowait,
+-			 u32 load1, u32 goal_n, u16 probs[ASA_CLASS_NR])
++			 u32 load1, u16 probs[ASA_CLASS_NR])
+ {
+ 	u32 scores[ASA_CLASS_NR] = { 0 };
+ 	u32 total = 0;
+@@ -266,10 +240,6 @@
+ 		scores[ASA_CLASS_INTERACTIVE] += 60;
+ 	scores[ASA_CLASS_MIXED] = 25 + (rq_avg / 4) + (cpu_work / 4) +
+ 		(io_psi / 4);
+-	if (goal_n) {
+-		scores[ASA_CLASS_MIXED] += 20;
+-		scores[ASA_CLASS_CPU] += 15;
+-	}
+ 
+ 	for (i = 0; i < ASA_CLASS_NR; i++)
+ 		total += scores[i];
+@@ -380,7 +350,7 @@
+ static void asa_sample(struct asa_router *r)
+ {
+ 	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi;
+-	u32 irq_pct, iowait, load1, n_tasks, goal_n;
++	u32 irq_pct, iowait, load1, n_tasks;
+ 	u16 probs[ASA_CLASS_NR];
+ 	struct asa_vote_slot *slot;
+ 	struct cgroup *seat;
+@@ -404,14 +374,12 @@
+ 	if (seat) {
+ 		asa_read_seat_sched(seat, &rq_avg, &ctxsw, &n_tasks);
+ 		(void)n_tasks;
+-		goal_n = asa_count_goal_leaves(seat);
+ 		asa_read_psi_group(cgroup_psi(seat) ? cgroup_psi(seat) :
+ 				   &psi_system, &cpu_psi, &io_psi, &mem_psi);
+ 	} else {
+ 		asa_read_host_rq(&rq_avg);
+ 		ctxsw = nr_context_switches();
+ 		asa_read_psi_group(&psi_system, &cpu_psi, &io_psi, &mem_psi);
+-		goal_n = 0;
+ 	}
+ 	csw_per_sec = asa_ctxsw_rate(last_ctxsw, ctxsw, last_jiffies, &now);
+ 	irq_pct = asa_irq_pct(last_irq, max(now - last_jiffies, 1UL), &irq_now);
+@@ -419,7 +387,7 @@
+ 	get_avenrun(av, 0, 0);
+ 	load1 = LOAD_INT(av[0]);
+ 	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
+-		     irq_pct, iowait, load1, goal_n, probs);
++		     irq_pct, iowait, load1, probs);
+ 
+ 	mutex_lock(&r->lock);
+ 	if (!r->enabled || !r->vote_ring) {
+@@ -470,7 +438,7 @@
+ static ssize_t perception_show(struct kobject *kobj, struct kobj_attribute *a,
+ 			       char *buf)
+ {
+-	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, n_desc, goal_n;
++	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, n_desc;
+ 	u32 irq_pct, iowait, load1, n_tasks;
+ 	char path[ASA_SEAT_PATH_LEN];
+ 	struct cgroup *seat;
+@@ -493,7 +461,6 @@
+ 		asa_read_psi_group(cgroup_psi(seat) ? cgroup_psi(seat) :
+ 				   &psi_system, &cpu_psi, &io_psi, &mem_psi);
+ 		n_desc = seat->nr_descendants;
+-		goal_n = asa_count_goal_leaves(seat);
+ 		cgroup_put(seat);
+ 	} else {
+ 		asa_read_host_rq(&rq_avg);
+@@ -501,7 +468,6 @@
+ 		asa_read_psi_group(&psi_system, &cpu_psi, &io_psi, &mem_psi);
+ 		n_desc = 0;
+ 		n_tasks = 0;
+-		goal_n = 0;
+ 	}
+ 	csw_per_sec = asa_ctxsw_rate(last_ctxsw, ctxsw, last_jiffies, &now);
+ 	irq_pct = asa_irq_pct(last_irq, max(now - last_jiffies, 1UL), &irq_now);
+@@ -521,7 +487,6 @@
+ 			  "seat_tasks=%u\n"
+ 			  "seat_cgroup=%s\n"
+ 			  "seat_descendants=%u\n"
+-			  "goal_leaves=%u\n"
+ 			  "vote_interactive=%llu\n"
+ 			  "vote_cpu=%llu\n"
+ 			  "vote_io=%llu\n"
+@@ -529,7 +494,7 @@
+ 			  rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
+ 			  irq_pct, iowait, load1, n_tasks,
+ 			  path[0] ? path : "/",
+-			  n_desc, goal_n,
++			  n_desc,
+ 			  vote[ASA_CLASS_INTERACTIVE],
+ 			  vote[ASA_CLASS_CPU],
+ 			  vote[ASA_CLASS_IO],

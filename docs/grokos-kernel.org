@@ -16,7 +16,7 @@ plane already uses.
 |-----------|----------------|
 | Goal admit / defer | =/proc/pressure/{cpu,memory,io}= (=CONFIG_PSI=) |
 | Hardware pressure | =/sys/class/{power_supply,thermal,drm,input}= |
-| Goal leaf stop | cgroup v2 =cgroup.kill= on =grokos-goal-*= |
+| Goal leaf stop | cgroup v2 =cgroup.kill= on the job leaf |
 | Frequent leaf create/destroy | =CONFIG_CGROUP_FAVOR_DYNMODS= |
 | Jail (=bwrap --unshare-user/pid/uts/ipc/cgroup=, optional net) | user/pid/uts/ipc/cgroup/net namespaces + tmpfs |
 | Session event ring | =memfd_create= |
@@ -80,9 +80,8 @@ Write the sessiond user slice (or =asa-router --seat-cgroup auto=).
 The kernel holds that cgroup and classifies from its descendant
 tasks' runnable count and =nvcsw= plus slice PSI, not host
 =nr_context_switches=. =perception= also prints =irq_pct=,
-=nr_iowait=, =load1= (Wang Table 1 kernel-visible fields), and
-=goal_leaves= (populated =grokos-goal-*= descendants). A nonzero
-goal-leaf count adds MIXED and CPU mass. =recommended_scheduler=
+=nr_iowait=, and =load1= (Wang Table 1 kernel-visible fields).
+=recommended_scheduler=
 wakes pollers via =sysfs_notify= when the cooldown-gated copy
 commits. =vote_head= stays in =[0, window)=; writing
 =voting_window= keeps the newest samples. =echo 0 > enabled=
@@ -108,7 +107,7 @@ bwrap leaves, optional CRIU dump of an agent tree.
 | Per-machine =99-memory.conf= | swappiness, dirty, watermark (laptop zram contract) |
 | CRIU dump | =CAP_CHECKPOINT_RESTORE=; do not lower =yama.ptrace_scope= |
 
-Autogroup is off so =grokos-goal-*= =cpu.weight= is visible. =max_map_count=
+Autogroup is off so job-leaf =cpu.weight= is visible. =max_map_count=
 and =pid_max= are the CRIU/VMA and restore-pid floors. Dirty ratios stay
 out of this file so a zram laptop and a RAM-heavy workstation can keep
 different writeback contracts. A later =/etc/sysctl.d/99-*= file still

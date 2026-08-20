@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Apply 0030 on the already-0028 Elja tree and compile asa.o + bzImage.
+set -euo pipefail
+
+export LINUX_RG_REPO=${LINUX_RG_REPO:-$HOME/tmp/linux-rg}
+export LINUX_RG_REBASE_TREE=${LINUX_RG_REBASE_TREE:-$HOME/tmp/linux-rg-rebase/linux-7.1.8}
+export LINUX_RG_BUILD_LOG=${LINUX_RG_BUILD_LOG:-$HOME/tmp/linux-rg-rebase/build-0030.log}
+export LINUX_RG_JOBS=${LINUX_RG_JOBS:-20}
+
+tree=$LINUX_RG_REBASE_TREE
+asa=$tree/kernel/sched/asa.c
+patch=$LINUX_RG_REPO/0030-asa-drop-goal-prefix.patch
+
+if [[ ! -f $asa ]]; then
+  echo "missing asa.c under $tree" >&2
+  exit 2
+fi
+if [[ ! -f $tree/kernel/sched/asa.h ]]; then
+  echo "0028 not applied to $tree" >&2
+  exit 2
+fi
+if [[ ! -f $patch ]]; then
+  echo "missing $patch" >&2
+  exit 2
+fi
+
+if grep -q ASA_GOAL_PFX "$asa"; then
+  patch -Np1 -d "$tree" <"$patch"
+fi
+
+if grep -q ASA_GOAL_PFX "$asa"; then
+  echo "0030 did not drop ASA_GOAL_PFX" >&2
+  exit 2
+fi
+if ! grep -q sysfs_notify "$asa"; then
+  echo "0030 dropped sysfs_notify" >&2
+  exit 2
+fi
+
+touch "$asa"
+exec bash "$LINUX_RG_REPO/scripts/linux-rg-rebase-build-elja-login"

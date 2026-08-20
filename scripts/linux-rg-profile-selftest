@@ -52,7 +52,10 @@ grep -q 'cgroup_is_populated' 0027-asa-goal-notify-ring.patch || fail "0027 miss
 grep -q 'sysfs_notify' 0027-asa-goal-notify-ring.patch || fail "0027 missing recommended_scheduler notify"
 grep -q 'vote_head = (idx + 1) % window' 0027-asa-goal-notify-ring.patch || fail "0027 missing vote_head wrap"
 grep -q 'copy_n' 0027-asa-goal-notify-ring.patch || fail "0027 missing newest-first resize copy"
-grep -q 'goal_leaves' docs/grokos-kernel.org || fail "grokos-kernel.org missing goal_leaves"
+grep -q '0030-asa-drop-goal-prefix.patch' PKGBUILD || fail "PKGBUILD missing ASA drop-prefix patch"
+grep -q 'asa_count_goal_leaves' 0030-asa-drop-goal-prefix.patch || fail "0030 missing goal-walk removal"
+grep -q 'grokos-goal-' docs/grokos-kernel.org && fail "grokos-kernel.org still names grokos-goal-" || true
+grep -q 'grokos-goal-' 50-linux-rg-grokos.conf && fail "sysctl comment still names grokos-goal-" || true
 grep -q '0028-asa-standalone-obj.patch' PKGBUILD || fail "PKGBUILD missing ASA standalone object patch"
 grep -q 'obj-$(CONFIG_SCHED_ASA)' 0028-asa-standalone-obj.patch || fail "0028 missing Makefile asa.o"
 grep -q 'depends on PSI && SYSFS' 0028-asa-standalone-obj.patch || fail "0028 still depends on SCHED_CLASS_EXT"
