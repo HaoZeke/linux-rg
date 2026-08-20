@@ -85,6 +85,9 @@ so PSI and cgroup lookup run in process context, and adds:
 | =perception= =seat_cgroup= / =seat_descendants= | slice PSI; descendant count is observational |
 
 Write the sessiond user slice (or =asa-router --seat-cgroup auto=).
+Userspace (=grokos-proc= =apply_leaf_knobs=) writes per-agent
+=io.prio.class= / =io.weight= / =cpu.weight= / =cpu.uclamp.max= /
+=memory.max= on the minted leaf, never on this slice.
 The kernel holds that cgroup and classifies from its descendant
 tasks' runnable count and =nvcsw= plus slice PSI, not host
 =nr_context_switches=. =perception= also prints =irq_pct=,
