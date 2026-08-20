@@ -47,6 +47,12 @@ and repeats the rest so a slim =localmodconfig= cannot drop them.
 =scripts/linux-rg-grokos-seat-check= asserts the pin.
 =scripts/linux-rg-criu-check= asserts the CRIU set.
 
+Specialized-workflow papers (ghOSt, Shenango/Caladan, Twine, TMO, Heracles,
+Firecracker) live in =docs/literature-review.org= under * Specialized-workflow
+kernels. They justify userspace policy and the existing cgroup/PSI/sched_ext
+pins. They do not add a GrokOS syscall, =PREEMPT_RT=, =isolcpus=, or a
+warehouse =io.cost.qos= table.
+
 * CRIU
 
 CRIU (criu.org) freezes a process tree to disk images and restores it.

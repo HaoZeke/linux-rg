@@ -11,7 +11,7 @@ rgx1gen11 profile docs:
 - =docs/rgx1gen11-boot-safety.org= -- rollback and mkinitcpio rules (read first)
 - =docs/rgx1gen11-drivers.org= -- Wi-Fi/BT/GPU/audio/NVMe driver stacks
 - =docs/rgx1gen11-targets.org= -- verified hardware inventory, workload profiles,
-  measurable targets, vissue map
+  measurable targets
 - =docs/rgx1gen11-userspace.org= -- userspace policy, root helper workflow,
   and postboot validation
 
@@ -19,12 +19,6 @@ Shared:
 
 - =docs/literature-review.org= -- evidence grades, venue map (shared across profiles)
 - =docs/candidates.org= -- candidates with per-profile applicability notes
-
-Issue tracking (vissues):
-
-- Vault: =Software/linux-rg/issues.org= under the obsidian-notes vault
-- Epic: =linux-rg-ln3w= (rgx1gen11 profile work; see profiles.org for others)
-- CLI: =vissue ready --root ~/Git/Gitlab/obsidian-notes --project linux-rg=
 
 * Machine (rgx1gen11 profile)
 
@@ -276,6 +270,9 @@ Fit:
 - `CONFIG_ZSWAP=y`
 - `CONFIG_ZSWAP_DEFAULT_ON=y`
 - `CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD=y`
+- `CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y`
+- `# CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS is not set`
+- `CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=y`
 - `CONFIG_ZRAM=m`
 - `CONFIG_ZRAM_WRITEBACK=y`
 - `CONFIG_ZRAM_MEMORY_TRACKING=y`

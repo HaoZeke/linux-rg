@@ -64,7 +64,7 @@ SWAM, ASA preprint). Crossref-backed metadata includes corrected author lists.
 When =reverse_lookup= returns low scores or wrong-domain matches (e.g. nursing
 admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 
-** OokCite collection =linux-rg= (validated 2026-06-18; expanded pass 2)
+** OokCite collection =linux-rg= (validated 2026-06-18; specialized-workflow pass 2026-08-20)
 
 | DOI | Title | Use in linux-rg |
 | 10.1145/3012426.3022184 | BBR (Cardwell et al., Queue 2016) | BBRv3 default justification |
@@ -73,7 +73,7 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/2901318.2901326 | The Linux scheduler (Lozi et al., EuroSys 2016) | Server load-balance context |
 | 10.48550/arxiv.2306.08345 | SWAM (Lim et al., 2023) | Swap responsiveness framing |
 | 10.48550/arxiv.2511.11628 | Mixture-of-Schedulers / ASA (Wang et al., 2025) | ASA prototype |
-| 10.1145/3599691.3603400 | Whitaker HOTSTORAGE 2023 ULL NVMe | ADIOS skepticism; =linux-rg-rt1t= |
+| 10.1145/3599691.3603400 | Whitaker HOTSTORAGE 2023 ULL NVMe | ADIOS skepticism; open NVMe A/B |
 | 10.1145/3366626.3368125 | DAMON profiling (Park et al., 2019) | DAMON reclaim framing |
 | 10.1145/3649329.3655943 | ElasticZRAM (Li et al., DAC 2024) | zram sizing vs folklore |
 | 10.1145/3607923 | IOSR swap I/O (Li et al., TECS 2023) | Swap IO scheduling context |
@@ -81,6 +81,27 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.48550/arxiv.2409.13327 | Flexible Swapping (Pandurov et al., 2024) | Tiered swap research |
 | 10.48550/arxiv.2509.01245 | Agentic OS schedulers (Zheng et al., 2025) | Not carried; grade D |
 | 10.1016/j.diin.2014.05.011 | In lieu of swap (Richard & Case, 2014) | zram/zswap compressed swap forensics |
+| 10.1145/3477132.3483542 | ghOSt (Humphries et al., SOSP 2021) | Userspace policy; keep =SCHED_CLASS_EXT= |
+| 10.1145/3694715.3695973 | Skyloft (Jia et al., SOSP 2024) | Userspace + UINTR; do not carry kernel C |
+| 10.1145/3477132.3483571 | Persephone (Demoulin et al., SOSP 2021) | Idle-core LC; reject on mixed seat |
+| 10.1145/3582016.3582054 | Plugsched (Ma et al., ASPLOS 2023) | Live scheduler swap; sched_ext is the path |
+| 10.1109/mm.2023.3277783 | IOCost (Heo, IEEE Micro 2023) | =BLK_CGROUP_IOCOST= pin; no qos table |
+| 10.1145/3629527.3651416 | Kyber config space (Ren et al., ICPE 2024) | Kyber compiled; no invented default |
+| 10.1145/3503222.3507731 | TMO (Weiner et al., ASPLOS 2022) | zswap offload framing; warehouse scale |
+| 10.1145/3582016.3582063 | TPP (Al Maruf et al., ASPLOS 2023) | CXL page placement; no CXL on these boxes |
+| 10.1145/3575693.3578835 | Pond (Li et al., ASPLOS 2023) | CXL memory pooling; reject |
+| 10.1145/3477132.3483550 | HeMem (Raybuck et al., SOSP 2021) | NVM tiering; reject |
+| 10.1145/2749469.2749475 | Heracles (Lo et al., ISCA 2015) | LC+BE isolation is userspace |
+| 10.1145/2882783 | Heracles TOCS (Lo et al., 2016) | Same isolation controller, journal form |
+| 10.1145/2465351.2465388 | CPI2 (Zhang et al., EuroSys 2013) | CPI isolation; userspace admit |
+| 10.1145/3503222.3507727 | IOCost (Heo et al., ASPLOS 2022) | Production io.cost; same pin as Micro 2023 |
+| 10.1109/IISWC66894.2025.00037 | NVMe cgroup I/O isolation (Doekemeijer et al., IISWC 2025) | Which pinned I/O knob actually isolates |
+| 10.1145/3381052.3381315 | Firecracker vs gVisor (Anjali et al., VEE 2020) | Host still needs full kernel paths |
+| 10.1145/3379469 | Kernel debloating (Kuo et al., SIGMETRICS 2020) | Do not slim the daily-driver |
+| 10.1145/3373376.3378512 | Catalyzer (Du et al., ASPLOS 2020) | Snapshot restore; CRIU already pinned |
+| 10.1145/3445814.3446701 | Nightcore (Jia and Witchel, ASPLOS 2021) | FaaS IPC on stock Linux |
+| 10.1145/3534056.3534945 | io_uring vs SPDK (Didona et al., SYSTOR 2022) | Keep IO_URING; reject SPDK on mixed seat |
+| 10.1145/3307650.3322227 | SoftSKU (Sriraman et al., ISCA 2019) | One kernel, per-machine overlay |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -203,12 +224,160 @@ than most patch-stack marketing.
 | rtw89 Wi-Fi 6E | Driver-focused | Realtek upstream rtw89; few desktop latency papers | Wi-Fi 6E power save -- probe on B650I |
 | i915 / laptop display PM | Panel-specific | FOSDEM 2018 battery; mjg59 PSR analysis | Raptor Lake Iris Xe != Panther/Lunar PSR papers |
 | Rust in kernel | Safety narrative | USENIX ATC Android binder Rust eval; LF memory-safety reports | **Not a perf literature** for iwlwifi/i915 paths |
-| PREEMPT_RT | Strong for RT apps | OSAD workshop; driver lag documented | Explicitly wrong daily-driver choice here |
+| PREEMPT_RT | Strong for RT apps | OSADL workshop; driver lag documented | Explicitly wrong daily-driver choice here |
+| Specialized workflow kernels | Strong, wrong shape | ghOSt/Skyloft, Shenango/Caladan, Twine, Firecracker, TMO/TPP, Heracles | Papers customize for LC RPCs, CXL, or warehouse tenants, not a mixed laptop seat |
+| Userspace / BPF policy | Strong | ghOSt SOSP 2021; sched_ext LPC; ASA preprint | Keep =SCHED_CLASS_EXT=; do not port ghost/ksched C |
+| Warehouse isolation | Strong | Heracles, CPI2, Twine, IOCost | =cpu.weight= / =memory.high= / =io.weight= already pinned; qos tables stay userspace |
+| Dataplane / kernel-bypass OS | Strong | Shenango, Caladan, Shinjuku, Junction, Persephone | Dedicated poll cores and DPDK; reject on mixed seat |
+| Memory offload / CXL | Strong | TMO, TPP, Pond, HeMem | Framing for zswap; no CXL hardware here |
 | Security / bugs | Very strong | KBench (ATC 2024); NDSS kernel fuzzing | Informs risk posture, not scheduler choice |
 
 Takeaway: **the kernel is studied heavily for security, cloud scale, and protocol
 measurement**. It is **under-studied for "my laptop feels snappier with patch X"**
 where X is a downstream fair.c diff. That is the WTF feeling, stated precisely.
+
+* Specialized-workflow kernels
+
+The literature on customizing Linux (or a Linux-shaped host) for a *named
+workflow* is large. Almost none of it is a fair.c hunk for a daily-driver
+laptop. The transferable result is usually a **userspace controller** or a
+**kconfig pin of an existing controller**, not a new in-tree class.
+
+** How the farm grades a specialized-workflow paper**
+
+| Verdict | Meaning | linux-rg action |
+| CARRY | Peer-reviewed *and* a mainline or already-carried artifact | Keep the pin or patch |
+| PIN-CONFIG | Paper names a mainline knob this repo already (or must) compile | Overlay + check script |
+| USERSPACE | Paper's policy lives in a daemon / BPF expert / sessiond leaf | Document; do not write kernel C |
+| REJECT | Requires dedicated cores, CXL, DPDK, PREEMPT_RT, or a research OS | Cite; do not enable |
+
+** Userspace / BPF scheduling (CARRY the mainline path, not the research C)**
+
+- Humphries et al., SOSP 2021, *ghOSt: Fast & Flexible User-Space Delegation of
+  Linux Scheduling*. OokCite 10.1145/3477132.3483542. Policy in a userspace
+  agent; kernel is a message/action class. **sched_ext is the mainline
+  successor.** PIN-CONFIG: keep =CONFIG_SCHED_CLASS_EXT= on packaged images.
+  Do not carry =sched_ghost=.
+- Jia et al., SOSP 2024, *Skyloft*. OokCite 10.1145/3694715.3695973.
+  Userspace + Intel UINTR for us-scale preemption. REJECT kernel C on these
+  profiles (no UINTR contract; not a portable Arch weld).
+- Ma et al., ASPLOS 2023, *Efficient Scheduler Live Update for Linux Kernel
+  with Modularization* (Plugsched). OokCite 10.1145/3582016.3582054. Live
+  replace of the scheduler subsystem. REJECT: linux-rg already uses sched_ext
+  load/unload plus fair fallback.
+- Wang et al., arXiv:2511.11628, ASA mixture-of-schedulers. Already carried
+  as perception + vote; expert load stays userspace.
+- Zheng et al., arXiv:2509.01245, agentic OS schedulers. Already graded D;
+  not carried.
+
+LAVD / scx_rusty / scx_bpfland remain grade B infrastructure (LPC 2024,
+https://lwn.net/Articles/991205/) and grade D as a default expert until a
+local A/B. The LiU thesis on LAVD (Galin, 2025,
+http://liu.diva-portal.org/smash/record.jsf?pid=diva2:1972665) is a thesis,
+not an ACM paper.
+
+** Dataplane OS and kernel bypass (REJECT on a mixed seat)**
+
+USENIX proceedings often have **no Crossref DOI**. Keep the PDF URL.
+
+- Ousterhout et al., NSDI 2019, *Shenango*.
+  https://www.usenix.org/conference/nsdi19/presentation/ousterhout
+  Dedicated IOKernel core, 5 us realloc. REJECT: laptop-hostile poll core.
+- Fried et al., OSDI 2020, *Caladan*.
+  https://www.usenix.org/conference/osdi20/presentation/fried
+  LLC / memory-bandwidth / SMT signals at 10-20 us. USERSPACE idea for
+  dual-CCD Zen 5 placement; REJECT ksched (it replaces EEVDF/BORE/ASA).
+- Kaffes et al., NSDI 2019, *Shinjuku*.
+  https://www.usenix.org/conference/nsdi19/presentation/kaffes
+  VT-x posted-interrupt request preemption. REJECT: research OS.
+- Fried et al., NSDI 2024, *Junction*.
+  https://www.usenix.org/conference/nsdi24/presentation/fried
+  LibOS + kernel-bypass density. REJECT: drops the PSI/cgroup/CRIU surface.
+- Demoulin et al., SOSP 2021, *When Idling is Ideal* (Persephone).
+  OokCite 10.1145/3477132.3483571. Leaves cores idle for short RPCs. REJECT
+  on a mixed seat (battery + shared login cores).
+- Qin et al., OSDI 2018, *Arachne*.
+  https://www.usenix.org/conference/osdi18/presentation/qin
+  Userspace threads + core arbiter. USERSPACE: sessiond cpuset grant, not a
+  kernel patch.
+
+** Warehouse isolation (USERSPACE / already pinned)**
+
+- Lo et al., ISCA 2015 / TOCS 2016, *Heracles*. OokCite 10.1145/2749469.2749475
+  and 10.1145/2882783. LC+BE colocation via CAT, CPU, memory, network
+  isolation. USERSPACE controller. linux-rg already pins the cgroup files
+  that controller would write (=cpu.weight=, =memory.high=, =io.weight=).
+- Zhang et al., EuroSys 2013, *CPI2*. OokCite 10.1145/2465351.2465388.
+  CPI-based isolation. USERSPACE admit, not a kconfig.
+- Tang et al., OSDI 2020, *Twine* (Meta cluster manager).
+  https://www.usenix.org/conference/osdi20/presentation/tang
+  One control plane over a million machines. USERSPACE; the kernel half is
+  cgroup v2, already pinned.
+- Heo, IEEE Micro 2023, *IOCost*. OokCite 10.1109/mm.2023.3277783.
+  PIN-CONFIG: =CONFIG_BLK_CGROUP_IOCOST=y= is already on every overlay.
+  Do not invent a per-device =io.cost.qos= table without a local fio
+  (open NVMe A/B).
+- Ren, Doekemeijer, Trivedi, ICPE 2024 companion, Kyber sysfs space.
+  OokCite 10.1145/3629527.3651416. Kyber stays compiled. Do not flip the
+  default to kyber or none.
+
+** Memory offload and CXL (framing only on these boxes)**
+
+- Weiner et al., ASPLOS 2022, *TMO*. OokCite 10.1145/3503222.3507731
+  (also the CMU PDF already cited under swap). Warehouse transparent
+  offload to zswap or disk. Framing A for keeping zswap on; the paper's
+  control loop is Meta-scale. PIN the zswap shrinker default so a slim
+  =localmodconfig= cannot drop Arch's =CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=.
+- Al Maruf et al., ASPLOS 2023, *TPP*. OokCite 10.1145/3582016.3582063.
+  CXL page placement. REJECT: no CXL on rgx1gen11 / rgam5terra / rgSURFLat.
+- Li et al., ASPLOS 2023, *Pond*. OokCite 10.1145/3575693.3578835.
+  CXL memory pooling. REJECT for the same hardware reason.
+- Raybuck et al., SOSP 2021, *HeMem*. OokCite 10.1145/3477132.3483550.
+  NVM tiered main memory. REJECT: these seats are DRAM + zswap, not NVM.
+
+** Fast spawn / microVM (USERSPACE, CRIU already pinned)**
+
+- Agache et al., NSDI 2020, *Firecracker*.
+  https://www.usenix.org/conference/nsdi20/presentation/agache
+  Specialized VMM, not a host-kernel patch set. REJECT as a daily-driver
+  kernel. The host knobs it needs (KVM, namespaces, cgroups) are already
+  in Arch. GrokOS warm restore stays CRIU, already pinned.
+- Anjali, Caraza-Harter, Swift, VEE 2020. OokCite 10.1145/3381052.3381315.
+  Firecracker/gVisor still execute a lot of host kernel. CARRY the full
+  host; do not slim it to a Lambda guest config.
+- Kuo et al., SIGMETRICS 2020. OokCite 10.1145/3379469. Compile-time
+  debloating is not practical for a changing mixed workload. REJECT
+  Bottlerocket/COS-style host slimming.
+- Du et al., ASPLOS 2020, *Catalyzer*. OokCite 10.1145/3373376.3378512.
+  Snapshot restore. PIN-CONFIG: existing CRIU set. Do not carry sfork.
+- Oakes et al., ATC 2018, *SOCK*.
+  https://www.usenix.org/conference/atc18/presentation/oakes
+  Cgroup/namespace init is the short-task tax. PIN-CONFIG:
+  =CGROUP_FAVOR_DYNMODS= (already on). Implementation is userspace.
+- Heo et al., ASPLOS 2022, *IOCost* (conference form of the Micro paper).
+  OokCite 10.1145/3503222.3507727.
+- Doekemeijer et al., IISWC 2025. OokCite 10.1109/IISWC66894.2025.00037.
+  Independent NVMe measurement of =io.cost= / =io.weight= / =io.latency=.
+  Use for which *runtime* file to write (the open NVMe A/B), not a new
+  controller.
+- Sriraman et al., ISCA 2019, *SoftSKU*. OokCite 10.1145/3307650.3322227.
+  One server type, many software SKUs. Same shape as linux-rg overlays.
+
+** HPC / RT partition (REJECT on a mixed seat)**
+
+Petrini/Kerbyson/Pakin-class OS-noise work and =isolcpus= / =nohz_full=
+target a dedicated compute partition with one runnable task per core.
+GrokOS + desktop share the fair pool. Overlays do not pin =nohz_full= or
+=isolcpus=. =PREEMPT_RT= stays off (daily-driver contract). Arch already
+compiles =NO_HZ_FULL= as unused capability; do not force =NO_HZ_IDLE= in
+the overlay.
+
+** What the farm actually changes in-tree**
+
+| Change | Why the paper + contract agree |
+| =CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y= on all three overlays | TMO/SWAM keep zswap; Arch =config.x86_64= already sets it; overlays omitted the shrinker so a slim config can leave it off |
+| Memory-check lock of THP =MADVISE= (not Arch =ALWAYS=) | Overlays already override Arch; the check is what stops =ALWAYS= coming back |
+| No =PREEMPT_RT=, no ADIOS default, no =isolcpus=, no CXL, no ghOSt C | Papers either reject those for this seat or the repo contract already forbids them |
 
 * CPU scheduling
 
@@ -358,7 +527,7 @@ Evidence grade: A.
   Performance of BBR
   https://arxiv.org/abs/2208.10103
 - TUM Computer Communications survey on TCP BBR coexistence
-  https://www.net.in.tum.de/fileadmin/bibtex/publications/papers/ComCom-2019-TCP-BBR.pdf
+  TUM Computer Communications 2019 BBR survey PDF (net.in.tum.de publications)
 
 Evidence grade: A.
 
@@ -455,7 +624,8 @@ Evidence grade: B/C.
 - Lim et al., arXiv:2306.08345: SWAM: Revisiting Swap and OOMK for Improving
   Application Responsiveness on Mobile Devices
   https://arxiv.org/abs/2306.08345
-- Skarlatos et al., ASPLOS 2022: TMO (Transparent Memory Offloading)
+- Weiner et al., ASPLOS 2022: TMO (Transparent Memory Offloading).
+  OokCite 10.1145/3503222.3507731.
   https://www.cs.cmu.edu/~dskarlat/publications/tmo_asplos22.pdf
 
 Evidence grade: A for the problem framing; D for specific downstream patch
@@ -483,6 +653,10 @@ Welding map: =docs/candidates.org=.
   https://cdrdv2-public.intel.com/846438/ZSWAPwithIAA_1.0.pdf
 - LWN: zswap writeback discussion
   https://lwn.net/Articles/1064478/
+- Arch =config.x86_64= sets =CONFIG_ZSWAP_SHRINKER_DEFAULT_ON=y=. Overlays
+  repeat that pin so a slim =localmodconfig= cannot drop the shrinker while
+  leaving =ZSWAP_DEFAULT_ON=. TMO (10.1145/3503222.3507731) is the warehouse
+  framing for "zswap stays the first offload, not a dead compiled-in".
 - Li et al., ElasticZRAM, DAC 2024 (OokCite 10.1145/3649329.3655943): elastic
   zram sizing on mobile; up to 24.8% response-time improvement claim on Pixel 6.
 - Li et al., IOSR, ACM TECS 2023 (OokCite 10.1145/3607923): swap I/O scheduling
@@ -494,8 +668,8 @@ Welding map: =docs/candidates.org=.
 Evidence grade: B/C for engineering slides; **A for problem framing** on mobile
 swap/zram (ElasticZRAM, IOSR, SWAM, ATC 2020 URL). **Empirical anchor (2026-06-18):**
 rgx1gen11 zram =mm_stat= shows **~3.68x** compression (4.9 GiB → 1.33 GiB stored)
-with chezmoi policy (swappiness 100, zstd, ram/2). Compare after linux-rg boot and
-=memory-pressure= bench (=linux-rg-zram=).
+with the packaged memory policy (swappiness 100, zstd, ram/2). Compare after
+linux-rg boot and the =memory-pressure= bench.
 
 ** DAMON (enabled in linux-rg)
 
@@ -626,7 +800,7 @@ vs what **requires the custom kernel**:
 | =tcp_congestion_control=cubic=, =fq_codel= | Network carries untested; do not claim BBR benefit yet |
 | cpuidle =menu= despite TEO in config | 0016 changes default governor only after patch boot |
 | P/E via cpufreq max (5200 vs 3900 MHz) | Hybrid topology confirmed; HFI capacity sysfs absent |
-| zram ~15.5 GiB + swappiness 100 | Chezmoi memory policy active; literature compares to ElasticZRAM/SWAM framing |
+| zram ~15.5 GiB + swappiness 100 | Packaged memory policy active; literature compares to ElasticZRAM/SWAM framing |
 | =/proc/acpi/ibm/fan= readable | thinkfan viable; DPTF/TLP remain first-line |
 | PSI + systemd-oomd active | Observability stack works; 30s PSI CSV captured via =rg-bench-matrix= |
 | Industry scripts missing from PATH until symlink | Deployment gap fixed 2026-06-18; chezmoi apply should own symlinks |
@@ -675,7 +849,7 @@ Research implication:
 
 * Synthesis for rgx1gen11
 
-Machine-specific targets and vissue map: =docs/rgx1gen11-targets.org=.
+Machine-specific targets: =docs/rgx1gen11-targets.org=.
 
 | Component | Literature support | Action |
 | MGLRU, PSI, memcg, zswap, zram, DAMON | Strong (A/B) | Keep; tune zram/oomd for 32 GiB box (=linux-rg-7f5e=, =linux-rg-zram=, =linux-rg-oomd=, =linux-rg-wr9r=, =linux-rg-tm76=) |
