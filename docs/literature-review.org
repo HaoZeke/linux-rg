@@ -120,6 +120,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3342195.3392698 | SEUSS (Cadden et al., EuroSys 2020) | Unikernel snapshot; reject |
 | 10.1145/3357526.3357542 | VAS-CRIU (Venkatesh et al., MEMSYS 2019) | In-memory CRIU; pin already done |
 | 10.1109/TC.2021.3129366 | Weight-aware cache (Park and Eom, TC 2022) | Dirty does not follow io.weight; writeback pin stays |
+| 10.1145/3281411.3281443 | XDP (Høiland-Jørgensen et al., CoNEXT 2018) | Native XDP on ethernet; generic only on Wi-Fi |
+| 10.1145/3371038 | eBPF/XDP survey (Vieira et al., CSUR 2020) | Mode/driver map; sockmap is NIC-agnostic |
+| 10.1109/LANMAN.2018.8475045 | CAKE (Høiland-Jørgensen et al., LANMAN 2018) | Shaped WAN qdisc; not a host fq replacement |
+| 10.17487/RFC8290 | FQ-CoDel (RFC 8290) | Flow isolation AQM; keep fq with BBR |
+| 10.1145/2208917.2209336 | CoDel (Nichols and Jacobson, Queue 2012) | Sojourn AQM; no isolation alone |
+| 10.1016/j.comnet.2015.07.014 | AQM in the home (Høiland-Jørgensen et al., 2015) | Wi-Fi needs FQ, not standalone AQM |
+| 10.1145/2063166.2071893 | Bufferbloat (Gettys and Nichols, Queue 2011) | Problem statement for mixed SSH+bulk |
+| 10.1145/3297714 | PREEMPT_RT survey (Reghenzani et al., CSUR 2019) | Soft-RT map; still wrong daily-driver |
+| 10.1145/3607199.3607233 | NatiSand (Abbadini et al., RAID 2023) | Landlock+seccomp per tool; userspace |
+| 10.1109/CloudSummit54781.2022.00016 | Time ns cost (Merino and Otero, 2022) | TIME_NS overhead; already pinned |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -440,6 +450,43 @@ userspace: obtain a pidfd at spawn, signal and wait on it, optionally
   Firecracker + uffd prefetch. Same pin, same userspace policy.
 - Cadden et al., EuroSys 2020, *SEUSS*. OokCite 10.1145/3342195.3392698.
   Unikernel snapshots. REJECT: drops the PSI/cgroup/CRIU surface.
+
+** Network datapath, AQM, audio RT, Landlock**
+
+- Høiland-Jørgensen et al., CoNEXT 2018. OokCite 10.1145/3281411.3281443.
+  XDP at the NIC driver. Native mode is an ethernet-driver hook; laptop
+  Wi-Fi is generic XDP only. Do not plan AF_XDP zero-copy on iwlwifi.
+- Vieira et al., CSUR 2020. OokCite 10.1145/3371038. Mode/driver map.
+  Sockmap/`sk_msg` is socket-layer and NIC-agnostic (Borkmann/Fastabend
+  LPC 2018, URL only). That is the path that works on Wi-Fi and ethernet.
+- Gettys and Nichols, ACM Queue 2011. OokCite 10.1145/2063166.2071893.
+  Bufferbloat: bulk transfer inflates RTT and starves interactive.
+- Nichols and Jacobson, ACM Queue 2012. OokCite 10.1145/2208917.2209336.
+  CoDel. No per-flow isolation by itself.
+- RFC 8290. OokCite 10.17487/RFC8290. FQ-CoDel. Candidate
+  =default_qdisc= when the host or Wi-Fi queue bloated. Keep =fq= while
+  BBR is the host default (pacing).
+- Høiland-Jørgensen et al., LANMAN 2018. OokCite 10.1109/LANMAN.2018.8475045.
+  CAKE on a *named* uplink (hotel/VPN/WAN), not a blind replace of host
+  =sch_fq=.
+- Høiland-Jørgensen et al., Computer Networks 2015.
+  OokCite 10.1016/j.comnet.2015.07.014. On a real home/Wi-Fi path, AQM
+  without fair queueing worsens TCP unfairness. Measure with FQ.
+- Reghenzani, Massari, Fornaciari, CSUR 2019. OokCite 10.1145/3297714.
+  PREEMPT_RT vs dual-kernel map. Audio/video is the *soft*-RT case.
+  Still the wrong daily-driver (contract: =PREEMPT_DYNAMIC=, not RT).
+- Abbadini et al., RAID 2023, *NatiSand*. OokCite 10.1145/3607199.3607233.
+  Per-native-component Landlock+seccomp. USERSPACE: unused Landlock is
+  a sessiond/bwrap profile, not a missing kconfig.
+- Merino and Otero, Cloud Summit 2022.
+  OokCite 10.1109/CloudSummit54781.2022.00016. =TIME_NS= costs a few
+  percent. Already pinned for CRIU. No extra knob.
+
+cgroup v2 itself is Heo's kernel doc plus LWN
+(https://docs.kernel.org/admin-guide/cgroup-v2.html,
+https://lwn.net/Articles/601840/). Grade B. No new controller. The
+Facebook fbtax2 / LISA 2021 notes (URL only) are the userspace slice
+layout: protect the session plane, put agents on best-effort siblings.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
