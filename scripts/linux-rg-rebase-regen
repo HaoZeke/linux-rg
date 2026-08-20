@@ -95,10 +95,19 @@ emit_pairs "$repo/0003-bbr3-cachy.patch" "bbr3 for linux 7.1.8" \
   "$clean/include/linux/tcp.h" "$work/include/linux/tcp.h" \
   "$clean/include/net/tcp.h" "$work/include/net/tcp.h" \
   "$clean/include/net/tcp_ecn.h" "$work/include/net/tcp_ecn.h" \
+  "$clean/include/net/inet_connection_sock.h" "$work/include/net/inet_connection_sock.h" \
+  "$clean/include/uapi/linux/inet_diag.h" "$work/include/uapi/linux/inet_diag.h" \
+  "$clean/include/uapi/linux/rtnetlink.h" "$work/include/uapi/linux/rtnetlink.h" \
+  "$clean/include/uapi/linux/tcp.h" "$work/include/uapi/linux/tcp.h" \
+  "$clean/net/ipv4/Kconfig" "$work/net/ipv4/Kconfig" \
+  "$clean/net/ipv4/bpf_tcp_ca.c" "$work/net/ipv4/bpf_tcp_ca.c" \
+  "$clean/net/ipv4/tcp.c" "$work/net/ipv4/tcp.c" \
   "$clean/net/ipv4/tcp_bbr.c" "$work/net/ipv4/tcp_bbr.c" \
+  "$clean/net/ipv4/tcp_cong.c" "$work/net/ipv4/tcp_cong.c" \
   "$clean/net/ipv4/tcp_input.c" "$work/net/ipv4/tcp_input.c" \
+  "$clean/net/ipv4/tcp_minisocks.c" "$work/net/ipv4/tcp_minisocks.c" \
   "$clean/net/ipv4/tcp_output.c" "$work/net/ipv4/tcp_output.c" \
-  "$clean/net/ipv4/tcp_rate.c" "$work/net/ipv4/tcp_rate.c"
+  "$clean/net/ipv4/tcp_timer.c" "$work/net/ipv4/tcp_timer.c"
 
 # 0018/0020/0021 vs mid-series (no those patches).
 mid=${3:-}
