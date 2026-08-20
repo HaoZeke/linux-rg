@@ -72,6 +72,7 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/2367589.2367590 | BFQ (Valente & Andreolini, SYSTOR 2012) | Block default |
 | 10.1145/2901318.2901326 | The Linux scheduler (Lozi et al., EuroSys 2016) | Server load-balance context |
 | 10.48550/arxiv.2306.08345 | SWAM (Lim et al., 2023) | Swap responsiveness framing |
+| 10.1145/3570361.3592518 | SWAM (Lim et al., MobiCom 2023) | Published form; reclaim before kill |
 | 10.48550/arxiv.2511.11628 | Mixture-of-Schedulers / ASA (Wang et al., 2025) | ASA prototype |
 | 10.1145/3599691.3603400 | Whitaker HOTSTORAGE 2023 ULL NVMe | ADIOS skepticism; open NVMe A/B |
 | 10.1145/3366626.3368125 | DAMON profiling (Park et al., 2019) | DAMON reclaim framing |
@@ -130,6 +131,15 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3297714 | PREEMPT_RT survey (Reghenzani et al., CSUR 2019) | Soft-RT map; still wrong daily-driver |
 | 10.1145/3607199.3607233 | NatiSand (Abbadini et al., RAID 2023) | Landlock+seccomp per tool; userspace |
 | 10.1109/CloudSummit54781.2022.00016 | Time ns cost (Merino and Otero, 2022) | TIME_NS overhead; already pinned |
+| 10.14722/ndss.2019.23398 | DroidCap (Dawoud and Bugiel, NDSS 2019) | Binder identity is UID; keep Cap'n caps |
+| 10.1145/3448609 | Android security model (Mayrhofer et al., TOPS 2021) | Same-UID is a Binder no-op |
+| 10.1145/3460120.3484801 | BiTRe (Xiang et al., CCS 2021) | Do not import Binder handle table |
+| 10.1145/1519065.1519090 | Process-per-tab (Reis and Gribble, EuroSys 2009) | Isolation unit is a process, not a syscall |
+| 10.1145/3714409 | Freeze vs kill (Li et al., TOCS 2025) | cgroup freezer before SIGKILL |
+| 10.1145/3477021 | Compression-aware swap (Wang et al., TECS 2021) | Swap-in beats kill-and-relaunch |
+| 10.1145/3643991.3644902 | Patch porting (Li et al., MSR 2024) | Rebase onto LTS/Arch; no OEM fork |
+| 10.1109/SP40001.2021.00074 | OEM kernel compliance (Possemato et al., S&P 2021) | Seat-check is the hardening CDD |
+| 10.1145/2741948.2741964 | Borg (Verma et al., EuroSys 2015) | Isolation frame; not the files to write |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -487,6 +497,45 @@ cgroup v2 itself is Heo's kernel doc plus LWN
 https://lwn.net/Articles/601840/). Grade B. No new controller. The
 Facebook fbtax2 / LISA 2021 notes (URL only) are the userspace slice
 layout: protect the session plane, put agents on best-effort siblings.
+
+** Userspace OOM, Binder, mobile kill, vendor kernels**
+
+systemd-oomd and earlyoom have no Crossref DOI. Primary sources are
+Weiner's PSI doc, Xu/Heo LPC 2018 oomd, Zhang/Schatzberg LPC 2021
+systemd-oomd, and the Fedora enablement change (URLs in the coverage
+table above). Policy: PSI + swap so pressure rises slowly; kill
+*leaves*, not one fat session scope; =ManagedOOMPreference= omit/avoid
+on the compositor and supervisor. earlyoom is a last-resort
+MemAvailable poller, not the agent policy.
+
+- Lim et al., MobiCom 2023, *SWAM*. OokCite 10.1145/3570361.3592518
+  (published form of the arXiv already in the collection). Reclaim
+  (zram/zswap) before OOM kill. PIN-CONFIG already done. Do not carry
+  their AOSP prototype.
+- Li et al., TOCS 2025. OokCite 10.1145/3714409. Freeze + coordinated
+  reclaim beats kill-first. USERSPACE: cgroup freezer / mild
+  =memory.high=, not a new LMK.
+- Wang, Tsai, Chang, TECS 2021. OokCite 10.1145/3477021. Compressed
+  swap-in beats kill-and-relaunch. Same zram/zswap pin.
+- Reis and Gribble, EuroSys 2009. OokCite 10.1145/1519065.1519090.
+  Process-per-tab. Isolation unit is a process map, not a tab syscall.
+- Dawoud and Bugiel, NDSS 2019, *DroidCap*. OokCite 10.14722/ndss.2019.23398.
+  Binder authority is caller UID. Same-uid GrokOS is exactly where that
+  stamp is a no-op. Keep object caps in Cap'n userspace.
+- Mayrhofer et al., TOPS 2021. OokCite 10.1145/3448609. Android
+  sandbox is per-UID. Isolated processes are a special case. REJECT
+  Binder as the session bus.
+- Xiang et al., CCS 2021, BiTRe. OokCite 10.1145/3460120.3484801.
+  Passing =binder_node= handles without a cap protocol is confused
+  deputy. Do not import that handle table.
+- Li et al., MSR 2024. OokCite 10.1145/3643991.3644902. Patch-port
+  delay is practice, not tree depth. Stay on the Arch/LTS rebase.
+- Possemato et al., S&P 2021. OokCite 10.1109/SP40001.2021.00074.
+  OEM kernels drop KASLR / RO NX. Seat-check is the hardening contract;
+  overlays must not strip those.
+- Verma et al., EuroSys 2015, *Borg*. OokCite 10.1145/2741948.2741964.
+  Multi-tenant isolation frame. Not the cgroup files to write (those
+  are TMO/fbtax2 / =memory.high= then =memory.max=).
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
