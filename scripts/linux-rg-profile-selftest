@@ -79,6 +79,9 @@ grep -q 'delayed_work' 0023-asa-workqueue-seat.patch || fail "0023 missing delay
 grep -q 'cancel_delayed_work_sync' 0023-asa-workqueue-seat.patch || fail "0023 missing disable cancel"
 grep -q 'seat_cgroup' docs/grokos-kernel.org || fail "grokos-kernel.org missing seat_cgroup"
 grep -q -- '--seat-cgroup' asa-router || fail "asa-router missing --seat-cgroup"
+grep -q 'default auto = sessiond user.slice' asa-router || fail "asa-router --seat-cgroup default is not sessiond user.slice"
+grep -q 'user-$(id -u).slice' asa-router || fail "asa-router auto missing user-UID.slice"
+grep -q 'grokos-goal' asa-router && fail "asa-router still walks grokos-goal-" || true
 
 # Simulate prepare profile switch using same case as PKGBUILD
 for linux_rg_profile in rgSURFLat rgx1gen11 rgam5terra; do
