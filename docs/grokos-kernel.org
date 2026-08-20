@@ -24,6 +24,7 @@ plane already uses.
 | Later FS sandbox | Landlock LSM |
 | Expert scheduler switch | =CONFIG_SCHED_CLASS_EXT= + ASA (=seat_cgroup= PSI) |
 | IRQ-subtracted CPU time | =CONFIG_IRQ_TIME_ACCOUNTING= |
+| Optional warm process restore | CRIU (=CONFIG_CHECKPOINT_RESTORE= plus sock-diag / uffd / soft-dirty) |
 
 * Overlay pin
 
@@ -33,6 +34,34 @@ enables most of it; the overlay makes =CONFIG_CGROUP_FAVOR_DYNMODS=y=
 and repeats the rest so a slim =localmodconfig= cannot drop them.
 
 =scripts/linux-rg-grokos-seat-check= asserts the pin.
+=scripts/linux-rg-criu-check= asserts the CRIU set.
+
+* CRIU
+
+CRIU (criu.org) freezes a process tree to disk images and restores it.
+GrokOS can use that for optional warm restore of a seated agent; cold
+resume (session files + Cap'n) stays the default. The kernel job is
+the kconfig surface. Dump, restore, and image sealing stay in
+userspace.
+
+Overlays pin the official required set as builtins so a
+=localmodconfig= cannot drop them and a dump does not depend on
+sock-diag modules being loaded:
+
+| Knob | Why CRIU needs it |
+|------|-------------------|
+| =CHECKPOINT_RESTORE= / =KCMP= / =PROC_CHILDREN= | pid reuse, task compare, children |
+| namespaces + =SYSVIPC_SYSCTL= | bwrap jail + IPC restore |
+| =FHANDLE= / =EVENTFD= / =EPOLL= | open-by-handle and event fds |
+| =UNIX_DIAG= / =INET_DIAG= / =INET_UDP_DIAG= / =PACKET_DIAG= / =NETLINK_DIAG= | socket inventory |
+| =NETFILTER_XT_MARK= / =TUN= | netns restore |
+| =MEM_SOFT_DIRTY= | incremental dumps of a large agent heap |
+| =USERFAULTFD= | lazy restore pages |
+
+A dump image holds tokens and open-file state. Same-uid only; never
+share images. Cap'n sockets should re-dial =GROKOS_SOCK= after restore
+instead of assuming FD identity. GPU/CUDA trees are not a CRIU
+success path on these profiles.
 
 * ASA seat sample
 
