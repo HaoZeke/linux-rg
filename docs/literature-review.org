@@ -102,6 +102,14 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3445814.3446701 | Nightcore (Jia and Witchel, ASPLOS 2021) | FaaS IPC on stock Linux |
 | 10.1145/3534056.3534945 | io_uring vs SPDK (Didona et al., SYSTOR 2022) | Keep IO_URING; reject SPDK on mixed seat |
 | 10.1145/3307650.3322227 | SoftSKU (Sriraman et al., ISCA 2019) | One kernel, per-machine overlay |
+| 10.1145/3627703.3629569 | Enoki (Miller et al., EuroSys 2024) | Rust in-kernel sched; reject, sched_ext covers live load |
+| 10.1145/3770855.3817987 | TuneAgent (Lin et al., KDD 2026) | RL over sysctl/kconfig; userspace explorer |
+| 10.1145/3546591.3547532 | Thread Director on Alder Lake (Saez and Prieto-Matias, APSys 2022) | Hybrid placement; keep ITMT/HFI, no CFS fork |
+| 10.1145/3167132.3167198 | GRUB-PA (Scordino et al., SAC 2018) | DL drives schedutil; already mainline |
+| 10.1145/3721462.3770774 | HARP (Smejkal et al., Middleware 2025) | App-level P/E manager; userspace |
+| 10.1145/3342195.3387522 | Fastswap (Amaro et al., EuroSys 2020) | RDMA far memory; reject |
+| 10.1145/3297858.3304024 | Nimble (Yan et al., ASPLOS 2019) | Tiered-page migrate; no second tier here |
+| 10.1145/3578353.3589545 | Storage stacks (Ren and Trivedi, CHEOPS 2023) | io_uring edge shrinks on VFS |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -110,7 +118,7 @@ Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 | Source | OokCite result | Action |
 | Lebeck ATC 2020 mobile MM | reverse_lookup unrelated hits | USENIX PDF URL; grade A framing (=linux-rg-zram=, =linux-rg-wr9r=) |
 | PSI design | no clean DOI | kernel.org + LWN + Meta blog (=linux-rg-oomd=) |
-| TMO ASPLOS 2022 | reverse_lookup failed | CMU PDF URL (=linux-rg-71t0=) |
+| TMO ASPLOS 2022 | now OokCite 10.1145/3503222.3507731 | collection row above |
 | MGLRU | LPC slides only | grade B engineering (=linux-rg-5fxc=) |
 | cpuidle TEO | kernel docs + LWN | grade B (=linux-rg-7m20=) |
 
@@ -362,6 +370,30 @@ USENIX proceedings often have **no Crossref DOI**. Keep the PDF URL.
   controller.
 - Sriraman et al., ISCA 2019, *SoftSKU*. OokCite 10.1145/3307650.3322227.
   One server type, many software SKUs. Same shape as linux-rg overlays.
+- Miller et al., EuroSys 2024, *Enoki*. OokCite 10.1145/3627703.3629569.
+  Safe-Rust in-kernel schedulers with ~10 us live upgrade. REJECT: research
+  module; sched_ext already load/unloads experts.
+- Lin et al., KDD 2026, *TuneAgent*. OokCite 10.1145/3770855.3817987.
+  RL walker over valid sysctl/kconfig. USERSPACE explorer over pinned knobs.
+  Do not weld that explorer into fair.c or ASA.
+- Saez and Prieto-Matias, APSys 2022. OokCite 10.1145/3546591.3547532.
+  Thread Director hints on Alder Lake are usable and often inaccurate; stock
+  CFS scatter is large. PIN-CONFIG: keep ITMT/HFI and intel EAS on
+  rgx1gen11. Do not carry their 5.17 CFS patches.
+- Scordino, Abeni, Lelli, SAC 2018. OokCite 10.1145/3167132.3167198.
+  GRUB-PA lets SCHED_DEADLINE drive schedutil. Already mainline. Do not
+  put interactive or agent threads in SCHED_FIFO.
+- Smejkal et al., Middleware 2025, *HARP*. OokCite 10.1145/3721462.3770774.
+  App-level P/E manager on Raptor Lake. USERSPACE, not a fair.c weld.
+- Amaro et al., EuroSys 2020, *Fastswap*. OokCite 10.1145/3342195.3387522.
+  RDMA far-memory swap plus a dedicated reclaim core. REJECT on these
+  seats (no RDMA fabric; dedicated core fights laptop idle).
+- Yan et al., ASPLOS 2019, *Nimble*. OokCite 10.1145/3297858.3304024.
+  Fast THP migration between memory tiers. REJECT: one DRAM node, nothing
+  to migrate.
+- Ren and Trivedi, CHEOPS 2023. OokCite 10.1145/3578353.3589545.
+  io_uring's polling edge shrinks once the path is VFS, not raw NVMe.
+  USERSPACE: keep =IO_URING=; do not treat it as a userspace storage stack.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
