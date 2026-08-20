@@ -21,7 +21,8 @@ Usage: asa-router [--enable] [--dry-run] [--mapping FILE] [--seat-cgroup PATH]
   --mapping        Optional mapping file (class=scheduler per line)
   --seat-cgroup    cgroup v2 path for ASA PSI (default auto = sessiond user.slice)
 
-Requires: kernel with CONFIG_SCHED_ASA, sched_ext enabled, scx_loader.
+Waits on recommended_scheduler via sysfs poll (sysfs_notify). sample_ms
+is milliseconds. Requires: CONFIG_SCHED_ASA; scx_loader for apply.
 EOF
 }
 
@@ -98,14 +99,38 @@ apply_scheduler() {
 	current=$sched
 }
 
-apply_scheduler "$(cat "$ASA_SYSFS/recommended_scheduler")"
+wait_for_recommendation() {
+	local path=$ASA_SYSFS/recommended_scheduler
+	local ms sleep_s
+	if command -v python3 >/dev/null 2>&1; then
+		if python3 - "$path" <<'PY'
+import os, select, sys
 
-if command -v udevadm >/dev/null; then
-	udevadm monitor --udev --subsystem-match=kernel | while read -r _ _; do
-		apply_scheduler "$(cat "$ASA_SYSFS/recommended_scheduler")"
-	done
-else
-	while sleep "$(cat "$ASA_SYSFS/sample_ms" 2>/dev/null || echo 1000)"; do
-		apply_scheduler "$(cat "$ASA_SYSFS/recommended_scheduler")"
-	done
-fi
+path = sys.argv[1]
+try:
+    fd = os.open(path, os.O_RDONLY)
+except OSError:
+    sys.exit(1)
+try:
+    poller = select.poll()
+    poller.register(fd, select.POLLPRI | select.POLLERR)
+    os.read(fd, 4096)
+    poller.poll()
+finally:
+    os.close(fd)
+PY
+		then
+			return 0
+		fi
+	fi
+	ms=$(cat "$ASA_SYSFS/sample_ms" 2>/dev/null || echo 1000)
+	[[ $ms =~ ^[0-9]+$ ]] || ms=1000
+	((ms < 50)) && ms=50
+	sleep_s=$(awk -v ms="$ms" 'BEGIN { printf "%.3f", ms / 1000 }')
+	sleep "$sleep_s"
+}
+
+while :; do
+	apply_scheduler "$(cat "$ASA_SYSFS/recommended_scheduler")"
+	wait_for_recommendation
+done
