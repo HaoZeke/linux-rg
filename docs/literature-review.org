@@ -180,6 +180,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3629526.3645040 | Alder Lake energy (Schöne et al., ICPE 2024) | Laptop EPP/HWP; not Zen 5 |
 | 10.1145/3757918 | Ember (Park et al., TECS 2025) | Writes uclamp; already pinned |
 | 10.1145/3300061.3345449 | WebTune (Choi et al., MobiCom 2019) | EAS over-provisions; userspace clamp |
+| 10.1145/3544497.3544502 | One profile fits all (Ugur et al., OSR 2022) | Merged kernel PGO; build-time |
+| 10.1145/2854038.2854044 | AutoFDO (Chen et al., CGO 2016) | Sample PGO method; Clang kconfig |
+| 10.1109/CGO.2017.7863733 | ThinLTO (Johnson et al., CGO 2017) | Incremental LTO for kernel-sized CMO |
+| 10.1145/3575693.3575727 | Propeller (Shen et al., ASPLOS 2023) | Relink layout on AutoFDO+ThinLTO |
+| 10.1145/3492321.3519559 | Mitigation cost (Behrens et al., EuroSys 2022) | ~3% on modern CPUs; no mitigations=off |
+| 10.1145/3341301.3359640 | LEBench (Ren et al., SOSP 2019) | Old KPTI/retpoline tax; retired here |
+| 10.1145/3708821.3736197 | Kernel security cost (Rauscher et al., AsiaCCS 2025) | Cost concentrated; keep auto eIBRS |
+| 10.1145/3068281 | GPU virt/sched survey (Hong et al., CSUR 2017) | Layers are not interchangeable knobs |
+| 10.1145/3650200.3656608 | SVM/HMM (Cooper et al., ICS 2024) | Keep HMM; no oversub prefetch patch |
+| 10.4230/LIPIcs.ECRTS.2018.20 | NVIDIA GPU pitfalls (Yang et al., ECRTS 2018) | Non-preemptive; userspace isolation |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -730,6 +740,47 @@ without a second memory device). Follow-ons:
 - Choi, Park, Cha, MobiCom 2019. OokCite 10.1145/3300061.3345449.
   Stock EAS over-provisions the browser. Same userspace clamp path.
   Do not carry Android SchedTune.
+
+** Kernel PGO/LTO, Spectre cost, GPU, RCU**
+
+- Ugur, Jiang, Erf, Khan, Kasikci, OSR 2022. OokCite 10.1145/3544497.3544502.
+  One merged kernel PGO profile, not a per-app kernel, ~8% on eight
+  datacenter apps. CARRY as a *build-time* per-machine profile on the
+  remote builder. Not a runtime overlay pin.
+- Chen, Li, Moseley, CGO 2016, *AutoFDO*. OokCite 10.1145/2854038.2854044.
+  Hardware-sampled FDO. Method behind =CONFIG_AUTOFDO_CLANG=. Feed
+  =perf= from the target; do not revive gcov kernel instrumentation.
+- Johnson, Amini, Li, CGO 2017, *ThinLTO*. OokCite 10.1109/CGO.2017.7863733.
+  Incremental LTO at near-non-LTO compile cost. =CONFIG_LTO_CLANG_THIN=
+  on the remote builder, under AutoFDO.
+- Shen et al., ASPLOS 2023, *Propeller*. OokCite 10.1145/3575693.3575727.
+  Relink layout on top of PGO+ThinLTO. =CONFIG_PROPELLER_CLANG= if
+  the profiled build is already AutoFDO+ThinLTO. BOLT (CGO 2019) stays
+  userspace; kernel BOLT is not a stable kconfig.
+- Behrens, Belay, Kaashoek, EuroSys 2022. OokCite 10.1145/3492321.3519559.
+  OS-intensive mitigation overhead ~3% on then-modern CPUs. These
+  profiles are eIBRS/AutoIBRS silicon. =mitigations=off= buys ~0.
+- Ren et al., SOSP 2019, LEBench. OokCite 10.1145/3341301.3359640.
+  Documents the *old* KPTI/retpoline syscall tax. Already retired here.
+- Rauscher, Herzog, Honig, Gruss, AsiaCCS 2025.
+  OokCite 10.1145/3708821.3736197. Cost is concentrated (Retbleed-IBPB
+  outlier). Keep per-CPU auto; do not pin software IBPB or
+  =mitigations=off=.
+- Hong, Spence, Nikolopoulos, CSUR 2017. OokCite 10.1145/3068281.
+  GPU virt vs time-share vs firmware scheduler are different layers.
+  No peer-reviewed DRM-scheduler / i915 GuC / GPU-cgroup paper exists.
+- Cooper, Scogland, Ge, ICS 2024. OokCite 10.1145/3650200.3656608.
+  HMM/SVM large-range migrate thrashes under oversubscription. Keep
+  =CONFIG_HMM_MIRROR=. Do not invent a prefetch patch.
+- Yang et al., ECRTS 2018. OokCite 10.4230/LIPIcs.ECRTS.2018.20.
+  NVIDIA stack is non-preemptive; a compute job can stall the
+  compositor. USERSPACE isolation (one heavy GPU job XOR desktop),
+  not a DRM patch.
+
+RCU nocb and threaded NAPI are LWN/LPC plus the already-interned OS-noise
+paper. Keep =CONFIG_RCU_NOCB_CPU= compilable; do not default
+=RCU_NOCB_CPU_DEFAULT_ALL= or =rcu_nocb_poll= on a mixed seat. Threaded
+NAPI stays per-NIC sysfs, off by default.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
