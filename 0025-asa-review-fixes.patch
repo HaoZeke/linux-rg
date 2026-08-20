@@ -1,0 +1,375 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Wed, 19 Aug 2026 00:00:00 +0000
+Subject: [PATCH] sched/asa: fix review bugs in sample vote and cooldown
+
+Use FIXED_1 PSI percents, raw ctxsw/s, skip zero-weight ages, clamp
+sysfs stores, hold asa.lock on readers, and apply cooldown to
+recommended before uevent. Seat descendants stay observational.
+
+---
+--- a/kernel/sched/asa.c
++++ b/kernel/sched/asa.c
+@@ -81,9 +81,9 @@
+ static struct asa_router asa;
+ static struct kobject *asa_kobj;
+ 
+-static u32 asa_load_pct(unsigned long load)
++static u32 asa_psi_pct(unsigned long avg)
+ {
+-	return load * 100U / LOAD_AVG_MAX;
++	return min(100UL, LOAD_INT(avg));
+ }
+ 
+ static void asa_read_psi_group(struct psi_group *psi, u32 *cpu_psi,
+@@ -96,9 +96,9 @@
+ 		return;
+ 	}
+ 	mutex_lock(&psi->avgs_lock);
+-	*cpu_psi = asa_load_pct(psi->avg[PSI_CPU_SOME][0]);
+-	*io_psi = asa_load_pct(psi->avg[PSI_IO_SOME][0]);
+-	*mem_psi = asa_load_pct(psi->avg[PSI_MEM_SOME][0]);
++	*cpu_psi = asa_psi_pct(psi->avg[PSI_CPU_SOME][0]);
++	*io_psi = asa_psi_pct(psi->avg[PSI_IO_SOME][0]);
++	*mem_psi = asa_psi_pct(psi->avg[PSI_MEM_SOME][0]);
+ 	mutex_unlock(&psi->avgs_lock);
+ }
+ 
+@@ -124,16 +124,17 @@
+ 
+ 	*ctxsw_out = ctxsw;
+ 	*now_out = now;
+-	return div64_u64((ctxsw - last_ctxsw) * HZ * 100, dt_jiffies);
++	return div64_u64((ctxsw - last_ctxsw) * HZ, dt_jiffies);
+ }
+ 
+ static void asa_read_seat_psi(const char *seat_path, u32 *cpu_psi,
+-			      u32 *io_psi, u32 *mem_psi, u32 *goal_leaves)
++			      u32 *io_psi, u32 *mem_psi, u32 *n_desc)
+ {
+ 	struct cgroup *cgrp = NULL;
+ 	struct psi_group *psi = &psi_system;
+ 
+-	*goal_leaves = 0;
++	if (n_desc)
++		*n_desc = 0;
+ 	if (seat_path && seat_path[0]) {
+ 		cgrp = cgroup_get_from_path(seat_path);
+ 		if (IS_ERR(cgrp))
+@@ -144,8 +145,8 @@
+ 
+ 		if (seat_psi)
+ 			psi = seat_psi;
+-		if (cgrp->nr_descendants > 0)
+-			*goal_leaves = 1;
++		if (n_desc)
++			*n_desc = cgrp->nr_descendants;
+ 	}
+ 	asa_read_psi_group(psi, cpu_psi, io_psi, mem_psi);
+ 	if (cgrp)
+@@ -153,25 +154,22 @@
+ }
+ 
+ static void asa_classify(u32 rq_avg, u32 csw_per_sec, u32 cpu_psi,
+-			 u32 io_psi, u32 mem_psi, u32 goal_leaves,
+-			 u16 probs[ASA_CLASS_NR])
++			 u32 io_psi, u32 mem_psi, u16 probs[ASA_CLASS_NR])
+ {
+ 	u32 scores[ASA_CLASS_NR] = { 0 };
+ 	u32 total = 0;
+ 	int i;
+ 
++	memset(probs, 0, sizeof(u16) * ASA_CLASS_NR);
++
+ 	scores[ASA_CLASS_IO] = io_psi * 3 + mem_psi;
+ 	scores[ASA_CLASS_CPU] = cpu_psi * 2 + rq_avg;
+-	scores[ASA_CLASS_INTERACTIVE] = csw_per_sec / 50 + (rq_avg < 200) * 40;
++	scores[ASA_CLASS_INTERACTIVE] = csw_per_sec / 20 + (rq_avg < 200) * 40;
+ 	if (rq_avg > 150 && cpu_psi > 20)
+ 		scores[ASA_CLASS_CPU] += rq_avg / 2;
+-	if (csw_per_sec > 200 && io_psi < 15)
++	if (csw_per_sec > 400 && io_psi < 15)
+ 		scores[ASA_CLASS_INTERACTIVE] += 60;
+ 	scores[ASA_CLASS_MIXED] = 25 + (rq_avg / 4) + (cpu_psi / 4) + (io_psi / 4);
+-	if (goal_leaves) {
+-		scores[ASA_CLASS_MIXED] += 20;
+-		scores[ASA_CLASS_CPU] += 15;
+-	}
+ 
+ 	for (i = 0; i < ASA_CLASS_NR; i++)
+ 		total += scores[i];
+@@ -222,7 +220,7 @@
+ 		for (age = 0; age < i; age++)
+ 			weight = weight * alpha / 100;
+ 		if (!weight)
+-			weight = 1;
++			continue;
+ 
+ 		for (c = 0; c < ASA_CLASS_NR; c++) {
+ 			u16 p = slot->probs[c];
+@@ -261,19 +259,25 @@
+ 	else
+ 		strscpy(new_rec, next);
+ 
+-	changed = force_notify || strcmp(asa.recommended, new_rec);
+-	strscpy(asa.recommended, new_rec);
++	changed = strcmp(asa.recommended, new_rec);
++	if (!changed)
++		return;
+ 
+-	if (changed && asa_kobj && time_after(jiffies,
+-	    asa.last_switch_jiffies + msecs_to_jiffies(asa.cooldown_ms))) {
+-		asa.last_switch_jiffies = jiffies;
++	if (!force_notify && asa.last_switch_jiffies &&
++	    !time_after(jiffies,
++			asa.last_switch_jiffies +
++			msecs_to_jiffies(asa.cooldown_ms)))
++		return;
++
++	strscpy(asa.recommended, new_rec);
++	asa.last_switch_jiffies = jiffies;
++	if (asa_kobj)
+ 		kobject_uevent(asa_kobj, KOBJ_CHANGE);
+-	}
+ }
+ 
+ static void asa_sample(struct asa_router *r)
+ {
+-	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, goal_leaves;
++	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi;
+ 	u16 probs[ASA_CLASS_NR];
+ 	struct asa_vote_slot *slot;
+ 	unsigned int idx, window;
+@@ -293,9 +297,8 @@
+ 
+ 	asa_read_rq_avg(&rq_avg);
+ 	csw_per_sec = asa_ctxsw_rate(last_ctxsw, last_jiffies, &ctxsw, &now);
+-	asa_read_seat_psi(path, &cpu_psi, &io_psi, &mem_psi, &goal_leaves);
+-	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
+-		     goal_leaves, probs);
++	asa_read_seat_psi(path, &cpu_psi, &io_psi, &mem_psi, NULL);
++	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, probs);
+ 
+ 	mutex_lock(&r->lock);
+ 	if (!r->enabled || !r->vote_ring) {
+@@ -339,7 +342,7 @@
+ static ssize_t perception_show(struct kobject *kobj, struct kobj_attribute *a,
+ 			       char *buf)
+ {
+-	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, goal_leaves;
++	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, n_desc;
+ 	char path[ASA_SEAT_PATH_LEN];
+ 	u64 last_ctxsw, ctxsw, vote[ASA_CLASS_NR];
+ 	unsigned long last_jiffies, now;
+@@ -353,7 +356,7 @@
+ 
+ 	asa_read_rq_avg(&rq_avg);
+ 	csw_per_sec = asa_ctxsw_rate(last_ctxsw, last_jiffies, &ctxsw, &now);
+-	asa_read_seat_psi(path, &cpu_psi, &io_psi, &mem_psi, &goal_leaves);
++	asa_read_seat_psi(path, &cpu_psi, &io_psi, &mem_psi, &n_desc);
+ 
+ 	return sysfs_emit(buf,
+ 			  "rq_avg_pct=%u\n"
+@@ -362,14 +365,14 @@
+ 			  "io_psi_pct=%u\n"
+ 			  "mem_psi_pct=%u\n"
+ 			  "seat_cgroup=%s\n"
+-			  "goal_leaves=%u\n"
++			  "seat_descendants=%u\n"
+ 			  "vote_interactive=%llu\n"
+ 			  "vote_cpu=%llu\n"
+ 			  "vote_io=%llu\n"
+ 			  "vote_mixed=%llu\n",
+ 			  rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
+ 			  path[0] ? path : "/",
+-			  goal_leaves,
++			  n_desc,
+ 			  vote[ASA_CLASS_INTERACTIVE],
+ 			  vote[ASA_CLASS_CPU],
+ 			  vote[ASA_CLASS_IO],
+@@ -379,13 +382,23 @@
+ static ssize_t workload_show(struct kobject *kobj, struct kobj_attribute *a,
+ 			     char *buf)
+ {
+-	return sysfs_emit(buf, "%s\n", asa_class_names[asa.voted_class]);
++	enum asa_workload_class cls;
++
++	mutex_lock(&asa.lock);
++	cls = asa.voted_class;
++	mutex_unlock(&asa.lock);
++	return sysfs_emit(buf, "%s\n", asa_class_names[cls]);
+ }
+ 
+ static ssize_t recommended_scheduler_show(struct kobject *kobj,
+ 					  struct kobj_attribute *a, char *buf)
+ {
+-	return sysfs_emit(buf, "%s\n", asa.recommended);
++	char rec[ASA_NAME_LEN];
++
++	mutex_lock(&asa.lock);
++	strscpy(rec, asa.recommended);
++	mutex_unlock(&asa.lock);
++	return sysfs_emit(buf, "%s\n", rec);
+ }
+ 
+ static ssize_t mapping_show(struct kobject *kobj, struct kobj_attribute *a,
+@@ -394,9 +407,11 @@
+ 	ssize_t at = 0;
+ 	int i;
+ 
++	mutex_lock(&asa.lock);
+ 	for (i = 0; i < ASA_CLASS_NR; i++)
+ 		at += sysfs_emit_at(buf, at, "%s=%s\n",
+ 				    asa_class_names[i], asa.schedulers[i]);
++	mutex_unlock(&asa.lock);
+ 	return at;
+ }
+ 
+@@ -466,8 +481,12 @@
+ static ssize_t seat_cgroup_show(struct kobject *kobj, struct kobj_attribute *a,
+ 				char *buf)
+ {
+-	return sysfs_emit(buf, "%s\n",
+-			  asa.seat_path[0] ? asa.seat_path : "/");
++	char path[ASA_SEAT_PATH_LEN];
++
++	mutex_lock(&asa.lock);
++	strscpy(path, asa.seat_path);
++	mutex_unlock(&asa.lock);
++	return sysfs_emit(buf, "%s\n", path[0] ? path : "/");
+ }
+ 
+ static ssize_t seat_cgroup_store(struct kobject *kobj, struct kobj_attribute *a,
+@@ -525,35 +544,103 @@
+ 	return count;
+ }
+ 
+-#define ASA_UINT_ATTR(_name, field)					\
+-	static ssize_t _name##_show(struct kobject *kobj,		\
+-				    struct kobj_attribute *a, char *buf) \
+-	{								\
+-		return sysfs_emit(buf, "%u\n", asa.field);		\
+-	}								\
+-	static ssize_t _name##_store(struct kobject *kobj,		\
+-				     struct kobj_attribute *a,		\
+-				     const char *buf, size_t count)	\
+-	{								\
+-		unsigned int val;					\
+-		int ret = kstrtouint(buf, 10, &val);			\
+-		if (ret)						\
+-			return ret;					\
+-		mutex_lock(&asa.lock);					\
+-		asa.field = val;					\
+-		mutex_unlock(&asa.lock);				\
+-		return count;						\
+-	}								\
+-	static struct kobj_attribute asa_attr_##_name = {			\
+-		.attr = { .name = __stringify(_name), .mode = 0644 },	\
+-		.show = _name##_show,					\
+-		.store = _name##_store,					\
+-	}
+-
+-ASA_UINT_ATTR(cooldown_ms, cooldown_ms);
+-ASA_UINT_ATTR(sample_ms, sample_ms);
+-ASA_UINT_ATTR(vote_threshold_pct, vote_threshold_pct);
+-ASA_UINT_ATTR(decay_pct, decay_pct);
++static int asa_store_clamped(const char *buf, unsigned int *dst,
++			     unsigned int lo, unsigned int hi)
++{
++	unsigned int val;
++	int ret = kstrtouint(buf, 10, &val);
++
++	if (ret)
++		return ret;
++	if (val < lo || val > hi)
++		return -EINVAL;
++	mutex_lock(&asa.lock);
++	*dst = val;
++	mutex_unlock(&asa.lock);
++	return 0;
++}
++
++static ssize_t cooldown_ms_show(struct kobject *kobj, struct kobj_attribute *a,
++				char *buf)
++{
++	return sysfs_emit(buf, "%u\n", asa.cooldown_ms);
++}
++
++static ssize_t cooldown_ms_store(struct kobject *kobj, struct kobj_attribute *a,
++				 const char *buf, size_t count)
++{
++	int ret = asa_store_clamped(buf, &asa.cooldown_ms, 0, 600000);
++
++	return ret ? ret : count;
++}
++
++static ssize_t sample_ms_show(struct kobject *kobj, struct kobj_attribute *a,
++			      char *buf)
++{
++	return sysfs_emit(buf, "%u\n", READ_ONCE(asa.sample_ms));
++}
++
++static ssize_t sample_ms_store(struct kobject *kobj, struct kobj_attribute *a,
++			       const char *buf, size_t count)
++{
++	int ret = asa_store_clamped(buf, &asa.sample_ms, ASA_SAMPLE_MIN_MS,
++				    60000);
++
++	return ret ? ret : count;
++}
++
++static ssize_t vote_threshold_pct_show(struct kobject *kobj,
++				       struct kobj_attribute *a, char *buf)
++{
++	return sysfs_emit(buf, "%u\n", asa.vote_threshold_pct);
++}
++
++static ssize_t vote_threshold_pct_store(struct kobject *kobj,
++					struct kobj_attribute *a,
++					const char *buf, size_t count)
++{
++	int ret = asa_store_clamped(buf, &asa.vote_threshold_pct, 0, 10000);
++
++	return ret ? ret : count;
++}
++
++static ssize_t decay_pct_show(struct kobject *kobj, struct kobj_attribute *a,
++			      char *buf)
++{
++	return sysfs_emit(buf, "%u\n", asa.decay_pct);
++}
++
++static ssize_t decay_pct_store(struct kobject *kobj, struct kobj_attribute *a,
++			       const char *buf, size_t count)
++{
++	int ret = asa_store_clamped(buf, &asa.decay_pct, 0, 99);
++
++	return ret ? ret : count;
++}
++
++static struct kobj_attribute asa_attr_cooldown_ms = {
++	.attr = { .name = "cooldown_ms", .mode = 0644 },
++	.show = cooldown_ms_show,
++	.store = cooldown_ms_store,
++};
++
++static struct kobj_attribute asa_attr_sample_ms = {
++	.attr = { .name = "sample_ms", .mode = 0644 },
++	.show = sample_ms_show,
++	.store = sample_ms_store,
++};
++
++static struct kobj_attribute asa_attr_vote_threshold_pct = {
++	.attr = { .name = "vote_threshold_pct", .mode = 0644 },
++	.show = vote_threshold_pct_show,
++	.store = vote_threshold_pct_store,
++};
++
++static struct kobj_attribute asa_attr_decay_pct = {
++	.attr = { .name = "decay_pct", .mode = 0644 },
++	.show = decay_pct_show,
++	.store = decay_pct_store,
++};
+ 
+ static struct kobj_attribute asa_attr_perception = {
+ 	.attr = { .name = "perception", .mode = 0444 },
