@@ -27,7 +27,7 @@ plane already uses.
 | Jail (=bwrap --unshare-user/pid/uts/ipc/cgroup=, optional net) | user/pid/uts/ipc/cgroup/net namespaces + tmpfs |
 | Session event ring | =memfd_create= |
 | Same-uid ACL | =SO_PEERCRED= on =CONFIG_UNIX= |
-| Later FS sandbox | Landlock LSM |
+| Later FS sandbox | Landlock LSM + =CONFIG_SECCOMP= / =SECCOMP_FILTER= |
 | Expert scheduler switch | =CONFIG_SCHED_CLASS_EXT= + ASA (=seat_cgroup= PSI) |
 | I/O niceness | =io.prio.class= / =io.weight= / =io.latency= (=BLK_CGROUP_IOPRIO=, =IOCOST=, =IOLATENCY=); BFQ group + Kyber available; ADIOS module only |
 | CPU share / cap | =cpu.weight= / =cpu.max= (=FAIR_GROUP_SCHED=, =CFS_BANDWIDTH=); autogroup off so those files matter |
@@ -120,27 +120,44 @@ CRIU dump of an agent tree.
 | Layer | What it owns |
 |-------|----------------|
 | Compiled overlay | =CGROUP_FAVOR_DYNMODS=, BORE =MIN_BASE_SLICE_NS=, =0013= migration cost |
-| =/usr/lib/sysctl.d/50-linux-rg-grokos.conf= | autogroup off, =max_map_count= / =pid_max= / inotify floors, RT bandwidth cap |
+| =/usr/lib/sysctl.d/50-linux-rg-grokos.conf= | autogroup off, =max_map_count= / =pid_max= / inotify floors, RT bandwidth cap, =numa_balancing=0 |
 | ASA | =asa-router= writes =seat_cgroup= to the sessiond user slice |
 | Per-machine =99-memory.conf= | swappiness, dirty, watermark (laptop zram contract) |
 | CRIU dump | =CAP_CHECKPOINT_RESTORE=; do not lower =yama.ptrace_scope= |
 
 Autogroup is off so job-leaf =cpu.weight= is visible. =max_map_count=
-and =pid_max= are the CRIU/VMA and restore-pid floors. Dirty ratios stay
-out of this file so a zram laptop and a RAM-heavy workstation can keep
-different writeback contracts. A later =/etc/sysctl.d/99-*= file still
-wins on any overlapping key.
+and =pid_max= are the CRIU/VMA and restore-pid floors. =numa_balancing=0=
+because these seats are one memory controller (IISWC 2022 AutoNUMA on
+graphs). Dirty ratios stay out of this file so a zram laptop and a
+RAM-heavy workstation can keep different writeback contracts. A later
+=/etc/sysctl.d/99-*= file still wins on any overlapping key.
 
 =scripts/linux-rg-grokos-tune-check= asserts the packaged sysctl.
 
 * Not a kernel job
 
-- Cap'n schema, peercred userspace, policyd, and scx expert BPF stay
-  in userspace.
-- EESSI/CVMFS is FUSE + autofs + a userspace repo list
-  (=linux-rg-pa8l=), not a new kernel module.
+The farm's remaining implementables live here, not in a new 00xx:
+
+- =cancelAgent= should take a pidfd at spawn (=clone3= + =CLONE_PIDFD=)
+  and =pidfd_send_signal= / wait / =process_mrelease=. =kill(-pgid)=
+  is racy under pid reuse (Brauner LPC 2019).
+- =Seat.spawnAgent= should create a cgroup v2 leaf
+  (=clone3= + =CLONE_INTO_CGROUP=) and write =memory.high= then
+  =memory.max=, =cpu.weight=, =io.weight=. Identity stays the 32-hex
+  AgentId. Vat should read leaf PSI the way nng already does.
+- Landlock + seccomp-bpf per tool/stage (NatiSand RAID 2023). Overlay
+  pins the LSMs; sessiond/bwrap must call them. Do not hand-write
+  filters.
+- systemd-oomd must not SIGKILL one fat session scope. Agent jobs
+  are sibling units; compositor/supervisor get omit/avoid.
+- Cap'n schema, peercred, policyd, and scx expert BPF stay userspace.
+- EESSI/CVMFS is FUSE + autofs + a userspace repo list, not a new
+  kernel module. Overlays pin =CONFIG_FUSE_FS=.
 - BTF/pahole is the BPF type blob for packaged kernels, not the seat
   ABI.
+- Kernel PGO/ThinLTO/AutoFDO is a remote-builder profile, not a boot
+  overlay. Do not enable =PREEMPT_RT=, =isolcpus=, ADIOS default, or
+  =mitigations=off=.
 
 * Related
 
