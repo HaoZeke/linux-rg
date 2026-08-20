@@ -14,10 +14,12 @@ name.
 and each live child and confirms only when that tree is gone.
 =reportAgent= records =/proc/<pid>/stat= starttime and places the pid
 in a =grokos-agent-*= leaf (systemd user scope, or a child cgroup
-when the parent is delegated). Cancel: starttime mismatch means the
-identity is gone; else =cgroup.kill= on that leaf, =pidfd_send_signal=,
-then process-group =SIGKILL=. Sessiond's user unit sets =Delegate=yes=
-so those leaves can exist under the daemon.
+when the parent is delegated). The leaf gets idle =io.prio.class= /
+=io.weight= / =cpu.weight= (compile-storm argv can raise a uclamp
+cap). Cancel: starttime mismatch means the identity is gone; else
+=cgroup.kill= on that leaf, =pidfd_send_signal=, then process-group
+=SIGKILL=. Shared =user.slice= is refused. Sessiond's user unit sets
+=Delegate=yes= so those leaves can exist under the daemon.
 
 The kernel does not grow a GrokOS syscall. It has to keep the knobs that
 plane already uses.
