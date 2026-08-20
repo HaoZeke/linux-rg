@@ -160,6 +160,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1109/CLUSTER51413.2022.00070 | FLASH huge pages (Calder et al., 2022) | Compiler enablement; madvise |
 | 10.1145/3332186.3333043 | Arbiter (Gardner et al., PEARC 2019) | Login-node cgroup caps; userspace |
 | 10.1109/SBAC-PAD55451.2022.00044 | CFS bandwidth throttle (Ugedal and Kumar, 2022) | Prefer cpu.max.burst; no fair.c weld |
+| 10.1145/2812806 | Arrakis (Peter et al., TOCS 2015) | Control-plane kernel; reject SR-IOV datapath |
+| 10.1145/3132747.3132780 | ZygOS (Prekas et al., SOSP 2017) | Dedicated dataplane steal; reject |
+| 10.1145/3477132.3483569 | Demikernel (Zhang et al., SOSP 2021) | LibOS over io_uring; userspace only |
+| 10.1145/3341301.3359657 | Snap (Marty et al., SOSP 2019) | Fleet userspace stack; not a host pin |
+| 10.1145/3458336.3465281 | Kernel interposition (Sadok et al., HotOS 2021) | Keep in-kernel stack + eBPF |
+| 10.1145/3477132.3483548 | Syrup (Kaffes et al., SOSP 2021) | eBPF matchers; scx/ASA, not Syrup C |
+| 10.1145/3302424.3303985 | TAS (Kaufmann et al., EuroSys 2019) | Dedicated-core TCP; reject on mixed seat |
+| 10.1145/3267809.3267845 | Unikernels as processes (Williams et al., SoCC 2018) | Tight seccomp, not a unikernel |
+| 10.1145/3190508.3190539 | seL4 MCS (Lyons et al., EuroSys 2018) | Time as capability; cpu.max analog |
+| 10.1145/3600006.3613136 | Concord (Iyer et al., SOSP 2023) | Approximate SRPT in userspace |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -637,6 +647,43 @@ Hildenbrand/Schulz/Amit, ATC 2024 folio accounting, and Zhu/Cox/Rixner,
 ATC 2020 superpage survey, are USENIX URL-only. Both support the same
 =madvise= pin and conservative khugepaged. =MADV_COLLAPSE= after a
 dense fill is userspace (LWN https://lwn.net/Articles/887753/).
+
+** Dataplane OS, gVisor/Kata, capability kernels**
+
+IX (OSDI 2014, URL only) and Junction (NSDI 2024, URL only) are the
+conference forms. Journal/ACM follow-ons:
+
+- Peter et al., TOCS 2015, *Arrakis*. OokCite 10.1145/2812806. Kernel
+  is control plane only; apps talk SR-IOV. REJECT: no VF pool on
+  iwlwifi or a shared login NIC.
+- Prekas, Kogias, Bugnion, SOSP 2017, *ZygOS*. OokCite 10.1145/3132747.3132780.
+  Work-steal among dedicated poll cores. REJECT on a mixed fair pool.
+- Zhang et al., SOSP 2021, *Demikernel*. OokCite 10.1145/3477132.3483569.
+  Portable datapath over DPDK/RDMA/io_uring. USERSPACE on the io_uring
+  backend only; do not replace the host stack.
+- Marty et al., SOSP 2019, *Snap*. OokCite 10.1145/3341301.3359657.
+  Google fleet userspace host net. USERSPACE lesson; closed, dedicated NIC.
+- Kaufmann et al., EuroSys 2019, *TAS*. OokCite 10.1145/3302424.3303985.
+  TCP as a dedicated-core service. REJECT: pins cores and takes the NIC.
+- Sadok et al., HotOS 2021. OokCite 10.1145/3458336.3465281. Bypass
+  drops tcpdump, QoS, and cross-app policy. CARRY as the negative:
+  keep the in-kernel stack plus eBPF/io_uring.
+- Kaffes et al., SOSP 2021, *Syrup*. OokCite 10.1145/3477132.3483548.
+  Untrusted eBPF matchers from work to executors. USERSPACE: same job
+  as scx experts / ASA maps. Do not carry Syrup hooks.
+- Iyer, Unal, Kogias, Candea, SOSP 2023, *Concord*.
+  OokCite 10.1145/3600006.3613136. Approximate SRPT beats exact
+  interrupt-heavy preemption. USERSPACE scx A/B, not a new class.
+- Williams, Koller, Lucina, Prakash, SoCC 2018. OokCite 10.1145/3267809.3267845.
+  Unikernel as a process plus a nine-syscall seccomp. USERSPACE jail
+  profile, not a relink of agents as unikernels.
+- Lyons, McLeod, Almatary, Heiser, EuroSys 2018. OokCite 10.1145/3190508.3190539.
+  seL4 MCS: CPU time is a capability. Linux analog is =cpu.max= /
+  uclamp / sched_ext, already pinned. Do not port sporadic servers.
+
+gVisor/Kata/Firecracker isolation stays userspace or reject as a host
+kernel (VEE 2020 already interned). Same-uid trusted agents stay
+bwrap + Landlock + cgroup, not a per-agent guest.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
