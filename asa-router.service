@@ -1,0 +1,17 @@
+[Unit]
+Description=linux-rg ASA sched_ext router
+Documentation=https://arxiv.org/abs/2511.11628
+# Either sched_ext ASA sysfs or the standalone /sys/kernel/asa tree.
+ConditionPathIsDirectory=/sys/kernel/sched_ext/asa
+ConditionPathIsDirectory=|/sys/kernel/asa
+After=sysinit.target systemd-sysctl.service
+Wants=sysinit.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/asa-router --enable --seat-cgroup auto
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

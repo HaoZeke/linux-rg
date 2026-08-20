@@ -11,9 +11,13 @@ deleted. Identity is a 32-hex =Util.AgentId=, not a cgroup directory
 name.
 
 =cancelAgent= (session !110, meta #104) kills the recorded pid/pgid
-and each live child and confirms only when that tree is gone. The
-live path is process-group =SIGKILL= (=kill_process_tree(pgid, None)=);
-a leftover systemd user scope stop is optional and not a kernel ABI.
+and each live child and confirms only when that tree is gone.
+=reportAgent= records =/proc/<pid>/stat= starttime and places the pid
+in a =grokos-agent-*= leaf (systemd user scope, or a child cgroup
+when the parent is delegated). Cancel: starttime mismatch means the
+identity is gone; else =cgroup.kill= on that leaf, =pidfd_send_signal=,
+then process-group =SIGKILL=. Sessiond's user unit sets =Delegate=yes=
+so those leaves can exist under the daemon.
 
 The kernel does not grow a GrokOS syscall. It has to keep the knobs that
 plane already uses.
@@ -94,6 +98,9 @@ so PSI and cgroup lookup run in process context, and adds:
 | =perception= =seat_cgroup= / =seat_descendants= | slice PSI; descendant count is observational |
 
 Write the sessiond user slice (or =asa-router --seat-cgroup auto=).
+=asa-router.service= starts that command when either ASA sysfs tree
+exists. =ASA_SYSFS= / =SCX_LOADER= override the live paths so the
+router is testable without a built kernel.
 The kernel holds that cgroup and classifies from its descendant
 tasks' runnable count and =nvcsw= plus slice PSI, not host
 =nr_context_switches=. =perception= also prints =irq_pct=,
@@ -138,12 +145,13 @@ RAM-heavy workstation can keep different writeback contracts. A later
 
 The farm's remaining implementables live here, not in a new 00xx:
 
-- =cancelAgent= should take a pidfd at spawn (=clone3= + =CLONE_PIDFD=)
-  and =pidfd_send_signal= / wait / =process_mrelease=. =kill(-pgid)=
-  is racy under pid reuse (Brauner LPC 2019).
-- =Seat.spawnAgent= should create a cgroup v2 leaf
-  (=clone3= + =CLONE_INTO_CGROUP=) and write =memory.high= then
-  =memory.max=, =cpu.weight=, =io.weight=. Identity stays the 32-hex
+- Birth =pidfd= from =clone3= + =CLONE_PIDFD= / =CLONE_INTO_CGROUP=
+  still belongs in the PTY spawn (shell), not a second open of
+  =/proc/<pid>= after the fact. Sessiond already refuses a recycled
+  pid via recorded starttime and uses =pidfd_send_signal= plus
+  =cgroup.kill= on the =grokos-agent-*= leaf.
+- Per-leaf =memory.high= / =cpu.weight= / =io.weight= writes stay a
+  sessiond policy choice on that same leaf. Identity stays the 32-hex
   AgentId. Vat should read leaf PSI the way nng already does.
 - Landlock + seccomp-bpf per tool/stage (NatiSand RAID 2023). Overlay
   pins the LSMs; sessiond/bwrap must call them. Do not hand-write

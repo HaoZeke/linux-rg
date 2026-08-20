@@ -3,31 +3,46 @@
 # Watches ASA sysfs and loads expert sched_ext schedulers.
 set -euo pipefail
 
-if [[ -d /sys/kernel/sched_ext/asa ]]; then
-	ASA_SYSFS=/sys/kernel/sched_ext/asa
-elif [[ -d /sys/kernel/asa ]]; then
-	ASA_SYSFS=/sys/kernel/asa
-else
-	ASA_SYSFS=/sys/kernel/sched_ext/asa
+# ASA_SYSFS overrides the live kernel path (mock selftest or a bind-mount).
+if [[ -z ${ASA_SYSFS:-} ]]; then
+	if [[ -d /sys/kernel/sched_ext/asa ]]; then
+		ASA_SYSFS=/sys/kernel/sched_ext/asa
+	elif [[ -d /sys/kernel/asa ]]; then
+		ASA_SYSFS=/sys/kernel/asa
+	else
+		ASA_SYSFS=/sys/kernel/sched_ext/asa
+	fi
 fi
-SCX_LOADER=(scx_loader)
+
+# SCX_LOADER overrides the expert switch helper (path or argv string).
+if [[ -n ${SCX_LOADER:-} ]]; then
+	read -r -a SCX_CMD <<< "$SCX_LOADER"
+else
+	SCX_CMD=(scx_loader)
+fi
 
 usage() {
 	cat <<'EOF'
 Usage: asa-router [--enable] [--dry-run] [--mapping FILE] [--seat-cgroup PATH]
+                  [--once] [--probe]
 
   --enable         Write 1 to asa/enabled after starting
   --dry-run        Print recommendations without loading schedulers
   --mapping        Optional mapping file (class=scheduler per line)
   --seat-cgroup    cgroup v2 path for ASA PSI (default auto = sessiond user.slice)
+  --once           Apply the current recommendation and exit
+  --probe          Print resolved ASA_SYSFS / SCX_LOADER and exit
 
-Waits on recommended_scheduler via sysfs poll (sysfs_notify). sample_ms
-is milliseconds. Requires: CONFIG_SCHED_ASA; scx_loader for apply.
+ASA_SYSFS and SCX_LOADER override the live paths. Waits on
+recommended_scheduler via sysfs poll (sysfs_notify). sample_ms is
+milliseconds. Requires: CONFIG_SCHED_ASA; scx_loader for apply.
 EOF
 }
 
 enable_asa=0
 dry_run=0
+once=0
+probe=0
 mapping_file=
 seat_cgroup=
 
@@ -35,6 +50,8 @@ while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--enable) enable_asa=1 ;;
 	--dry-run) dry_run=1 ;;
+	--once) once=1 ;;
+	--probe) probe=1 ;;
 	--mapping) mapping_file=$2; shift ;;
 	--seat-cgroup) seat_cgroup=$2; shift ;;
 	-h|--help) usage; exit 0 ;;
@@ -42,6 +59,15 @@ while [[ $# -gt 0 ]]; do
 	esac
 	shift
 done
+
+if [[ $probe -eq 1 ]]; then
+	printf 'ASA_SYSFS=%s\n' "$ASA_SYSFS"
+	printf 'SCX_LOADER=%s\n' "${SCX_CMD[*]}"
+	if [[ -d $ASA_SYSFS ]]; then
+		exit 0
+	fi
+	exit 1
+fi
 
 if [[ ! -d $ASA_SYSFS ]]; then
 	echo "ASA sysfs missing; boot a CONFIG_SCHED_ASA kernel" >&2
@@ -90,12 +116,12 @@ apply_scheduler() {
 		current=$sched
 		return 0
 	fi
-	if ! command -v scx_loader >/dev/null; then
-		echo "scx_loader not found; recommendation: $sched" >&2
+	if ! command -v "${SCX_CMD[0]}" >/dev/null; then
+		echo "${SCX_CMD[0]} not found; recommendation: $sched" >&2
 		return 1
 	fi
 	echo "ASA: switching sched_ext expert to $sched"
-	"${SCX_LOADER[@]}" switch "$sched"
+	"${SCX_CMD[@]}" switch "$sched"
 	current=$sched
 }
 
@@ -132,5 +158,8 @@ PY
 
 while :; do
 	apply_scheduler "$(cat "$ASA_SYSFS/recommended_scheduler")"
+	if [[ $once -eq 1 ]]; then
+		exit 0
+	fi
 	wait_for_recommendation
 done

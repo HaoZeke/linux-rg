@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Mock-sysfs selftest for asa-router. No kernel, no scx_loader on PATH.
+set -euo pipefail
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+router=$repo/asa-router
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+[[ -x $router ]] || fail "asa-router not executable"
+grep -q 'ASA_SYSFS' "$router" || fail "asa-router missing ASA_SYSFS override"
+grep -q 'SCX_LOADER' "$router" || fail "asa-router missing SCX_LOADER override"
+grep -q -- '--once' "$router" || fail "asa-router missing --once"
+grep -q -- '--probe' "$router" || fail "asa-router missing --probe"
+grep -q 'POLLPRI' "$router" || fail "asa-router missing sysfs poll"
+test -f "$repo/asa-router.service" || fail "missing asa-router.service"
+grep -q 'ConditionPathIsDirectory=/sys/kernel/sched_ext/asa' "$repo/asa-router.service" \
+	|| fail "unit missing sched_ext ASA condition"
+grep -q 'ConditionPathIsDirectory=|/sys/kernel/asa' "$repo/asa-router.service" \
+	|| fail "unit missing standalone ASA condition"
+grep -q 'asa-router --enable --seat-cgroup auto' "$repo/asa-router.service" \
+	|| fail "unit ExecStart must enable seat_cgroup auto"
+grep -q 'asa-router.service' "$repo/PKGBUILD" || fail "PKGBUILD missing asa-router.service"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+asa=$tmp/asa
+mkdir -p "$asa"
+printf 'none\n' >"$asa/recommended_scheduler"
+printf '50\n' >"$asa/sample_ms"
+printf '0\n' >"$asa/enabled"
+: >"$asa/mapping"
+: >"$asa/seat_cgroup"
+
+loader=$tmp/fake-loader
+log=$tmp/loader.log
+cat >"$loader" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >>"$log"
+EOF
+chmod +x "$loader"
+
+export ASA_SYSFS=$asa
+export SCX_LOADER=$loader
+
+"$router" --probe | grep -qx "ASA_SYSFS=$asa" || fail "probe ASA_SYSFS"
+"$router" --probe | grep -qx "SCX_LOADER=$loader" || fail "probe SCX_LOADER"
+
+printf 'scx_rusty\n' >"$asa/recommended_scheduler"
+"$router" --once --enable --seat-cgroup /user.slice/user-1000.slice \
+	|| fail "once apply"
+grep -qx 1 "$asa/enabled" || fail "enabled not written"
+grep -qx '/user.slice/user-1000.slice' "$asa/seat_cgroup" || fail "seat_cgroup not written"
+grep -qx 'switch scx_rusty' "$log" || fail "loader not invoked for scx_rusty"
+
+: >"$log"
+"$router" --once --dry-run
+test ! -s "$log" || fail "dry-run must not invoke loader"
+
+missing=$tmp/missing
+ASA_SYSFS=$missing "$router" --once && fail "missing sysfs must fail" || true
+ASA_SYSFS=$missing "$router" --probe && fail "probe on missing sysfs must fail" || true
+
+map=$tmp/map.txt
+printf 'latency=scx_lavd\n# comment\n\nthroughput=scx_rusty\n' >"$map"
+"$router" --once --mapping "$map" || fail "mapping apply"
+grep -q 'throughput=scx_rusty' "$asa/mapping" || fail "mapping not written"
+
+echo ok

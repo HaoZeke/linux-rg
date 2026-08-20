@@ -70,6 +70,7 @@ source=(
   rgSURFLat.config
   os_linux_rg.png
   asa-router
+  asa-router.service
   50-linux-rg-grokos.conf
   rg-terra-power
   rgam5terra-memory-check
@@ -141,7 +142,8 @@ sha256sums=(
             'ce0107c0c35a815cfcc3f31845e69d78a9784471be08334163464c2c9e1cbe81'
             '46ac4dcaa858a62912e9960a995f6221757691b97f4d46b66f8646ddfb7c092f'
             '72a8dcd7d2fb934152a4608641abb2638dbedbf41a4ab614be227f1752384e1f'
-            '3088dff32cb2e899a4528d780125008cc43fa66b1a747d791c3da53dca6a56c4'
+            '74451ca1ed7c72d875ef44760171a514fe9e3885d692e1fb373195bc951f9395'
+            'b8fb7602b75aed5b49315d359809b866051c125fbbd2f58ec39f34d87dd8164e'
             '679db61df802494e7df6a86600d8c205cd49a58f7ac19097a5d0aaf66af84faf'
             '7ed090e02c037129860b9042b812751b80d0e9818faad9c6109857f9423be64e'
             '2c57224feb59907decd8b9822cbda1409ef6c2a30778fbea4ac381abf978ba49'
@@ -208,7 +210,8 @@ b2sums=(
             'c9091805213e7289bf1713acacd41a83c7cbaf8b83a038bf2100545c1c96487f701f690136b0a1c99c5564dd2794870e54382d36ad3daa686f6697cdb30fe501'
             'c0e06929013f0547e4b9fa0cafdcbd964b483d513bc648b46331a81af469c817b136ac080dfe0d4561640d8993d0128beb25b507b969cff0c7daa10bc5445fc0'
             '064a62fc3b63c501cf369e65fb0d9e89d1e87348f373051f37c3ed23630fd77b2b90efc351c2a37663be18d488e623b19e3f25b4922343ab4cfe937224938d93'
-            '451d5dc04162b5025d0bff96ead0f61bfc69e7bfa6d9be413661c4ec283e75e1574e29e4481a287702363f8b18dc295ca72254a071732ade85de0678bd143c17'
+            '6b9ea66c172ae82926bf5bd18fbed6f6a246fa3cc6104599d88709dc634a9e9cdd861cbfcfc86820fe687d80191de2427fa8b48dad11579b2b8335ceb59e2808'
+            '204eb91154ea27a891941a6ce71e6fff2ebf84e815d2ae3bcd03a188759ad4782b6dfb69295558c7598ab0b6c93bc6c739b86e4ae68921707e98cfae2a338a26'
             '5de509332b5706b384762321e37d4129e444fe3beb183ae772efea1b22455083c765e107ca74410eb0f282346d87c98ecb1a1b997ca5a7afd339fe6ec1811e5f'
             '46b138b363e9a399b9ec9da510395f39399c25342962b61f97aa5da97cd70dfe30c20f7f5c39072dcf6038b94e30cb142c3dd86c08df53c8ea2466f238103eb1'
             '8990e9a454aed0459a1a1dd24e8fe8b5cd1b30cb3d2ded11e86c0a7a1e57e828c058541ec461d0ae43261a846e17ba29688a3e7433f98fa9df4b357dec807f4a'
@@ -433,6 +436,8 @@ _package() {
     DEPMOD=/usr/bin/true modules_install  # Pacman hooks regenerate module indices.
 
   install -Dm755 "$srcdir/asa-router" "$pkgdir/usr/bin/asa-router"
+  install -Dm644 "$srcdir/asa-router.service" \
+    "$pkgdir/usr/lib/systemd/system/asa-router.service"
   install -Dm644 "$srcdir/50-linux-rg-grokos.conf" \
     "$pkgdir/usr/lib/sysctl.d/50-linux-rg-grokos.conf"
   install -Dm755 "$startdir/scripts/linux-rg-grokos-seat-check" \
