@@ -1,0 +1,49 @@
+#+title: linux-rg kernel support for the GrokOS session plane
+#+date: [2026-08-19 Wed]
+
+* What GrokOS is (kernel view)
+
+GrokOS is a same-uid session plane: =sessiond= is a Cap'n server on an
+=AF_UNIX= socket, =grokos-shell= is the seat, agents are Cap'n clients.
+Instant work never waits on a model. Supervised goals are admitted from
+host PSI, spawned as isolated processes, and torn down with
+=cgroup.kill= plus a process-group fallback.
+
+The kernel does not grow a GrokOS syscall. It has to keep the knobs that
+plane already uses.
+
+| Seat need | Kernel surface |
+|-----------|----------------|
+| Goal admit / defer | =/proc/pressure/{cpu,memory,io}= (=CONFIG_PSI=) |
+| Hardware pressure | =/sys/class/{power_supply,thermal,drm,input}= |
+| Goal leaf stop | cgroup v2 =cgroup.kill= on =grokos-goal-*= |
+| Frequent leaf create/destroy | =CONFIG_CGROUP_FAVOR_DYNMODS= |
+| Jail (=bwrap --unshare-user/pid/uts/ipc/cgroup=, optional net) | user/pid/uts/ipc/cgroup/net namespaces + tmpfs |
+| Session event ring | =memfd_create= |
+| Same-uid ACL | =SO_PEERCRED= on =CONFIG_UNIX= |
+| Later FS sandbox | Landlock LSM |
+| Expert scheduler switch | =CONFIG_SCHED_CLASS_EXT= + ASA |
+
+* Overlay pin
+
+All three profiles (=rgx1gen11.config=, =rgam5terra.config=,
+=rgSURFLat.config=) pin the seat set. Arch =config.x86_64= already
+enables most of it; the overlay makes =CONFIG_CGROUP_FAVOR_DYNMODS=y=
+and repeats the rest so a slim =localmodconfig= cannot drop them.
+
+=scripts/linux-rg-grokos-seat-check= asserts the pin.
+
+* Not a kernel job
+
+- Cap'n schema, peercred userspace, policyd, and scx expert BPF stay
+  in userspace.
+- EESSI/CVMFS is FUSE + autofs + a userspace repo list
+  (=linux-rg-pa8l=), not a new kernel module.
+- BTF/pahole is the BPF type blob for packaged kernels, not the seat
+  ABI.
+
+* Related
+
+- GrokOS process manager: goal cgroup leaves + =PR_SET_PDEATHSIG=
+- GrokOS jail: =GROKOS_JAIL= bubblewrap plan
+- Profile index: =docs/profiles.org=

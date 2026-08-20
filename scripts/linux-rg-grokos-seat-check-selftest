@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Selftest for linux-rg-grokos-seat-check.
+set -euo pipefail
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+check=$repo/scripts/linux-rg-grokos-seat-check
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+"$check" || fail "overlays must pass"
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+printf 'CONFIG_PSI=y\n' >"$tmp"
+"$check" "$tmp" && fail "sparse config must fail" || true
+echo ok

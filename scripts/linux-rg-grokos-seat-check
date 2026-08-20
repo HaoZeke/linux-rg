@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Check a kernel .config or profile overlay for GrokOS seat knobs.
+# Usage: linux-rg-grokos-seat-check [file ...]
+# Default: the three profile overlays in this repo.
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if (($# == 0)); then
+  set -- "$repo/rgx1gen11.config" "$repo/rgam5terra.config" "$repo/rgSURFLat.config"
+fi
+
+need=(
+  CONFIG_PSI=y
+  CONFIG_CGROUPS=y
+  CONFIG_MEMCG=y
+  CONFIG_CGROUP_FREEZER=y
+  CONFIG_CGROUP_PIDS=y
+  CONFIG_CGROUP_BPF=y
+  CONFIG_CGROUP_FAVOR_DYNMODS=y
+  CONFIG_NAMESPACES=y
+  CONFIG_USER_NS=y
+  CONFIG_PID_NS=y
+  CONFIG_NET_NS=y
+  CONFIG_UTS_NS=y
+  CONFIG_IPC_NS=y
+  CONFIG_MEMFD_CREATE=y
+  CONFIG_SECURITY_LANDLOCK=y
+  CONFIG_CHECKPOINT_RESTORE=y
+  CONFIG_UNIX=y
+  CONFIG_TMPFS=y
+  CONFIG_SCHED_CLASS_EXT=y
+)
+
+fail=0
+for cfg in "$@"; do
+  if [[ ! -f $cfg ]]; then
+    printf 'FAIL: missing %s\n' "$cfg" >&2
+    fail=1
+    continue
+  fi
+  for key in "${need[@]}"; do
+    if ! grep -Fqx -- "$key" "$cfg"; then
+      printf 'FAIL: %s missing %s\n' "$cfg" "$key" >&2
+      fail=1
+    fi
+  done
+  if grep -Fqx '# CONFIG_PSI_DEFAULT_DISABLED is not set' "$cfg" \
+    || grep -Fqx 'CONFIG_PSI_DEFAULT_DISABLED=n' "$cfg"; then
+    :
+  else
+    # overlays pin PSI on and leave the disable switch unset
+    if ! grep -q 'PSI_DEFAULT_DISABLED' "$cfg"; then
+      printf 'FAIL: %s missing PSI_DEFAULT_DISABLED unset pin\n' "$cfg" >&2
+      fail=1
+    fi
+  fi
+done
+
+if ((fail)); then
+  exit 1
+fi
+printf 'ok: %s file(s)\n' "$#"
