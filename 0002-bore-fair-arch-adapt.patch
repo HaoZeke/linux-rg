@@ -35,3 +35,46 @@ diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
  __read_mostly unsigned int sysctl_sched_migration_cost	= 500000UL;
  
  static int __init setup_sched_thermal_decay_shift(char *str)
+diff --git a/kernel/fork.c b/kernel/fork.c
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -2514,6 +2514,10 @@
+ 			if (clone_flags & CLONE_AUTOREAP)
+ 				p->signal->autoreap = 1;
++#ifdef CONFIG_SCHED_BORE
++			list_add_tail_rcu(&p->sibling, &p->real_parent->children);
++#else /* !CONFIG_SCHED_BORE */
+ 			list_add_tail(&p->sibling, &p->real_parent->children);
++#endif /* CONFIG_SCHED_BORE */
+ 			list_add_tail_rcu(&p->tasks, &init_task.tasks);
+ 			attach_pid(p, PIDTYPE_TGID);
+ 			attach_pid(p, PIDTYPE_PGID);
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -7793,6 +7793,6 @@ requeue_delayed_entity(struct sched_entity *se, int flags)
+ 		if (se != cfs_rq->curr)
+ 			__dequeue_entity(cfs_rq, se);
+-		place_entity(cfs_rq, se, 0);
++		place_entity(cfs_rq, se, flags);
+ 		if (se != cfs_rq->curr)
+ 			__enqueue_entity(cfs_rq, se);
+ 		cfs_rq->nr_queued++;
+@@ -8050,7 +8050,17 @@ static bool dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
+ 	if (!p->se.sched_delayed)
+ 		util_est_dequeue(&rq->cfs, p);
+ 
++#ifdef CONFIG_SCHED_BORE
++	if ((flags & DEQUEUE_SLEEP) && entity_is_task(&p->se)) {
++		struct cfs_rq *cfs_rq = cfs_rq_of(&p->se);
++
++		if (cfs_rq->curr == &p->se)
++			update_curr(cfs_rq);
++		restart_burst_bore(p);
++	}
++#endif /* CONFIG_SCHED_BORE */
++
+ 	if (dequeue_entities(rq, &p->se, flags) < 0)
+ 		return false;
+ 
+ 	/*

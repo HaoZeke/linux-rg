@@ -271,7 +271,7 @@ After installing `linux-rg` and `linux-rg-headers`, apply the overlays and
 rebuild the modules for the installed kernel:
 
 ```sh
-sudo RG_DKMS_JOBS=9 rgx1gen11-dkms-overlay-apply 7.0.13-arch1-1-rg
+sudo RG_DKMS_JOBS=9 rgx1gen11-dkms-overlay-apply 7.1.8-arch1-1-rg
 ```
 
 The helper backs up the DKMS sources under

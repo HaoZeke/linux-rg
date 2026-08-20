@@ -34,10 +34,11 @@ loads expert BPF schedulers via tools/asa-router.
  /********************************************************************************
   * Sysfs interface and ops enable/disable.
   */
-@@ -7545,6 +7549,14 @@ static int __init scx_init(void)
+@@ -9999,7 +10003,15 @@ static int __init scx_init(void)
+ 		pr_err("sched_ext: Failed to add global attributes\n");
  		return ret;
  	}
- 
++
 +#ifdef CONFIG_SCHED_ASA
 +	ret = asa_init(scx_kset);
 +	if (ret) {
@@ -45,10 +46,9 @@ loads expert BPF schedulers via tools/asa-router.
 +		return ret;
 +	}
 +#endif
-+
- 	if (!alloc_cpumask_var(&scx_bypass_lb_donee_cpumask, GFP_KERNEL) ||
- 	    !alloc_cpumask_var(&scx_bypass_lb_resched_cpumask, GFP_KERNEL)) {
- 		pr_err("sched_ext: Failed to allocate cpumasks\n");
+ 
+ 	return 0;
+ }
 
 --- a/kernel/Kconfig.preempt
 +++ b/kernel/Kconfig.preempt
