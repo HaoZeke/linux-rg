@@ -3,8 +3,8 @@
 #SBATCH --partition=cpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=32
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=28
+#SBATCH --mem=32G
 #SBATCH --time=04:00:00
 
 set -euo pipefail
