@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# Refresh 0003/0018/0020/0021 from a fully-fixed 7.1.8 work tree.
+# Mid-series = 7.1.8+arch + carry except 0003/0004/0010/0012/0018/0019/0020/0021.
+# 0019 folds into 0018. 0004 stays as a no-op fallback when 0003 applies clean.
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+work=${1:-}
+clean=${2:-}
+if [[ -z $work || -z $clean || ! -d $work || ! -d $clean ]]; then
+  printf 'usage: %s WORK_TREE CLEAN_TREE\n' "$0" >&2
+  exit 2
+fi
+
+to_git_patch() {
+  local dest=$1 subject=$2
+  python3 - "$dest" "$subject" <<'PY'
+import sys
+from pathlib import Path
+dest = Path(sys.argv[1])
+subject = sys.argv[2]
+raw = dest.read_text()
+# raw is a unified diff of pairs produced below
+out = [
+    "From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001\n",
+    "From: linux-rg <linux-rg@local>\n",
+    "Date: Wed, 19 Aug 2026 00:00:00 +0000\n",
+    f"Subject: [PATCH] {subject}\n",
+    "\n",
+    "---\n",
+]
+for line in raw.splitlines(True):
+    if line.startswith("diff -Naur "):
+        parts = line.split()
+        left, right = parts[-2], parts[-1]
+        def rel(p: str) -> str:
+            for marker in (
+                "/linux-7.1.8-mid/",
+                "/linux-7.1.8-clean/",
+                "/linux-7.1.8/",
+            ):
+                if marker in p:
+                    return p.split(marker, 1)[1]
+            # fallback: strip first two path components after tmp
+            return "/".join(p.strip().split("/")[-3:])
+        a, b = rel(left), rel(right)
+        out.append(f"diff --git a/{a} b/{b}\n")
+        continue
+    if line.startswith("--- "):
+        p = line[4:].rstrip("\n")
+        if p != "/dev/null":
+            for marker in ("/linux-7.1.8-mid/", "/linux-7.1.8-clean/", "/linux-7.1.8/"):
+                if marker in p:
+                    p = p.split(marker, 1)[1]
+                    break
+            line = f"--- a/{p}\n"
+    elif line.startswith("+++ "):
+        p = line[4:].rstrip("\n")
+        if p != "/dev/null":
+            for marker in ("/linux-7.1.8-mid/", "/linux-7.1.8-clean/", "/linux-7.1.8/"):
+                if marker in p:
+                    p = p.split(marker, 1)[1]
+                    break
+            line = f"+++ b/{p}\n"
+    out.append(line)
+dest.write_text("".join(out))
+print(f"wrote {dest} ({dest.stat().st_size} bytes)")
+PY
+}
+
+emit_pairs() {
+  local dest=$1 subject=$2
+  shift 2
+  : >"$dest"
+  local left right
+  while (($# >= 2)); do
+    left=$1
+    right=$2
+    shift 2
+    if [[ ! -f $left && ! -f $right ]]; then
+      continue
+    fi
+    diff -Naur "$left" "$right" >>"$dest" || true
+  done
+  if ! grep -q '^--- ' "$dest"; then
+    printf 'empty patch: %s\n' "$dest" >&2
+    rm -f "$dest"
+    return 1
+  fi
+  to_git_patch "$dest" "$subject"
+}
+
+# BBR: full 7.1 carry vs clean Arch tree (0003 applies in one shot).
+emit_pairs "$repo/0003-bbr3-cachy.patch" "bbr3 for linux 7.1.8" \
+  "$clean/include/linux/tcp.h" "$work/include/linux/tcp.h" \
+  "$clean/include/net/tcp.h" "$work/include/net/tcp.h" \
+  "$clean/include/net/tcp_ecn.h" "$work/include/net/tcp_ecn.h" \
+  "$clean/net/ipv4/tcp_bbr.c" "$work/net/ipv4/tcp_bbr.c" \
+  "$clean/net/ipv4/tcp_input.c" "$work/net/ipv4/tcp_input.c" \
+  "$clean/net/ipv4/tcp_output.c" "$work/net/ipv4/tcp_output.c" \
+  "$clean/net/ipv4/tcp_rate.c" "$work/net/ipv4/tcp_rate.c"
+
+# 0018/0020/0021 vs mid-series (no those patches).
+mid=${3:-}
+if [[ -z $mid || ! -d $mid ]]; then
+  printf 'mid tree omitted; only refreshed 0003\n'
+  exit 0
+fi
+
+emit_pairs "$repo/0018-cachy-mm-ratios.patch" "mm ratios and mglru 7.1 adapt" \
+  "$mid/Documentation/admin-guide/sysctl/vm.rst" "$work/Documentation/admin-guide/sysctl/vm.rst" \
+  "$mid/mm/Kconfig" "$work/mm/Kconfig" \
+  "$mid/mm/vmscan.c" "$work/mm/vmscan.c"
+
+emit_pairs "$repo/0020-cache-aware-sched.patch" "cache-aware sched for linux 7.1.8" \
+  "$mid/include/linux/cacheinfo.h" "$work/include/linux/cacheinfo.h" \
+  "$mid/include/linux/mm_types.h" "$work/include/linux/mm_types.h" \
+  "$mid/include/linux/sched.h" "$work/include/linux/sched.h" \
+  "$mid/include/linux/sched/topology.h" "$work/include/linux/sched/topology.h" \
+  "$mid/init/Kconfig" "$work/init/Kconfig" \
+  "$mid/init/init_task.c" "$work/init/init_task.c" \
+  "$mid/kernel/fork.c" "$work/kernel/fork.c" \
+  "$mid/kernel/sched/core.c" "$work/kernel/sched/core.c" \
+  "$mid/kernel/sched/debug.c" "$work/kernel/sched/debug.c" \
+  "$mid/kernel/sched/fair.c" "$work/kernel/sched/fair.c" \
+  "$mid/kernel/sched/sched.h" "$work/kernel/sched/sched.h" \
+  "$mid/kernel/sched/topology.c" "$work/kernel/sched/topology.c"
+
+emit_pairs "$repo/0021-mm-bulk-free-hotpaths.patch" "mm bulk free hotpaths for linux 7.1.8" \
+  "$mid/include/linux/gfp.h" "$work/include/linux/gfp.h" \
+  "$mid/mm/page_alloc.c" "$work/mm/page_alloc.c" \
+  "$mid/mm/vmalloc.c" "$work/mm/vmalloc.c"

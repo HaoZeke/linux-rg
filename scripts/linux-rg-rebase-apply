@@ -18,6 +18,8 @@ skipped=0
 skip_src() {
   case "$1" in
     0002-bore-fair-arch-adapt.patch|0004-bbr3-arch7-adapt.patch) return 0 ;;
+    0010-cachy-hotpath-inline.patch|0012-sched-ext-smt-idle.patch) return 0 ;;
+    0017-bbr3-tcp-prototype.patch|0019-mglru-devtree-adapt.patch) return 0 ;;
     ddcci-0.4.5-linux-7.0.patch|rtl88xxau-r1314-linux-7.0.patch|evdi-1.14.7-linux-7.0.patch) return 0 ;;
     0022-amd-znver5-rdseed.patch|0029-udmabuf-sg-table-from-pages.patch) return 0 ;;
     *) return 1 ;;
@@ -29,21 +31,22 @@ apply_one() {
   local rc=0
   echo "Applying $src..."
   if [[ $src == 0001-bore-cachy.patch ]]; then
-    if ! patch -Np1 --batch --forward --fuzz=0 < "$repo/$src"; then
+    if ! patch -Np1 --batch --forward < "$repo/$src"; then
       if [[ -s kernel/sched/fair.c.rej ]] && grep -q 'sysctl_sched_tunable_scaling' kernel/sched/fair.c.rej; then
         echo "Applying Arch fair.c adaptation for BORE..."
-        patch -Np1 --batch --forward --fuzz=0 < "$repo/0002-bore-fair-arch-adapt.patch" || rc=$?
+        patch -Np1 --batch --forward < "$repo/0002-bore-fair-arch-adapt.patch" || rc=$?
+        rm -f kernel/sched/fair.c.rej kernel/fork.c.rej
       else
         rc=1
       fi
     fi
   elif [[ $src == 0003-bbr3-cachy.patch ]]; then
-    if ! patch -Np1 --batch --forward --fuzz=0 < "$repo/$src"; then
+    if ! patch -Np1 --batch --forward < "$repo/$src"; then
       echo "Applying Arch TCP adaptation for BBRv3..."
-      patch -Np1 --batch --forward --fuzz=0 < "$repo/0004-bbr3-arch7-adapt.patch" || rc=$?
+      patch -Np1 --batch --forward < "$repo/0004-bbr3-arch7-adapt.patch" || rc=$?
     fi
   else
-    patch -Np1 --batch --forward --fuzz=0 < "$repo/$src" || rc=$?
+    patch -Np1 --batch --forward < "$repo/$src" || rc=$?
   fi
   if (( rc == 0 )); then
     applied=$((applied + 1))
