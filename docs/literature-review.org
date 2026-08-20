@@ -144,6 +144,8 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/1736020.1736036 | Shared-resource contention (Zhuravlev et al., ASPLOS 2010) | Opposite of clustering; keep as A/B |
 | 10.1145/3502181.3531464 | Holmes (Pi et al., HPDC 2022) | SMT sibling contention; userspace place |
 | 10.1145/3297858.3304005 | PARTIES (Chen et al., ASPLOS 2019) | Multi-LC partition; userspace |
+| 10.1145/2541940.2541941 | Quasar (Delimitrou and Kozyrakis, ASPLOS 2014) | Cluster admit; no node knobs |
+| 10.1145/2155620.2155650 | Bubble-Up (Mars et al., MICRO 2011) | Offline colocation; no runtime partition |
 | 10.1109/TC.2022.3187351 | OS noise (Bristot de Oliveira et al., TC 2023) | isolcpus model; not a laptop |
 | 10.1109/RTSS62706.2024.00034 | Interference-free OS (Deng et al., RTSS 2024) | Isolation boot params leak; do not stack |
 | 10.2197/ipsjjip.31.78 | PREEMPT_RT UnixBench (Li et al., 2023) | 6% throughput hit; BE stays off RT |
@@ -641,7 +643,17 @@ MemAvailable poller, not the agent policy.
   =SCHED_CORE= (same-uid is not a hostile tenant).
 - Chen, Delimitrou, Martinez, ASPLOS 2019, *PARTIES*.
   OokCite 10.1145/3297858.3304005. Multi-LC partition on CAT/cores.
-  USERSPACE. Agents have no tail SLO for that search.
+  USERSPACE. Agents have no tail SLO for that search. Writes
+  =cpuset=, CAT, =memory.max=, and =blkio= throttle. Does *not* use
+  =cpu.weight=, =memory.high=, or iocost.
+- Delimitrou and Kozyrakis, ASPLOS 2014, *Quasar*.
+  OokCite 10.1145/2541940.2541941. Cluster classification and
+  placement. No per-node CAT, weight, or I/O controller.
+- Mars et al., MICRO 2011, *Bubble-Up*. OokCite 10.1145/2155620.2155650.
+  Offline LLC-sensitivity profiles so a cluster can pick safe
+  colocations. Characterization, not a runtime partitioner.
+  PerfIso (ATC 2018, URL only) is Windows Job Objects plus idle-core
+  reserve; reject on a mixed laptop.
 - Larsson et al., CSUR 2026. OokCite 10.1145/3774317. RDT/AMD QoSE
   map. Keep =CONFIG_X86_CPU_RESCTRL= compiled. Do not mount
   =/sys/fs/resctrl= for allocation: 1365U and 9950X have no CAT/MBA.
