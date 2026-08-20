@@ -124,7 +124,7 @@ asa.o from the Makefile, depend only on PSI+SYSFS, and register under
 
 --- a/kernel/sched/ext.c
 +++ b/kernel/sched/ext.c
-@@ -4776,10 +4776,7 @@ static void scx_cgroup_exit(struct scx_sched *sch) {}
+@@ -4773,11 +4773,9 @@ static void scx_cgroup_exit(struct scx_sched *sch) {}
  static int scx_cgroup_init(struct scx_sched *sch) { return 0; }
  #endif
  
@@ -136,7 +136,10 @@ asa.o from the Makefile, depend only on PSI+SYSFS, and register under
  
  /********************************************************************************
   * Sysfs interface and ops enable/disable.
-@@ -10010,7 +10007,7 @@ static int __init scx_init(void)
+  */
+
+@@ -10008,7 +10006,7 @@ static int __init scx_init(void)
+ 		return ret;
  	}
  
  #ifdef CONFIG_SCHED_ASA
