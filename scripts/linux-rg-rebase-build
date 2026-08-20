@@ -40,9 +40,13 @@ while IFS= read -r rg_cfg; do
     exit 1
   fi
 done < "$repo/$profile.config"
+if ! command -v pahole >/dev/null 2>&1; then
+  echo "pahole missing; disabling DEBUG_INFO_BTF"
+  scripts/config --disable DEBUG_INFO_BTF --disable DEBUG_INFO_BTF_MODULES
+fi
 make olddefconfig
 make -s kernelrelease
-nproc=$(nproc)
-echo "building $(cat include/config/kernel.release 2>/dev/null || make -s kernelrelease) with -j${nproc}"
-make -j"${nproc}" all
+jobs=${LINUX_RG_JOBS:-$(nproc)}
+echo "building $(cat include/config/kernel.release 2>/dev/null || make -s kernelrelease) with -j${jobs}"
+make -j"${jobs}" all
 echo "build ok: $(make -s kernelrelease)"

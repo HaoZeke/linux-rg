@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Login-node compile. Elja compute images have no libc headers.
+set -euo pipefail
+
+repo=${LINUX_RG_REPO:?set LINUX_RG_REPO}
+tree=${LINUX_RG_REBASE_TREE:?set LINUX_RG_REBASE_TREE}
+log=${LINUX_RG_BUILD_LOG:-$PWD/build-7.1.8.log}
+jobs=${LINUX_RG_JOBS:-20}
+
+if [[ -f /opt/ohpc/admin/lmod/lmod/init/bash ]]; then
+  set +u
+  # shellcheck disable=SC1091
+  source /opt/ohpc/admin/lmod/lmod/init/bash
+  set -u
+fi
+export MODULEPATH=${MODULEPATH:-/opt/ohpc/pub/modulefiles}
+module load gnu12
+
+if [[ ! -f /usr/include/sys/types.h ]]; then
+  echo "no libc headers on $(hostname); cannot compile" >&2
+  exit 2
+fi
+
+if ! command -v pahole >/dev/null 2>&1; then
+  echo "pahole missing; disabling DEBUG_INFO_BTF for this compile"
+fi
+
+export LINUX_RG_JOBS="$jobs"
+{
+  echo "host=$(hostname) gcc=$(gcc -dumpfullversion 2>/dev/null || gcc -dumpversion) jobs=$jobs"
+  date -Is
+  if ! command -v pahole >/dev/null 2>&1 && [[ -x $tree/scripts/config ]]; then
+    if [[ ! -f $tree/.config ]]; then
+      cp -- "$repo/config.x86_64" "$tree/.config"
+    fi
+    (cd "$tree" && scripts/config --disable DEBUG_INFO_BTF --disable DEBUG_INFO_BTF_MODULES || true)
+  fi
+  bash "$repo/scripts/linux-rg-rebase-build" "$tree" rgam5terra
+  date -Is
+} >>"$log" 2>&1
