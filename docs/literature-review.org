@@ -210,6 +210,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3524059.3532378 | ULL mixed I/O (Liu et al., ICS 2022) | Device-internal mix; no elevator fix |
 | 10.1145/3698038.3698545 | PCLive (Tripathi and Mishra, SoCC 2024) | Pipeline restore; userspace |
 | 10.1016/j.jnca.2022.103494 | iContainer (Choi and Park, 2022) | Incremental dump; SoftDirty stays |
+| 10.1145/3652597 | TDX demystified (Cheng et al., CSUR 2024) | Xeon CVM; reject on these SKUs |
+| 10.1145/3700418 | SNP vs TDX (Misono et al., SIGMETRICS 2024) | CVM tax is real; not a desktop |
+| 10.1145/3607199.3607219 | FineIBT (Gaidis et al., RAID 2023) | Keep IBT; no clang-CFI rebuild |
+| 10.1145/3433210.3453078 | LSM hook cost (Zhang et al., AsiaCCS 2021) | Do not stack SELinux/AppArmor |
+| 10.1145/3407023.3407058 | IMA subversion (Bohling et al., ARES 2020) | IMA-on without RoT is theater |
+| 10.1016/j.sysarc.2025.103598 | Safety-critical Linux (Galarraga et al., 2025) | ELISA/AGL case; not a laptop pin |
+| 10.1145/1629575.1629596 | seL4 (Klein et al., SOSP 2009) | Verified microkernel; reject replace |
+| 10.1145/1629575.1629579 | Multikernel (Baumann et al., SOSP 2009) | No shared kernel; not a CONFIG |
+| 10.1145/2628071.2628104 | COLORIS (Ye et al., PACT 2014) | Page coloring; hashed LLC breaks it |
+| 10.1109/HPCA.2016.7446082 | CATalyst (Liu et al., HPCA 2016) | CAT+color; resctrl, no color allocator |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -876,6 +886,36 @@ ring. Clark et al., NSDI 2005 (URL only) is the pre-copy ancestor.
   TIME_NS (Vagin/Safonov LPC 2018, URL only) keeps monotonic clocks
   across restore; overlays already pin it; the CRIU check now asserts
   it.
+
+** Confidential VMs, LSM, ELISA, split kernels, page coloring**
+
+- Cheng et al., CSUR 2024. OokCite 10.1145/3652597. TDX is Xeon SEAM
+  + encrypted TD memory. 1365U has no TDX silicon. REJECT as a seat.
+- Misono et al., SIGMETRICS 2024. OokCite 10.1145/3700418. SNP vs TDX
+  boot/I/O/attest tax on server SKUs. Terra pins SME, not EPYC SNP.
+- Gaidis et al., RAID 2023, *FineIBT*. OokCite 10.1145/3607199.3607219.
+  CET IBT CFI. Keep =CONFIG_X86_KERNEL_IBT= (Arch already). Do not
+  rebuild the gcc package as clang FineIBT.
+- Zhang, Liu, Jaeger, AsiaCCS 2021. OokCite 10.1145/3433210.3453078.
+  LSM stack order has large file-syscall cost. Keep the short stack
+  (landlock, lockdown, yama, integrity, bpf). Do not boot SELinux or
+  AppArmor on these profiles.
+- Bohling et al., ARES 2020. OokCite 10.1145/3407023.3407058. IMA
+  appraisal without a storage root of trust is theater. Leave IMA off;
+  fs-verity stays the per-file integrity path.
+- Galarraga et al., JSA 2025. OokCite 10.1016/j.sysarc.2025.103598.
+  ELISA / AGL / SIL2LinuxMP map. Certification workflow, not a laptop
+  overlay. PREEMPT_RT stays off.
+- Klein et al., SOSP 2009, seL4. OokCite 10.1145/1629575.1629596.
+  Verified capability kernel. Replacing Linux drops the seat surface.
+- Baumann et al., SOSP 2009, Barrelfish. OokCite 10.1145/1629575.1629579.
+  Multikernel. Dual-CCD placement is 0020 + cpuset, not a new CONFIG.
+- Ye, West, Cheng, Li, PACT 2014, *COLORIS*. OokCite 10.1145/2628071.2628104.
+  Dynamic page coloring. Raptor Lake / Zen 5 LLCs are hashed; recolor
+  fights THP. REJECT a color allocator.
+- Liu et al., HPCA 2016, *CATalyst*. OokCite 10.1109/HPCA.2016.7446082.
+  CAT plus coloring against Prime+Probe. Isolation primitive is
+  =resctrl=, already compiled. These SKUs still have no CAT.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
