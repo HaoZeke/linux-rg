@@ -3,21 +3,27 @@
 
 * What GrokOS is (kernel view)
 
-GrokOS is a same-uid session plane: =sessiond= is a Cap'n server on an
-=AF_UNIX= socket, =grokos-shell= is the seat, agents are Cap'n clients.
-Instant work never waits on a model. Supervised goals are admitted from
-host PSI, spawned as isolated processes, and torn down with
-=cgroup.kill= plus a process-group fallback.
+GrokOS is a same-uid two-party vat: =sessiond= exports =Seat=,
+=grokos-agent= exports =Agent=, =grokos-shell= exports =Shell=. The
+board door is =Seat.spawnAgent= / =Seat.cancelAgent= (schema !20, meta
+!68). Cap'n =Goal= / =CancelGoal= and the =grokos-goal= crate are
+deleted. Identity is a 32-hex =Util.AgentId=, not a cgroup directory
+name.
+
+=cancelAgent= (session !110, meta #104) kills the recorded pid/pgid
+and each live child and confirms only when that tree is gone. The
+live path is process-group =SIGKILL= (=kill_process_tree(pgid, None)=);
+a leftover systemd user scope stop is optional and not a kernel ABI.
 
 The kernel does not grow a GrokOS syscall. It has to keep the knobs that
 plane already uses.
 
 | Seat need | Kernel surface |
 |-----------|----------------|
-| Goal admit / defer | =/proc/pressure/{cpu,memory,io}= (=CONFIG_PSI=) |
+| Spawn admit / defer | =/proc/pressure/{cpu,memory,io}= (=CONFIG_PSI=) |
 | Hardware pressure | =/sys/class/{power_supply,thermal,drm,input}= |
-| Goal leaf stop | cgroup v2 =cgroup.kill= on the job leaf |
-| Frequent leaf create/destroy | =CONFIG_CGROUP_FAVOR_DYNMODS= |
+| =cancelAgent= tree stop | =kill(pid/pgid, SIGKILL)=; =CONFIG_PROC_CHILDREN= |
+| Frequent agent create/destroy | =CONFIG_CGROUP_FAVOR_DYNMODS= |
 | Jail (=bwrap --unshare-user/pid/uts/ipc/cgroup=, optional net) | user/pid/uts/ipc/cgroup/net namespaces + tmpfs |
 | Session event ring | =memfd_create= |
 | Same-uid ACL | =SO_PEERCRED= on =CONFIG_UNIX= |
@@ -96,8 +102,9 @@ aggregates.
 * Workflow tune
 
 Kconfig on/off is the surface. The seat still needs runtime policy for
-the workflows that actually run: instant Cap'n, PSI-admitted goals in
-bwrap leaves, optional CRIU dump of an agent tree.
+the workflows that actually run: vat =Seat=/=Agent=/=Shell=,
+PSI-gated =spawnAgent=, =cancelAgent= process-tree stop, optional
+CRIU dump of an agent tree.
 
 | Layer | What it owns |
 |-------|----------------|
@@ -126,6 +133,6 @@ wins on any overlapping key.
 
 * Related
 
-- GrokOS process manager: goal cgroup leaves + =PR_SET_PDEATHSIG=
+- GrokOS process manager: pid/pgid tree + =PR_SET_PDEATHSIG=
 - GrokOS jail: =GROKOS_JAIL= bubblewrap plan
 - Profile index: =docs/profiles.org=
