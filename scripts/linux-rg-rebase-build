@@ -47,6 +47,10 @@ if ! grep -q '^CONFIG_SCHED_ASA=y' .config; then
   printf 'CONFIG_SCHED_ASA dropped after olddefconfig\n' >&2
   exit 2
 fi
+# SCHED_CLASS_EXT depends on DEBUG_INFO_BTF. Farm builds turn BTF off, so
+# EXT is n and scx_* cannot load. ASA still compiles and recommends.
+ext=$(grep -E '^CONFIG_SCHED_CLASS_EXT=|# CONFIG_SCHED_CLASS_EXT is not set' .config || true)
+printf 'farm kconfig: CONFIG_SCHED_ASA=y %s\n' "${ext:-SCHED_CLASS_EXT missing}"
 make -s kernelrelease
 jobs=${LINUX_RG_JOBS:-$(nproc)}
 echo "building $(cat include/config/kernel.release 2>/dev/null || make -s kernelrelease) with -j${jobs}"
