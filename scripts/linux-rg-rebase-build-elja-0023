@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Apply-already-done 0023 incremental compile on the Elja login node.
+set -euo pipefail
+
+export LINUX_RG_REPO=${LINUX_RG_REPO:-$HOME/tmp/linux-rg}
+export LINUX_RG_REBASE_TREE=${LINUX_RG_REBASE_TREE:-$HOME/tmp/linux-rg-rebase/linux-7.1.8}
+export LINUX_RG_BUILD_LOG=${LINUX_RG_BUILD_LOG:-$HOME/tmp/linux-rg-rebase/build-0023.log}
+export LINUX_RG_JOBS=${LINUX_RG_JOBS:-20}
+
+if [[ ! -f $LINUX_RG_REBASE_TREE/kernel/sched/asa.c ]]; then
+  echo "missing asa.c under $LINUX_RG_REBASE_TREE" >&2
+  exit 2
+fi
+if ! grep -q seat_cgroup "$LINUX_RG_REBASE_TREE/kernel/sched/asa.c"; then
+  echo "0023 not applied to $LINUX_RG_REBASE_TREE" >&2
+  exit 2
+fi
+
+exec bash "$LINUX_RG_REPO/scripts/linux-rg-rebase-build-elja-login"
