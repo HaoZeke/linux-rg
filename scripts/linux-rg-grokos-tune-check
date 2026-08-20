@@ -17,6 +17,7 @@ need=(
   'fs.inotify.max_user_watches = 524288'
   'net.unix.max_dgram_qlen = 512'
   'kernel.sched_rt_runtime_us = 950000'
+  'vm.numa_balancing = 0'
 )
 
 forbid=(
