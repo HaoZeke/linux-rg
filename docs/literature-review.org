@@ -170,6 +170,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3267809.3267845 | Unikernels as processes (Williams et al., SoCC 2018) | Tight seccomp, not a unikernel |
 | 10.1145/3190508.3190539 | seL4 MCS (Lyons et al., EuroSys 2018) | Time as capability; cpu.max analog |
 | 10.1145/3600006.3613136 | Concord (Iyer et al., SOSP 2023) | Approximate SRPT in userspace |
+| 10.1109/IISWC55918.2022.00024 | AutoNUMA on graphs (Moura et al., IISWC 2022) | Page-scan tiering weak; leave balancing off |
+| 10.1145/3600006.3613167 | MEMTIS (Lee et al., SOSP 2023) | Needs a slow tier; reject here |
+| 10.1145/3694715.3695968 | Colloid (Vuppalapati and Agarwal, SOSP 2024) | Equalize loaded latency; one DRAM domain |
+| 10.1145/3613424.3614256 | Real CXL vs NUMA emu (Sun et al., MICRO 2023) | Do not fake CXL with DIMMs |
+| 10.1109/MM.2012.12 | RAPL architecture (Rotem et al., IEEE Micro 2012) | Package powercap; userspace |
+| 10.1145/2872362.2872375 | PUPiL (Zhang and Hoffmann, ASPLOS 2016) | Cap plus software policy, not RAPL alone |
+| 10.1109/Cluster48925.2021.00087 | Zen 2 energy (Schöne et al., CLUSTER 2021) | AMD RAPL weaker; PPT/SMU first |
+| 10.1145/3629526.3645040 | Alder Lake energy (Schöne et al., ICPE 2024) | Laptop EPP/HWP; not Zen 5 |
+| 10.1145/3757918 | Ember (Park et al., TECS 2025) | Writes uclamp; already pinned |
+| 10.1145/3300061.3345449 | WebTune (Choi et al., MobiCom 2019) | EAS over-provisions; userspace clamp |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -684,6 +694,42 @@ conference forms. Journal/ACM follow-ons:
 gVisor/Kata/Firecracker isolation stays userspace or reject as a host
 kernel (VEE 2020 already interned). Same-uid trusted agents stay
 bwrap + Landlock + cgroup, not a per-agent guest.
+
+** NUMA, CXL, RAPL, hybrid energy**
+
+TPP, HeMem, Pond, Fastswap, and Nimble are already interned (reject
+without a second memory device). Follow-ons:
+
+- Moura, Petrucci, Mosse, IISWC 2022. OokCite 10.1109/IISWC55918.2022.00024.
+  AutoNUMA page-scan is weak when pages are touched once. Leave
+  =numa_balancing= off on the 1365U (one node) and on 9950X NPS1
+  (one memory controller; CCDs are L3, not NUMA).
+- Lee, Monga, Min, Eom, SOSP 2023, *MEMTIS*. OokCite 10.1145/3600006.3613167.
+  Best Linux-side tiering comparison. Needs a slow node. REJECT here.
+- Vuppalapati and Agarwal, SOSP 2024. OokCite 10.1145/3694715.3695968.
+  Equalize *loaded* latency across tiers. One DRAM domain; CCD hop is
+  =SCHED_CACHE=, not a memory balancer.
+- Sun et al., MICRO 2023. OokCite 10.1145/3613424.3614256. Real Type-3
+  CXL is not remote-NUMA emulation. Do not fake CXL with AM5 DIMMs.
+  Terra has no CXL root port; keep =CONFIG_CXL_*= off.
+- Rotem et al., IEEE Micro 2012. OokCite 10.1109/MM.2012.12. RAPL is
+  the PCU package limiter. USERSPACE powercap.
+- Zhang and Hoffmann, ASPLOS 2016, *PUPiL*. OokCite 10.1145/2872362.2872375.
+  RAPL-only caps are competent and not optimal. Pair a watt budget with
+  EPP/core policy. Not a kernel patch.
+- Schöne et al., CLUSTER 2021. OokCite 10.1109/Cluster48925.2021.00087.
+  Zen 2 RAPL is weaker than Intel; IOD P-states move memory bandwidth
+  independently of core EPP. Terra: PPT/SMU first, do not treat AMD
+  RAPL as a wattmeter.
+- Schöne et al., ICPE 2024. OokCite 10.1145/3629526.3645040. Alder
+  Lake / Raptor Lake-P hybrid energy. Laptop EPP/HWP only. REJECT
+  for Zen 5.
+- Park, Kim, Lee, Cha, TECS 2025, *Ember*. OokCite 10.1145/3757918.
+  Writes =cpu.uclamp.*= from wakeup sequences. USERSPACE; kconfig
+  already pinned.
+- Choi, Park, Cha, MobiCom 2019. OokCite 10.1145/3300061.3345449.
+  Stock EAS over-provisions the browser. Same userspace clamp path.
+  Do not carry Android SchedTune.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
