@@ -232,6 +232,12 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1109/CCWC.2018.8301733 | Full dynticks (Aljuhni et al., 2018) | NO_HZ_FULL unused; reject boot |
 | 10.1109/ECRTS.2012.20 | IRQ servers (Elliott and Anderson, 2012) | Against naive IRQ-thread priority |
 | 10.1145/3386367.3432730 | Metronome (Faltelli et al., CoNEXT 2020) | 50 us slack is prctl, not a patch |
+| 10.1145/1950365.1950399 | Drawbridge (Porter et al., ASPLOS 2011) | Windows LibOS; reject host replace |
+| 10.1145/2799647 | Haven (Baumann et al., TOCS 2015) | Drawbridge in SGX; no TEE here |
+| 10.1145/2592798.2592812 | Graphene (Tsai et al., EuroSys 2014) | POSIX LibOS; drops PSI/CRIU |
+| 10.1145/3373376.3378469 | Occlum (Shen et al., ASPLOS 2020) | In-enclave SFI; not a kconfig |
+| 10.1145/3064176.3064219 | Eleos (Orenbach et al., EuroSys 2017) | Exit-less SGX; no EPC on these SKUs |
+| 10.48550/arxiv.1908.11143 | SGX-LKL (Priebe et al., 2019) | LKL in enclave; reject |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -976,6 +982,28 @@ ring. Clark et al., NSDI 2005 (URL only) is the pre-copy ancestor.
   =NO_HZ_FULL= only helps a CPU with at most one runnable task.
   Mixed seats share the fair pool. Compile it unused (Arch); do not
   boot =nohz_full=.
+
+** Library OS / SGX (Gramine, SCONE, Occlum, Haven)**
+
+None of these seats expose client SGX. Gramine/SCONE/Occlum/Haven are
+enclave LibOSes; the non-SGX Graphene/Drawbridge forms still swallow
+fork/exec/IPC and drop the PSI/cgroup/CRIU seat.
+
+- Porter et al., ASPLOS 2011, Drawbridge. OokCite 10.1145/1950365.1950399.
+  Windows library OS in a picoprocess. REJECT: replaces the host.
+- Baumann, Peinado, Hunt, TOCS 2015, *Haven*. OokCite 10.1145/2799647.
+  Drawbridge inside SGX. No TEE silicon here.
+- Tsai et al., EuroSys 2014, Graphene. OokCite 10.1145/2592798.2592812.
+  POSIX LibOS without SGX. Still a research personality, not a pin.
+  Graphene-SGX (ATC 2017, URL only) and SCONE (OSDI 2016, URL only)
+  are the enclave ports. Same reject.
+- Shen et al., ASPLOS 2020, *Occlum*. OokCite 10.1145/3373376.3378469.
+  Many processes as SFI inside one enclave. Second userspace kernel.
+- Orenbach et al., EuroSys 2017, *Eleos*. OokCite 10.1145/3064176.3064219.
+  Exit-less syscalls to hide EENTER/EEXIT. Assumes EPC.
+- Priebe et al., 2019, SGX-LKL. OokCite 10.48550/arxiv.1908.11143.
+  Linux Kernel Library in the enclave. Opposite of pinning the host
+  seat surface.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
