@@ -65,6 +65,12 @@ grep -q 'CONFIG_PROC_CHILDREN=y' scripts/linux-rg-grokos-seat-check || fail "sea
 grep -q 'cancelAgent' docs/grokos-kernel.org || fail "grokos-kernel.org missing cancelAgent"
 grep -q 'farm kconfig:' scripts/linux-rg-rebase-build || fail "rebase-build missing EXT farm print"
 grep -q 'CONFIG_SCHED_CLASS_EXT=y' rgx1gen11.config rgam5terra.config rgSURFLat.config || fail "overlay missing SCHED_CLASS_EXT"
+grep -q 'CONFIG_BLK_CGROUP_IOPRIO=y' scripts/linux-rg-grokos-seat-check || fail "seat-check missing IOPRIO"
+grep -q 'CONFIG_BLK_CGROUP_IOCOST=y' scripts/linux-rg-grokos-seat-check || fail "seat-check missing IOCOST"
+grep -q 'CONFIG_PREEMPT_DYNAMIC=y' scripts/linux-rg-grokos-seat-check || fail "seat-check missing PREEMPT_DYNAMIC"
+grep -q 'io.prio.class' docs/grokos-kernel.org || fail "grokos-kernel.org missing I/O niceness"
+grep -q 'PREEMPT_RT=y' rgx1gen11.config rgam5terra.config rgSURFLat.config && fail "overlay enabled PREEMPT_RT" || true
+grep -q 'CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y' rgx1gen11.config rgam5terra.config rgSURFLat.config && fail "overlay defaults ADIOS" || true
 grep -q 'seat_cgroup' 0023-asa-workqueue-seat.patch || fail "0023 missing seat_cgroup"
 grep -q 'delayed_work' 0023-asa-workqueue-seat.patch || fail "0023 missing delayed_work"
 grep -q 'cancel_delayed_work_sync' 0023-asa-workqueue-seat.patch || fail "0023 missing disable cancel"

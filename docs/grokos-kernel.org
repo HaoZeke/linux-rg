@@ -29,6 +29,8 @@ plane already uses.
 | Same-uid ACL | =SO_PEERCRED= on =CONFIG_UNIX= |
 | Later FS sandbox | Landlock LSM |
 | Expert scheduler switch | =CONFIG_SCHED_CLASS_EXT= + ASA (=seat_cgroup= PSI) |
+| I/O niceness | =io.prio.class= / =io.weight= / =io.latency= (=BLK_CGROUP_IOPRIO=, =IOCOST=, =IOLATENCY=); BFQ group + Kyber available; ADIOS module only |
+| Preempt / util clamp | =PREEMPT_DYNAMIC=, =UCLAMP_TASK_GROUP=; =RT_GROUP_SCHED= off so PipeWire RT is not cgroup-gated |
 | IRQ-subtracted CPU time | =CONFIG_IRQ_TIME_ACCOUNTING= |
 | Optional warm process restore | CRIU (=CONFIG_CHECKPOINT_RESTORE= plus sock-diag / uffd / soft-dirty) |
 

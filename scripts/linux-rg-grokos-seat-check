@@ -31,6 +31,14 @@ need=(
   CONFIG_UNIX=y
   CONFIG_TMPFS=y
   CONFIG_SCHED_CLASS_EXT=y
+  CONFIG_BLK_CGROUP_IOPRIO=y
+  CONFIG_BLK_CGROUP_IOCOST=y
+  CONFIG_BLK_CGROUP_IOLATENCY=y
+  CONFIG_MQ_IOSCHED_KYBER=y
+  CONFIG_PREEMPT=y
+  CONFIG_PREEMPT_DYNAMIC=y
+  CONFIG_UCLAMP_TASK=y
+  CONFIG_UCLAMP_TASK_GROUP=y
 )
 
 fail=0
@@ -55,6 +63,21 @@ for cfg in "$@"; do
       printf 'FAIL: %s missing PSI_DEFAULT_DISABLED unset pin\n' "$cfg" >&2
       fail=1
     fi
+  fi
+  if grep -Fqx '# CONFIG_RT_GROUP_SCHED is not set' "$cfg" \
+    || grep -Fqx 'CONFIG_RT_GROUP_SCHED=n' "$cfg"; then
+    :
+  else
+    printf 'FAIL: %s missing RT_GROUP_SCHED unset pin\n' "$cfg" >&2
+    fail=1
+  fi
+  if grep -Fqx 'CONFIG_PREEMPT_RT=y' "$cfg"; then
+    printf 'FAIL: %s must not enable PREEMPT_RT\n' "$cfg" >&2
+    fail=1
+  fi
+  if grep -Fqx 'CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y' "$cfg"; then
+    printf 'FAIL: %s must not default ADIOS\n' "$cfg" >&2
+    fail=1
   fi
 done
 
