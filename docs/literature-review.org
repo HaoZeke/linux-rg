@@ -190,6 +190,16 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 | 10.1145/3068281 | GPU virt/sched survey (Hong et al., CSUR 2017) | Layers are not interchangeable knobs |
 | 10.1145/3650200.3656608 | SVM/HMM (Cooper et al., ICS 2024) | Keep HMM; no oversub prefetch patch |
 | 10.4230/LIPIcs.ECRTS.2018.20 | NVIDIA GPU pitfalls (Yang et al., ECRTS 2018) | Non-preemptive; userspace isolation |
+| 10.1145/3492321.3519585 | Nest (Lawall et al., EuroSys 2022) | Warm-core reuse; TEO/0020, not Nest C |
+| 10.1145/2482767.2482784 | Harmony (Meehean et al., CF 2013) | BFS vs CFS load-balance; no BFS carry |
+| 10.1109/RTCSA.2009.26 | Three schedulers (Wang et al., RTCSA 2009) | CFS fairest; no RSDL/BFS estimator |
+| 10.1109/ITSIM.2008.4631872 | O(1) vs CFS (Wong et al., 2008) | No sleep-avg bonus restore |
+| 10.1109/RTSS.2006.27 | LITMUS-RT (Calandrino et al., RTSS 2006) | Research plugin API; reject |
+| 10.1109/ACCESS.2020.3029858 | Xenomai vs PREEMPT_RT (Delgado and Choi, 2020) | Isolated-core WCET; not daily driver |
+| 10.1145/3502181.3531466 | DAOS (Park et al., HPDC 2022) | DAMOS reclaim; already compiled |
+| 10.1145/3731599.3767537 | MGLRU vs 2Q (Liu and Ren, ROSS 2025) | Keep LRU_GEN; no profiler C |
+| 10.1145/3731569.3764816 | Aeolia (Li et al., SOSP 2025) | Storage stack drives scx; userspace |
+| 10.14778/3685800.3685825 | Aurora Serverless (Barnhart et al., VLDB 2024) | Production DAMON reclaim |
 
 Export: =export_collection collection=linux-rg format=bibtex= via MCP.
 
@@ -781,6 +791,45 @@ RCU nocb and threaded NAPI are LWN/LPC plus the already-interned OS-noise
 paper. Keep =CONFIG_RCU_NOCB_CPU= compilable; do not default
 =RCU_NOCB_CPU_DEFAULT_ALL= or =rcu_nocb_poll= on a mixed seat. Threaded
 NAPI stays per-NIC sysfs, off by default.
+
+** Desktop interactivity folklore, LITMUS, DAMON follow-ons**
+
+No peer-reviewed paper exists on Liquorix, MuQSS, BFS, PDS, BMQ, BORE,
+CachyOS, or zen-kernel as products. Adjacent literature:
+
+- Lawall et al., EuroSys 2022, *Nest*. OokCite 10.1145/3492321.3519585.
+  CFS spreads light desktop load onto cold cores. Warm-core reuse is
+  TEO + =migration_cost= + cache-aware 0020 + scx locality. Do not
+  carry the 5.9 Nest patch.
+- Meehean et al., Computing Frontiers 2013. OokCite 10.1145/2482767.2482784.
+  Harmony extracts BFS vs CFS load-balance. BFS is affinity-blind
+  global-queue. REJECT as a fair-class swap.
+- Wang et al., RTCSA 2009. OokCite 10.1109/RTCSA.2009.26. CFS is the
+  fairest of O(1) / RSDL / CFS. Do not weld staircase/sleep estimators
+  back into fair.c.
+- Wong et al., ITSIM 2008. OokCite 10.1109/ITSIM.2008.4631872. CFS
+  dropped the O(1) sleep-average bonus. Do not restore it.
+- Lozi et al. (already interned) is why =sched_autogroup_enabled=0=
+  stays: a fat compile group looks lighter than a one-thread job.
+- Yang et al., OSDI 2008, *Redline*. USENIX URL only. First-class
+  interactive reservations. Today's analog is cgroup weight / uclamp /
+  io.latency, not a 2008 reservation kernel.
+- Calandrino et al., RTSS 2006, LITMUS-RT. OokCite 10.1109/RTSS.2006.27.
+  Scheduler-plugin testbed. REJECT next to EEVDF+sched_ext.
+- Delgado and Choi, IEEE Access 2020. OokCite 10.1109/ACCESS.2020.3029858.
+  Xenomai vs PREEMPT_RT on isolated cores. Dedicated board, not a
+  laptop daily driver.
+- Park, Bhowmik, Uta, HPDC 2022, *DAOS*. OokCite 10.1145/3502181.3531466.
+  DAMOS reclaim/LRU-sort/migrate. Already compiled. Tune with =damo=,
+  not a new vmscan weld.
+- Liu and Ren, ROSS 2025. OokCite 10.1145/3731599.3767537. Cycle
+  breakdown of MGLRU vs 2Q. Keep =LRU_GEN_ENABLED=. Do not carry their
+  profiler.
+- Barnhart et al., VLDB 2024. OokCite 10.14778/3685800.3685825.
+  Aurora uses DAMON-based reclaim at fleet scale. Optional
+  =rg-damon-reclaim= profile, not a host default.
+- Li et al., SOSP 2025, *Aeolia*. OokCite 10.1145/3731569.3764816.
+  Userspace-interrupt NVMe stack that names an scx expert. USERSPACE.
 
 ** HPC / RT partition (REJECT on a mixed seat)**
 
