@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Apply 0027 on the already-0026 Elja tree and incremental-compile.
+set -euo pipefail
+
+export LINUX_RG_REPO=${LINUX_RG_REPO:-$HOME/tmp/linux-rg}
+export LINUX_RG_REBASE_TREE=${LINUX_RG_REBASE_TREE:-$HOME/tmp/linux-rg-rebase/linux-7.1.8}
+export LINUX_RG_BUILD_LOG=${LINUX_RG_BUILD_LOG:-$HOME/tmp/linux-rg-rebase/build-0027.log}
+export LINUX_RG_JOBS=${LINUX_RG_JOBS:-20}
+
+asa=$LINUX_RG_REBASE_TREE/kernel/sched/asa.c
+patch=$LINUX_RG_REPO/0027-asa-goal-notify-ring.patch
+
+if [[ ! -f $asa ]]; then
+  echo "missing asa.c under $LINUX_RG_REBASE_TREE" >&2
+  exit 2
+fi
+if ! grep -q asa_read_seat_sched "$asa"; then
+  echo "0026 not applied to $LINUX_RG_REBASE_TREE" >&2
+  exit 2
+fi
+if [[ ! -f $patch ]]; then
+  echo "missing $patch" >&2
+  exit 2
+fi
+
+if ! grep -q ASA_GOAL_PFX "$asa"; then
+  # Applied 0024/0026 trees may tab-pad this define; 0027 context uses a space.
+  sed -i 's/#define ASA_VOTE_SCALE[[:space:]]*10000ULL/#define ASA_VOTE_SCALE 10000ULL/' "$asa"
+  patch -Np1 -d "$LINUX_RG_REBASE_TREE" < "$patch"
+fi
+
+if ! grep -q ASA_GOAL_PFX "$asa"; then
+  echo "0027 did not land on $asa" >&2
+  exit 2
+fi
+if ! grep -q 'vote_head = (idx + 1) % window' "$asa"; then
+  echo "0027 vote wrap missing on $asa" >&2
+  exit 2
+fi
+
+exec bash "$LINUX_RG_REPO/scripts/linux-rg-rebase-build-elja-login"

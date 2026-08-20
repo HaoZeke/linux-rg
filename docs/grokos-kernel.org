@@ -77,8 +77,13 @@ Write the sessiond user slice (or =asa-router --seat-cgroup auto=).
 The kernel holds that cgroup and classifies from its descendant
 tasks' runnable count and =nvcsw= plus slice PSI, not host
 =nr_context_switches=. =perception= also prints =irq_pct=,
-=nr_iowait=, and =load1= (Wang Table 1 kernel-visible fields). =echo 0 > enabled= cancels the work without taking the sample
-lock.
+=nr_iowait=, =load1= (Wang Table 1 kernel-visible fields), and
+=goal_leaves= (populated =grokos-goal-*= descendants). A nonzero
+goal-leaf count adds MIXED and CPU mass. =recommended_scheduler=
+wakes pollers via =sysfs_notify= when the cooldown-gated copy
+commits. =vote_head= stays in =[0, window)=; writing
+=voting_window= keeps the newest samples. =echo 0 > enabled=
+cancels the work without taking the sample lock.
 
 Voting follows Wang et al. Algorithm 1: each sample class below
 =vote_threshold_pct= is zeroed, remaining mass is weighted

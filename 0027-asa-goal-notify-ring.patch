@@ -1,0 +1,224 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Thu, 20 Aug 2026 00:00:00 +0000
+Subject: [PATCH] sched/asa: count goal leaves, notify, and wrap the vote ring
+
+Count populated grokos-goal-* descendants for classify bias. Keep
+vote_head in [0, window). Copy newest vote slots on window resize.
+Notify recommended_scheduler when the gated copy commits.
+
+---
+--- a/kernel/sched/asa.c
++++ b/kernel/sched/asa.c
+@@ -15,6 +15,7 @@
+ #include <linux/sched/stat.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
++#include <linux/sysfs.h>
+ #include <linux/workqueue.h>
+ 
+ #include "sched.h"
+@@ -163,6 +164,32 @@
+ #endif
+ 
+ #define ASA_SEAT_TASK_CAP	4096
++#define ASA_GOAL_PFX		"grokos-goal-"
++#define ASA_GOAL_PFX_LEN	12
++
++static u32 asa_count_goal_leaves(struct cgroup *seat)
++{
++	struct cgroup_subsys_state *css;
++	u32 n = 0;
++	char name[64];
++
++	if (!seat)
++		return 0;
++
++	rcu_read_lock();
++	css_for_each_descendant_pre(css, &seat->self) {
++		if (css == &seat->self)
++			continue;
++		if (cgroup_name(css->cgroup, name, sizeof(name)) < 0)
++			continue;
++		if (strncmp(name, ASA_GOAL_PFX, ASA_GOAL_PFX_LEN))
++			continue;
++		if (cgroup_is_populated(css->cgroup))
++			n++;
++	}
++	rcu_read_unlock();
++	return n;
++}
+ 
+ static void asa_read_host_rq(u32 *rq_avg)
+ {
+@@ -217,7 +244,7 @@
+ 
+ static void asa_classify(u32 rq_avg, u32 csw_per_sec, u32 cpu_psi,
+ 			 u32 io_psi, u32 mem_psi, u32 irq_pct, u32 iowait,
+-			 u32 load1, u16 probs[ASA_CLASS_NR])
++			 u32 load1, u32 goal_n, u16 probs[ASA_CLASS_NR])
+ {
+ 	u32 scores[ASA_CLASS_NR] = { 0 };
+ 	u32 total = 0;
+@@ -236,6 +263,10 @@
+ 		scores[ASA_CLASS_INTERACTIVE] += 60;
+ 	scores[ASA_CLASS_MIXED] = 25 + (rq_avg / 4) + (cpu_work / 4) +
+ 		(io_psi / 4);
++	if (goal_n) {
++		scores[ASA_CLASS_MIXED] += 20;
++		scores[ASA_CLASS_CPU] += 15;
++	}
+ 
+ 	for (i = 0; i < ASA_CLASS_NR; i++)
+ 		total += scores[i];
+@@ -250,7 +281,7 @@
+ 
+ #define ASA_VOTE_SCALE 10000ULL
+ 
+-/* Newest written slot: sample stores at vote_head % window then increments. */
++/* vote_head is the next write index and stays in [0, window). */
+ static unsigned int asa_ring_idx(unsigned int head, unsigned int age,
+ 				 unsigned int window)
+ {
+@@ -337,14 +368,16 @@
+ 
+ 	strscpy(asa.recommended, new_rec);
+ 	asa.last_switch_jiffies = jiffies;
+-	if (asa_kobj)
++	if (asa_kobj) {
+ 		kobject_uevent(asa_kobj, KOBJ_CHANGE);
++		sysfs_notify(asa_kobj, NULL, "recommended_scheduler");
++	}
+ }
+ 
+ static void asa_sample(struct asa_router *r)
+ {
+ 	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi;
+-	u32 irq_pct, iowait, load1, n_tasks;
++	u32 irq_pct, iowait, load1, n_tasks, goal_n;
+ 	u16 probs[ASA_CLASS_NR];
+ 	struct asa_vote_slot *slot;
+ 	struct cgroup *seat;
+@@ -368,12 +401,14 @@
+ 	if (seat) {
+ 		asa_read_seat_sched(seat, &rq_avg, &ctxsw, &n_tasks);
+ 		(void)n_tasks;
++		goal_n = asa_count_goal_leaves(seat);
+ 		asa_read_psi_group(cgroup_psi(seat) ? cgroup_psi(seat) :
+ 				   &psi_system, &cpu_psi, &io_psi, &mem_psi);
+ 	} else {
+ 		asa_read_host_rq(&rq_avg);
+ 		ctxsw = nr_context_switches();
+ 		asa_read_psi_group(&psi_system, &cpu_psi, &io_psi, &mem_psi);
++		goal_n = 0;
+ 	}
+ 	csw_per_sec = asa_ctxsw_rate(last_ctxsw, ctxsw, last_jiffies, &now);
+ 	irq_pct = asa_irq_pct(last_irq, max(now - last_jiffies, 1UL), &irq_now);
+@@ -381,7 +416,7 @@
+ 	get_avenrun(av, 0, 0);
+ 	load1 = LOAD_INT(av[0]);
+ 	asa_classify(rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
+-		     irq_pct, iowait, load1, probs);
++		     irq_pct, iowait, load1, goal_n, probs);
+ 
+ 	mutex_lock(&r->lock);
+ 	if (!r->enabled || !r->vote_ring) {
+@@ -396,12 +431,14 @@
+ 	r->last_sample_jiffies = now;
+ 
+ 	window = max(r->voting_window, 1U);
+-	idx = r->vote_head % window;
++	idx = r->vote_head;
++	if (idx >= window)
++		idx = 0;
+ 	slot = &r->vote_ring[idx];
+ 	slot->timestamp = jiffies;
+ 	memcpy(slot->probs, probs, sizeof(probs));
+ 
+-	r->vote_head++;
++	r->vote_head = (idx + 1) % window;
+ 	if (r->vote_count < window)
+ 		r->vote_count++;
+ 
+@@ -430,7 +467,7 @@
+ static ssize_t perception_show(struct kobject *kobj, struct kobj_attribute *a,
+ 			       char *buf)
+ {
+-	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, n_desc;
++	u32 rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi, n_desc, goal_n;
+ 	u32 irq_pct, iowait, load1, n_tasks;
+ 	char path[ASA_SEAT_PATH_LEN];
+ 	struct cgroup *seat;
+@@ -453,6 +490,7 @@
+ 		asa_read_psi_group(cgroup_psi(seat) ? cgroup_psi(seat) :
+ 				   &psi_system, &cpu_psi, &io_psi, &mem_psi);
+ 		n_desc = seat->nr_descendants;
++		goal_n = asa_count_goal_leaves(seat);
+ 		cgroup_put(seat);
+ 	} else {
+ 		asa_read_host_rq(&rq_avg);
+@@ -460,6 +498,7 @@
+ 		asa_read_psi_group(&psi_system, &cpu_psi, &io_psi, &mem_psi);
+ 		n_desc = 0;
+ 		n_tasks = 0;
++		goal_n = 0;
+ 	}
+ 	csw_per_sec = asa_ctxsw_rate(last_ctxsw, ctxsw, last_jiffies, &now);
+ 	irq_pct = asa_irq_pct(last_irq, max(now - last_jiffies, 1UL), &irq_now);
+@@ -479,6 +518,7 @@
+ 			  "seat_tasks=%u\n"
+ 			  "seat_cgroup=%s\n"
+ 			  "seat_descendants=%u\n"
++			  "goal_leaves=%u\n"
+ 			  "vote_interactive=%llu\n"
+ 			  "vote_cpu=%llu\n"
+ 			  "vote_io=%llu\n"
+@@ -486,7 +526,7 @@
+ 			  rq_avg, csw_per_sec, cpu_psi, io_psi, mem_psi,
+ 			  irq_pct, iowait, load1, n_tasks,
+ 			  path[0] ? path : "/",
+-			  n_desc,
++			  n_desc, goal_n,
+ 			  vote[ASA_CLASS_INTERACTIVE],
+ 			  vote[ASA_CLASS_CPU],
+ 			  vote[ASA_CLASS_IO],
+@@ -651,8 +691,8 @@
+ static ssize_t voting_window_store(struct kobject *kobj, struct kobj_attribute *a,
+ 				   const char *buf, size_t count)
+ {
+-	struct asa_vote_slot *ring;
+-	unsigned int val;
++	struct asa_vote_slot *ring, *old;
++	unsigned int val, old_window, old_head, old_count, copy_n, i;
+ 	int ret;
+ 
+ 	ret = kstrtouint(buf, 10, &val);
+@@ -666,12 +706,25 @@
+ 		return -ENOMEM;
+ 
+ 	mutex_lock(&asa.lock);
+-	kfree(asa.vote_ring);
++	old = asa.vote_ring;
++	old_window = max(asa.voting_window, 1U);
++	old_head = asa.vote_head;
++	old_count = min(asa.vote_count, old_window);
++	copy_n = min(old_count, val);
++	if (old) {
++		for (i = 0; i < copy_n; i++) {
++			unsigned int src = asa_ring_idx(old_head, copy_n - 1 - i,
++							old_window);
++
++			ring[i] = old[src];
++		}
++	}
+ 	asa.vote_ring = ring;
+ 	asa.voting_window = val;
+-	asa.vote_head = 0;
+-	asa.vote_count = 0;
++	asa.vote_head = copy_n % val;
++	asa.vote_count = copy_n;
+ 	mutex_unlock(&asa.lock);
++	kfree(old);
+ 	return count;
+ }
+ 
