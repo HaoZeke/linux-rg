@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fetch 7.1.8.arch1 and apply the linux-rg carry series on a build host.
+# No compile.
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+dest=${1:-$HOME/tmp/linux-rg-rebase}
+
+bash "$repo/scripts/linux-rg-rebase-fetch" "$dest" 7.1.8 arch1
+bash "$repo/scripts/linux-rg-rebase-apply" "$dest/linux-7.1.8"
