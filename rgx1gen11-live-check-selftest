@@ -20,6 +20,8 @@ printf '%s\n' "$out" | rg -Fq 'linux-rg-grokos-tune-check /usr/lib/sysctl.d/50-l
   || fail "dry-run should include grokos sysctl check"
 printf '%s\n' "$out" | rg -Fq 'linux-rg-asa-router-check' \
   || fail "dry-run should include asa-router unit check"
+printf '%s\n' "$out" | rg -Fq 'linux-rg-grokos-sessiond-check' \
+  || fail "dry-run should include sessiond unit check"
 printf '%s\n' "$out" | rg -Fq 'rgx1gen11-boot-check --live' \
   || fail "dry-run should include boot live check"
 printf '%s\n' "$out" | rg -Fq 'rgx1gen11-memory-check --live --require-oomd' \

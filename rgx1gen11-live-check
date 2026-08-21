@@ -96,6 +96,7 @@ run_check linux-rg-grokos-seat-check /usr/share/linux-rg/profiles/rgx1gen11.conf
 run_check linux-rg-criu-check /usr/share/linux-rg/profiles/rgx1gen11.config
 run_check linux-rg-grokos-tune-check /usr/lib/sysctl.d/50-linux-rg-grokos.conf
 run_check linux-rg-asa-router-check
+run_check linux-rg-grokos-sessiond-check
 run_check rgx1gen11-boot-check "${boot_args[@]}"
 run_check rgx1gen11-memory-check --live --require-oomd
 run_check rgx1gen11-nvme-check --live --require-feature

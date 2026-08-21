@@ -10,16 +10,19 @@ board door is =Seat.spawnAgent= / =Seat.cancelAgent= (schema !20, meta
 deleted. Identity is a 32-hex =Util.AgentId=, not a cgroup directory
 name.
 
-=cancelAgent= (session !110, meta #104) kills the recorded pid/pgid
-and each live child and confirms only when that tree is gone.
-=reportAgent= records =/proc/<pid>/stat= starttime and places the pid
-in a =grokos-agent-*= leaf (systemd user scope, or a child cgroup
-when the parent is delegated). The leaf gets idle =io.prio.class= /
-=io.weight= / =cpu.weight= (compile-storm argv can raise a uclamp
-cap). Cancel: starttime mismatch means the identity is gone; else
-=cgroup.kill= on that leaf, =pidfd_send_signal=, then process-group
-=SIGKILL=. Shared =user.slice= is refused. Sessiond's user unit sets
-=Delegate=yes= so those leaves can exist under the daemon.
+=cancelAgent= (session !110, meta #104) kills the recorded birth
+identity and each live child and confirms only when that tree is gone.
+Product spawn is =clone3= + =CLONE_PIDFD= (and =CLONE_INTO_CGROUP=
+when the leaf exists). =reportAgent= attaches a live pid to a sibling
+=grokos-{32hex}.scope= and fail-closes if the pid stays under the
+session unit. The leaf gets idle =io.prio.class= / =io.weight= /
+=cpu.weight= (compile-storm argv can raise a uclamp cap). Cancel:
+starttime / pidfd mismatch means the identity is gone; else
+=cgroup.kill= on that sibling scope, =pidfd_send_signal=, never
+=kill(-pgid)=. Shared =user.slice= is refused. linux-rg ships
+=grokos-sessiond.service.d/linux-rg.conf= so the user unit has
+=Delegate=yes=, CPU/Memory/IO accounting, =ManagedOOMPreference=omit=,
+and =GROKOS_JAIL=auto=.
 
 The kernel does not grow a GrokOS syscall. It has to keep the knobs that
 plane already uses.
@@ -30,10 +33,10 @@ plane already uses.
 | Hardware pressure | =/sys/class/{power_supply,thermal,drm,input}= |
 | =cancelAgent= tree stop | =kill(pid/pgid, SIGKILL)=; =CONFIG_PROC_CHILDREN= |
 | Frequent agent create/destroy | =CONFIG_CGROUP_FAVOR_DYNMODS= |
-| Jail (=bwrap --unshare-user/pid/uts/ipc/cgroup=, optional net) | user/pid/uts/ipc/cgroup/net namespaces + tmpfs |
+| Jail (Landlock + seccomp on the seated pane) | =CONFIG_SECURITY_LANDLOCK= + =SECCOMP= / =SECCOMP_FILTER=; namespaces + tmpfs remain for unused bwrap |
 | Session event ring | =memfd_create= |
 | Same-uid ACL | =SO_PEERCRED= on =CONFIG_UNIX= |
-| Later FS sandbox | Landlock LSM + =CONFIG_SECCOMP= / =SECCOMP_FILTER= |
+| Tool-stage listen deny | same Landlock/seccomp; =grokos-sessiond --jail-exec --stage tool= |
 | Expert scheduler switch | =CONFIG_SCHED_CLASS_EXT= + ASA (=seat_cgroup= PSI) |
 | I/O niceness | =io.prio.class= / =io.weight= / =io.latency= (=BLK_CGROUP_IOPRIO=, =IOCOST=, =IOLATENCY=); BFQ group + Kyber available; ADIOS module only |
 | CPU share / cap | =cpu.weight= / =cpu.max= (=FAIR_GROUP_SCHED=, =CFS_BANDWIDTH=); autogroup off so those files matter |
@@ -142,24 +145,28 @@ RAM-heavy workstation can keep different writeback contracts. A later
 =/etc/sysctl.d/99-*= file still wins on any overlapping key.
 
 =scripts/linux-rg-grokos-tune-check= asserts the packaged sysctl.
+=scripts/linux-rg-grokos-sessiond-check= asserts the sessiond user drop-in
+(=Delegate=, accounting, =GROKOS_JAIL=auto=, oomd omit).
 
 * Not a kernel job
 
 The farm's remaining implementables live here, not in a new 00xx:
 
 - Birth =pidfd= from =clone3= + =CLONE_PIDFD= / =CLONE_INTO_CGROUP=
-  still belongs in the PTY spawn (shell), not a second open of
-  =/proc/<pid>= after the fact. Sessiond already refuses a recycled
-  pid via recorded starttime and uses =pidfd_send_signal= plus
-  =cgroup.kill= on the =grokos-agent-*= leaf.
+  belongs in the PTY spawn, not a second open of =/proc/<pid>= after
+  the fact. Sessiond refuses a recycled pid via recorded starttime and
+  uses =pidfd_send_signal= plus =cgroup.kill= on the sibling
+  =grokos-{32hex}.scope=.
 - Per-leaf =memory.high= / =cpu.weight= / =io.weight= writes stay a
   sessiond policy choice on that same leaf. Identity stays the 32-hex
-  AgentId. Vat should read leaf PSI the way nng already does.
+  AgentId.
 - Landlock + seccomp-bpf per tool/stage (NatiSand RAID 2023). Overlay
-  pins the LSMs; sessiond/bwrap must call them. Do not hand-write
-  filters.
-- systemd-oomd must not SIGKILL one fat session scope. Agent jobs
-  are sibling units; compositor/supervisor get omit/avoid.
+  pins the LSMs; the product unit sets =GROKOS_JAIL=auto= so
+  =grokos-sessiond --jail-exec --stage tui|tool= applies them. Do not
+  hand-write filters.
+- systemd-oomd must not SIGKILL one fat session scope. The linux-rg
+  drop-in sets =ManagedOOMPreference=omit= on sessiond; agent scopes
+  keep =ManagedOOMMemoryPressure=kill=.
 - Cap'n schema, peercred, policyd, and scx expert BPF stay userspace.
 - EESSI/CVMFS is FUSE + autofs + a userspace repo list, not a new
   kernel module. Overlays pin =CONFIG_FUSE_FS=.
@@ -171,6 +178,6 @@ The farm's remaining implementables live here, not in a new 00xx:
 
 * Related
 
-- GrokOS process manager: pid/pgid tree + =PR_SET_PDEATHSIG=
-- GrokOS jail: =GROKOS_JAIL= bubblewrap plan
+- GrokOS process manager: clone3 pidfd + sibling scope + =cgroup.kill=
+- GrokOS jail: =GROKOS_JAIL=auto= on the user unit; Landlock + TUI/tool seccomp
 - Profile index: =docs/profiles.org=

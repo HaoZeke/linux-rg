@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+check=$repo/scripts/linux-rg-grokos-sessiond-check
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+"$check" "$repo/80-linux-rg-grokos-sessiond.conf" || fail "repo drop-in must pass"
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+printf '[Service]\nExecStart=/bin/false\n' >"$tmp"
+"$check" "$tmp" && fail "empty unit must fail" || true
+printf '[Service]\nManagedOOMMemoryPressure=kill\n' >"$tmp"
+"$check" "$tmp" && fail "kill-on-sessiond must fail" || true
+echo ok

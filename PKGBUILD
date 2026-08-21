@@ -73,6 +73,7 @@ source=(
   asa-router.service
   80-linux-rg.preset
   50-linux-rg-grokos.conf
+  80-linux-rg-grokos-sessiond.conf
   rg-terra-power
   rgam5terra-memory-check
   rgam5terra-nvme-check
@@ -147,6 +148,7 @@ sha256sums=(
             'b8fb7602b75aed5b49315d359809b866051c125fbbd2f58ec39f34d87dd8164e'
             '9e1da6ad76ac419bc08fddd80aa0f584d66015247e59c228680aa6d510d6e338'
             '679db61df802494e7df6a86600d8c205cd49a58f7ac19097a5d0aaf66af84faf'
+            'a34a4cf5ff618506104dd229d02f275a35af76312df28b587ab37061b84f193b'
             '7ed090e02c037129860b9042b812751b80d0e9818faad9c6109857f9423be64e'
             '2c57224feb59907decd8b9822cbda1409ef6c2a30778fbea4ac381abf978ba49'
             'da416fe965d19ab353b12b3a7d5bcec5e28fb8589f354e1ce026b03abc41e683'
@@ -216,6 +218,7 @@ b2sums=(
             '204eb91154ea27a891941a6ce71e6fff2ebf84e815d2ae3bcd03a188759ad4782b6dfb69295558c7598ab0b6c93bc6c739b86e4ae68921707e98cfae2a338a26'
             '6b91287d917c2b192712d90548010ddcadad4c0b3c927916827a44d955f797eadef27daf806053570ae59201558199599a0aaffe93a353422d6e3a5d57211437'
             '5de509332b5706b384762321e37d4129e444fe3beb183ae772efea1b22455083c765e107ca74410eb0f282346d87c98ecb1a1b997ca5a7afd339fe6ec1811e5f'
+            '158ba1676854f26de6c52c006bdc3bd0fa2b1ea27381be91295fb027515005485fc3d55ec2561ea107ebcf6fbdcf476be085546fce074d4007a251c50d6448e4'
             '46b138b363e9a399b9ec9da510395f39399c25342962b61f97aa5da97cd70dfe30c20f7f5c39072dcf6038b94e30cb142c3dd86c08df53c8ea2466f238103eb1'
             '8990e9a454aed0459a1a1dd24e8fe8b5cd1b30cb3d2ded11e86c0a7a1e57e828c058541ec461d0ae43261a846e17ba29688a3e7433f98fa9df4b357dec807f4a'
             '8ccd16659f42098f8c7952346c8091ff508e3f2254f64af68ce7065f4d8efc87f3dacfc9048240b95252978291c14dff13c18bbc1a3d80060c5582ddb47249ae'
@@ -445,6 +448,10 @@ _package() {
     "$pkgdir/usr/lib/systemd/system-preset/80-linux-rg.preset"
   install -Dm644 "$srcdir/50-linux-rg-grokos.conf" \
     "$pkgdir/usr/lib/sysctl.d/50-linux-rg-grokos.conf"
+  install -Dm644 "$srcdir/80-linux-rg-grokos-sessiond.conf" \
+    "$pkgdir/usr/lib/systemd/user/grokos-sessiond.service.d/linux-rg.conf"
+  install -Dm755 "$startdir/scripts/linux-rg-grokos-sessiond-check" \
+    "$pkgdir/usr/bin/linux-rg-grokos-sessiond-check"
   install -Dm755 "$startdir/scripts/linux-rg-grokos-seat-check" \
     "$pkgdir/usr/bin/linux-rg-grokos-seat-check"
   install -Dm755 "$startdir/scripts/linux-rg-criu-check" \

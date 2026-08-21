@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Assert the packaged sessiond user drop-in (jail, delegate, oomd omit).
+# Usage: linux-rg-grokos-sessiond-check [drop-in]
+set -euo pipefail
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+unit=${1:-}
+if [[ -z $unit ]]; then
+	if [[ -f /usr/lib/systemd/user/grokos-sessiond.service.d/linux-rg.conf ]]; then
+		unit=/usr/lib/systemd/user/grokos-sessiond.service.d/linux-rg.conf
+	else
+		unit=$repo/80-linux-rg-grokos-sessiond.conf
+	fi
+fi
+[[ -f $unit ]] || fail "missing sessiond drop-in ($unit)"
+
+grep -Fqx -- 'Delegate=yes' "$unit" || fail "$unit missing Delegate=yes"
+grep -Fqx -- 'CPUAccounting=yes' "$unit" || fail "$unit missing CPUAccounting"
+grep -Fqx -- 'MemoryAccounting=yes' "$unit" || fail "$unit missing MemoryAccounting"
+grep -Fqx -- 'IOAccounting=yes' "$unit" || fail "$unit missing IOAccounting"
+grep -Fqx -- 'MemoryPressureWatch=on' "$unit" || fail "$unit missing MemoryPressureWatch"
+grep -Fqx -- 'ManagedOOMPreference=omit' "$unit" || fail "$unit missing ManagedOOMPreference=omit"
+grep -Fqx -- 'Environment=GROKOS_JAIL=auto' "$unit" || fail "$unit missing GROKOS_JAIL=auto"
+if grep -E '^[[:space:]]*ManagedOOMMemoryPressure=kill[[:space:]]*$' "$unit"; then
+	fail "$unit must not kill the session unit"
+fi
+if grep -q 'grokos-goal-' "$unit"; then
+	fail "$unit still names grokos-goal-"
+fi
+echo ok

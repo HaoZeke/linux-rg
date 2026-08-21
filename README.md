@@ -42,6 +42,8 @@ in =docs/candidates.org= and the per-profile kernel/targets docs.
   DL limits_changed (0015). iwlwifi/i915 zen hunks skipped -- already in Arch 7.0.12.
 - ADIOS block scheduler module (non-default) and ASA sched_ext router prototype
   (arXiv:2511.11628) with `asa-router` userspace helper.
+- GrokOS sessiond user drop-in (`GROKOS_JAIL=auto`, `Delegate=yes`,
+  oomd omit) plus `linux-rg-grokos-sessiond-check`.
 - PSI, memcg, DAMON, MGLRU, KSM, zswap, zram, BFQ, sched_ext, and
   platform support pinned in per-profile config overlays (rgx1gen11 example:
   ThinkPad/Intel laptop paths).
