@@ -162,7 +162,7 @@ sha256sums=(
             '8c3aeff5ae229526346a8ad5aad5e2d8c05e1e2ad49b8d6694a422acdd5d0658'
             'd6ca16a22bb0c90e6f4f3c1b06386bc270ab41c22db64099404741ac604cac09'
             'fec300b726faa0345a786a751824053618561c9930430de9540c983195896dc0'
-            'bfa06ca485f279d45dab019fcd9ba812c0a465c754ab73c919da29d8658a0f45'
+            'c09ce0a954a2eb1e0892346e5d0ece2089943da0233bee8e8c1ac192ff71118e'
             '6456abdee1380d3a0df5e0303ad28241dfae8254ed523e809266cf42cba0a3b3'
             '7c88d25a5b38caf3a215ebbb501038b711510f240128554b850349fee4d64c4c'
             '64ff056d5f9ae3e019a73414bddccd764f1da9841f90a69021f6237e109bdce5'
@@ -230,7 +230,7 @@ b2sums=(
             'b471180bd622c0a6069b19505b29ac95bfad0f43ca01f5bed5765c11830a8ef75f93b5506b198a16422fe3c8263fc31150a067a336bcbf92224f846ed121614d'
             '94dbc482b57cb1c1ceb7469a518af49bf684612e5f77ac31ed83b61633b21bcb29c03c0ac8f79a8629c38b0130be81b8e9909a35f5eccdbc4fc832d7cd57b108'
             '1902c53f24031d9da4130e93a925c31f7fead4b72b2471368390d38f28d4e3fcfd800e67896e5a522436bc4b560d5ca1a9d0250ead35c4d8fd551775b8d81d86'
-            '2ff8310bf736afc1f2c49eb1a8c67e5da79ca315b47037e075614eb5194cc971aec2c0d1d2345a94bcc3ec36dd743c52db64cdd00f6a8fd0d03887742b0b182f'
+            '34d48694cfc2bd8629c8baa28ccad531c0175c7af89f42a1984329764359d20c818636d78ee23615670fbadd8cb81347ed45193842c7b5b2638e7ca45259315f'
             '8802e75d4b4ce0b5daf6f376079204a706ed080ffc53c4b8a9399e94793c0f98e840054ece3fc37d246339dff6e9f91097d42d5f61e69a88a4431239eebe6c6e'
             '2d04ddc4f81eb7a5ccd4be176ef2ac1e8f9173efcac187bb35b11afb5cead37f1b3c9ff12f50150ec52bafbfa31fb842ee6082fb35db450e4fa2346b98f73dc7'
             '25ac8b6b62138b8be097fcdf23240fb6f0ffa2c6248fa5b2feca9d6913883fee232ca0c00c1154e084567032312a9e1699d12230999fa0a0fe827f1795d473f6'
@@ -446,6 +446,8 @@ _package() {
     "$pkgdir/usr/bin/linux-rg-criu-check"
   install -Dm755 "$startdir/scripts/linux-rg-grokos-tune-check" \
     "$pkgdir/usr/bin/linux-rg-grokos-tune-check"
+  install -Dm755 "$startdir/scripts/linux-rg-asa-router-check" \
+    "$pkgdir/usr/bin/linux-rg-asa-router-check"
   install -Dm755 "$srcdir/rg-terra-power" "$pkgdir/usr/bin/rg-terra-power"
   install -Dm755 "$srcdir/rgam5terra-memory-check" "$pkgdir/usr/bin/rgam5terra-memory-check"
   install -Dm755 "$srcdir/rgam5terra-nvme-check" "$pkgdir/usr/bin/rgam5terra-nvme-check"

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+check=$repo/scripts/linux-rg-asa-router-check
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+"$check" "$repo/asa-router.service" || fail "repo unit must pass"
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+printf '[Service]\nExecStart=/bin/false\n' >"$tmp"
+"$check" "$tmp" && fail "empty unit must fail" || true
+echo ok

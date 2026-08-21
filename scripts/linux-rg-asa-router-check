@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Assert the packaged ASA router unit and (when sysfs exists) that it can probe.
+set -euo pipefail
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+unit=${1:-}
+if [[ -z $unit ]]; then
+	if [[ -f /usr/lib/systemd/system/asa-router.service ]]; then
+		unit=/usr/lib/systemd/system/asa-router.service
+	else
+		unit=$repo/asa-router.service
+	fi
+fi
+[[ -f $unit ]] || fail "missing asa-router.service ($unit)"
+grep -q 'ConditionPathIsDirectory=/sys/kernel/sched_ext/asa' "$unit" \
+	|| fail "$unit missing sched_ext ASA condition"
+grep -q 'ConditionPathIsDirectory=|/sys/kernel/asa' "$unit" \
+	|| fail "$unit missing standalone ASA condition"
+grep -q 'asa-router --enable --seat-cgroup auto' "$unit" \
+	|| fail "$unit ExecStart must enable seat_cgroup auto"
+
+router=/usr/bin/asa-router
+if [[ $unit == "$repo/asa-router.service" ]]; then
+	router=$repo/asa-router
+fi
+[[ -x $router ]] || router=$repo/asa-router
+[[ -x $router ]] || fail "asa-router not executable"
+
+if [[ -d /sys/kernel/sched_ext/asa || -d /sys/kernel/asa ]]; then
+	if "$router" --help 2>&1 | grep -q -- '--probe'; then
+		"$router" --probe >/dev/null || fail "asa-router --probe failed on live ASA sysfs"
+	fi
+fi
+echo ok
