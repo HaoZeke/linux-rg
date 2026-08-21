@@ -46,6 +46,7 @@ grep -q 'linux-rg-grokos-seat-check' PKGBUILD || fail "PKGBUILD missing grokos s
 grep -q 'linux-rg-criu-check' PKGBUILD || fail "PKGBUILD missing criu-check install"
 grep -q 'linux-rg-grokos-tune-check' PKGBUILD || fail "PKGBUILD missing grokos tune-check install"
 grep -q 'linux-rg-asa-router-check' PKGBUILD || fail "PKGBUILD missing asa-router-check install"
+grep -q '80-linux-rg.preset' PKGBUILD || fail "PKGBUILD missing ASA router preset"
 grep -q 'asa-router.service' PKGBUILD || fail "PKGBUILD missing asa-router.service install"
 grep -q 'ASA_SYSFS' asa-router || fail "asa-router missing ASA_SYSFS override"
 grep -q 'vm.numa_balancing = 0' 50-linux-rg-grokos.conf || fail "sysctl missing numa_balancing"

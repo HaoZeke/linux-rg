@@ -4,7 +4,7 @@ repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 check=$repo/scripts/linux-rg-asa-router-check
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
-"$check" "$repo/asa-router.service" || fail "repo unit must pass"
+"$check" "$repo/asa-router.service" "$repo/80-linux-rg.preset" || fail "repo unit must pass"
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 printf '[Service]\nExecStart=/bin/false\n' >"$tmp"

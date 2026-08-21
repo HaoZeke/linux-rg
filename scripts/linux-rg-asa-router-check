@@ -19,6 +19,17 @@ grep -q 'ConditionPathIsDirectory=|/sys/kernel/asa' "$unit" \
 	|| fail "$unit missing standalone ASA condition"
 grep -q 'asa-router --enable --seat-cgroup auto' "$unit" \
 	|| fail "$unit ExecStart must enable seat_cgroup auto"
+preset=${2:-}
+if [[ -z $preset ]]; then
+	if [[ -f /usr/lib/systemd/system-preset/80-linux-rg.preset ]]; then
+		preset=/usr/lib/systemd/system-preset/80-linux-rg.preset
+	else
+		preset=$repo/80-linux-rg.preset
+	fi
+fi
+[[ -f $preset ]] || fail "missing 80-linux-rg.preset ($preset)"
+grep -q 'enable asa-router.service' "$preset" \
+	|| fail "$preset must enable asa-router.service"
 
 router=/usr/bin/asa-router
 if [[ $unit == "$repo/asa-router.service" ]]; then

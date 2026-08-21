@@ -1,0 +1,2 @@
+# ASA router starts when either ASA sysfs tree exists (unit ConditionPath).
+enable asa-router.service

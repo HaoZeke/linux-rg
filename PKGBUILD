@@ -71,6 +71,7 @@ source=(
   os_linux_rg.png
   asa-router
   asa-router.service
+  80-linux-rg.preset
   50-linux-rg-grokos.conf
   rg-terra-power
   rgam5terra-memory-check
@@ -144,6 +145,7 @@ sha256sums=(
             '72a8dcd7d2fb934152a4608641abb2638dbedbf41a4ab614be227f1752384e1f'
             '74451ca1ed7c72d875ef44760171a514fe9e3885d692e1fb373195bc951f9395'
             'b8fb7602b75aed5b49315d359809b866051c125fbbd2f58ec39f34d87dd8164e'
+            '9e1da6ad76ac419bc08fddd80aa0f584d66015247e59c228680aa6d510d6e338'
             '679db61df802494e7df6a86600d8c205cd49a58f7ac19097a5d0aaf66af84faf'
             '7ed090e02c037129860b9042b812751b80d0e9818faad9c6109857f9423be64e'
             '2c57224feb59907decd8b9822cbda1409ef6c2a30778fbea4ac381abf978ba49'
@@ -212,6 +214,7 @@ b2sums=(
             '064a62fc3b63c501cf369e65fb0d9e89d1e87348f373051f37c3ed23630fd77b2b90efc351c2a37663be18d488e623b19e3f25b4922343ab4cfe937224938d93'
             '6b9ea66c172ae82926bf5bd18fbed6f6a246fa3cc6104599d88709dc634a9e9cdd861cbfcfc86820fe687d80191de2427fa8b48dad11579b2b8335ceb59e2808'
             '204eb91154ea27a891941a6ce71e6fff2ebf84e815d2ae3bcd03a188759ad4782b6dfb69295558c7598ab0b6c93bc6c739b86e4ae68921707e98cfae2a338a26'
+            '6b91287d917c2b192712d90548010ddcadad4c0b3c927916827a44d955f797eadef27daf806053570ae59201558199599a0aaffe93a353422d6e3a5d57211437'
             '5de509332b5706b384762321e37d4129e444fe3beb183ae772efea1b22455083c765e107ca74410eb0f282346d87c98ecb1a1b997ca5a7afd339fe6ec1811e5f'
             '46b138b363e9a399b9ec9da510395f39399c25342962b61f97aa5da97cd70dfe30c20f7f5c39072dcf6038b94e30cb142c3dd86c08df53c8ea2466f238103eb1'
             '8990e9a454aed0459a1a1dd24e8fe8b5cd1b30cb3d2ded11e86c0a7a1e57e828c058541ec461d0ae43261a846e17ba29688a3e7433f98fa9df4b357dec807f4a'
@@ -438,6 +441,8 @@ _package() {
   install -Dm755 "$srcdir/asa-router" "$pkgdir/usr/bin/asa-router"
   install -Dm644 "$srcdir/asa-router.service" \
     "$pkgdir/usr/lib/systemd/system/asa-router.service"
+  install -Dm644 "$srcdir/80-linux-rg.preset" \
+    "$pkgdir/usr/lib/systemd/system-preset/80-linux-rg.preset"
   install -Dm644 "$srcdir/50-linux-rg-grokos.conf" \
     "$pkgdir/usr/lib/sysctl.d/50-linux-rg-grokos.conf"
   install -Dm755 "$startdir/scripts/linux-rg-grokos-seat-check" \
