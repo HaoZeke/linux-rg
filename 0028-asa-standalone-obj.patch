@@ -139,7 +139,6 @@ asa.o from the Makefile, depend only on PSI+SYSFS, and register under
  /********************************************************************************
   * Sysfs interface and ops enable/disable.
   */
-
 @@ -10008,7 +10006,7 @@ static int __init scx_init(void)
  		return ret;
  	}
