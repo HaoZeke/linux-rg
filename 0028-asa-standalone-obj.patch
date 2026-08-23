@@ -78,7 +78,9 @@ asa.o from the Makefile, depend only on PSI+SYSFS, and register under
 @@ -924,3 +929,11 @@
  	pr_info("sched_asa: workqueue router, optional seat_cgroup PSI\n");
  	return 0;
- }
+-}
+\ No newline at end of file
++}
 +
 +#ifndef CONFIG_SCHED_CLASS_EXT
 +static int __init asa_sysfs_init(void)
