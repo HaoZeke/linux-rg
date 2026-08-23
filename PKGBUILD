@@ -2,7 +2,7 @@
 
 pkgbase=linux-rg
 pkgver=7.1.8.arch1
-pkgrel=3
+pkgrel=4
 pkgdesc='Linux kernel for linux-rg machine profiles'
 url='https://github.com/archlinux/linux'
 arch=(
@@ -141,8 +141,8 @@ sha256sums=(
             '99d5a0e97b85085be13e3bd61eee2dc51af2a225b05c5c756774719d399d31f2'
             'fed595b88e9e10dc65fdfba8a11a1a15ba43bac05c5232b0317d0e6a0d7655bb'
             '3003ab9afa01527eeff83811858ae5e7b0688fc859a46ece9c2adb57e759d89e'
-            'ce0107c0c35a815cfcc3f31845e69d78a9784471be08334163464c2c9e1cbe81'
-            '46ac4dcaa858a62912e9960a995f6221757691b97f4d46b66f8646ddfb7c092f'
+            'd6d4cf9490766c8e177fb678823acc9cf4d245c3a796fed369c849163056391f'
+            'c1f69603fa4d56f06e67a76fd421334e22837d8b5534597a5d67d179b1a852f2'
             '72a8dcd7d2fb934152a4608641abb2638dbedbf41a4ab614be227f1752384e1f'
             '74451ca1ed7c72d875ef44760171a514fe9e3885d692e1fb373195bc951f9395'
             'b8fb7602b75aed5b49315d359809b866051c125fbbd2f58ec39f34d87dd8164e'
@@ -166,7 +166,7 @@ sha256sums=(
             '8c3aeff5ae229526346a8ad5aad5e2d8c05e1e2ad49b8d6694a422acdd5d0658'
             'd6ca16a22bb0c90e6f4f3c1b06386bc270ab41c22db64099404741ac604cac09'
             'fec300b726faa0345a786a751824053618561c9930430de9540c983195896dc0'
-            'dc60786e370c15afb596fb200958c117c24c17a8c5db6de9b3bdf188bc77db4d'
+            '9b548bd20cf85ff19bdc986f8ebc7cb4e13bb094f85aba31616223c74b81da59'
             '6456abdee1380d3a0df5e0303ad28241dfae8254ed523e809266cf42cba0a3b3'
             '7c88d25a5b38caf3a215ebbb501038b711510f240128554b850349fee4d64c4c'
             '64ff056d5f9ae3e019a73414bddccd764f1da9841f90a69021f6237e109bdce5'
@@ -211,8 +211,8 @@ b2sums=(
             '4491aca57fb2c886ba37f44be1ed2fe9992ff3d5e02cb03fc3b97b59aad7a62409d722a7d8a3cafb9ffb45dc40de78b8bd8a4cf0e67e5eeea273f8d3b2dda1fe'
             '94c341663fe693e6ddf40e33cb3f7ed018d7f62f28726f25803ffb1af3c5cbaf93b56a28babfc8c220683fccfbb3e68910c268cc39be606c042bee89531a9618'
             'ec41552de8d21b0f4b3112d8ba45813f84024359a1778dfc10677e41e5063fcaf151e1497cc66baf30980991c3799c6f306091c8c51aaa10585eb366eb9eb5c3'
-            'c9091805213e7289bf1713acacd41a83c7cbaf8b83a038bf2100545c1c96487f701f690136b0a1c99c5564dd2794870e54382d36ad3daa686f6697cdb30fe501'
-            'c0e06929013f0547e4b9fa0cafdcbd964b483d513bc648b46331a81af469c817b136ac080dfe0d4561640d8993d0128beb25b507b969cff0c7daa10bc5445fc0'
+            '38a217852552b06b6977c7d9629f400d93e113577745dd1b70b8308920a6b9f0ca100ab707c6d4113daaf96efb9c349be12b4f3ca5f70574fa387425eebb0a1a'
+            'c8461c7e709b5e40151337d501e3aa2a18da1f18e8aa3595ae5be51ab60b8d19d4d26ecfedd9f4cd238001cfc587a59706df577ae6ef6a1bd7d21dbec125009b'
             '064a62fc3b63c501cf369e65fb0d9e89d1e87348f373051f37c3ed23630fd77b2b90efc351c2a37663be18d488e623b19e3f25b4922343ab4cfe937224938d93'
             '6b9ea66c172ae82926bf5bd18fbed6f6a246fa3cc6104599d88709dc634a9e9cdd861cbfcfc86820fe687d80191de2427fa8b48dad11579b2b8335ceb59e2808'
             '204eb91154ea27a891941a6ce71e6fff2ebf84e815d2ae3bcd03a188759ad4782b6dfb69295558c7598ab0b6c93bc6c739b86e4ae68921707e98cfae2a338a26'
@@ -236,7 +236,7 @@ b2sums=(
             'b471180bd622c0a6069b19505b29ac95bfad0f43ca01f5bed5765c11830a8ef75f93b5506b198a16422fe3c8263fc31150a067a336bcbf92224f846ed121614d'
             '94dbc482b57cb1c1ceb7469a518af49bf684612e5f77ac31ed83b61633b21bcb29c03c0ac8f79a8629c38b0130be81b8e9909a35f5eccdbc4fc832d7cd57b108'
             '1902c53f24031d9da4130e93a925c31f7fead4b72b2471368390d38f28d4e3fcfd800e67896e5a522436bc4b560d5ca1a9d0250ead35c4d8fd551775b8d81d86'
-            '204ad2a0091533314f48199f4a0da4548fe3a74d8b8c90f528355735b715f5c0e343fdc39e26bed2eacf6646ea08c0d83a95a6a32638a79f01708d91b715d6b4'
+            '8f9c9227e8a7efd60ba78317ab85952841124b564b5120061fb085769cddebaf21259e711d2cc1160465e6866b409d35d460cb75a5b727e7a0b140888baf07b5'
             '8802e75d4b4ce0b5daf6f376079204a706ed080ffc53c4b8a9399e94793c0f98e840054ece3fc37d246339dff6e9f91097d42d5f61e69a88a4431239eebe6c6e'
             '2d04ddc4f81eb7a5ccd4be176ef2ac1e8f9173efcac187bb35b11afb5cead37f1b3c9ff12f50150ec52bafbfa31fb842ee6082fb35db450e4fa2346b98f73dc7'
             '25ac8b6b62138b8be097fcdf23240fb6f0ffa2c6248fa5b2feca9d6913883fee232ca0c00c1154e084567032312a9e1699d12230999fa0a0fe827f1795d473f6'
@@ -363,6 +363,18 @@ prepare() {
     fi
   done < "../$linux_rg_profile.config"
   make olddefconfig
+  if ! grep -q '^CONFIG_SOCK_CGROUP_DATA=y' .config; then
+    echo "CONFIG_SOCK_CGROUP_DATA dropped after olddefconfig" >&2
+    exit 1
+  fi
+  if ! grep -qE '^CONFIG_NFT_SOCKET=[ym]$' .config; then
+    echo "CONFIG_NFT_SOCKET dropped after olddefconfig" >&2
+    exit 1
+  fi
+  if ! grep -qE '^CONFIG_NETFILTER_XT_MATCH_CGROUP=[ym]$' .config; then
+    echo "CONFIG_NETFILTER_XT_MATCH_CGROUP dropped after olddefconfig" >&2
+    exit 1
+  fi
   local module_count module_budget
   module_count=$(grep -c '^CONFIG_.*=m$' .config || :)
   case "$linux_rg_profile" in

@@ -2,11 +2,65 @@
 set -euo pipefail
 
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-if (($# == 0)); then
+live=0
+module_root=
+configs=()
+
+usage() {
+  cat <<'USAGE'
+usage: rgx1gen11-network-policy-check [options] [config...]
+
+Options:
+  --live             Check the running kernel config and nft_socket module
+  --modules DIR      Require nft_socket.ko* under DIR (or DIR/kernel/...)
+  -h, --help         Show this help
+USAGE
+}
+
+while (($#)); do
+  case "$1" in
+    --live)
+      live=1
+      shift
+      ;;
+    --modules)
+      module_root=${2:?--modules requires a directory}
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      configs+=("$@")
+      break
+      ;;
+    -*)
+      printf 'unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      configs+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if ((${#configs[@]} == 0)) && ((live == 0)); then
   if [[ -r $repo/rgx1gen11.config ]]; then
-    set -- "$repo/rgx1gen11.config"
+    configs=(
+      "$repo/rgx1gen11.config"
+      "$repo/rgam5terra.config"
+      "$repo/rgSURFLat.config"
+    )
   else
-    set -- /usr/share/linux-rg/profiles/rgx1gen11.config
+    configs=(
+      /usr/share/linux-rg/profiles/rgx1gen11.config
+      /usr/share/linux-rg/profiles/rgam5terra.config
+      /usr/share/linux-rg/profiles/rgSURFLat.config
+    )
   fi
 fi
 
@@ -32,15 +86,60 @@ require_enabled() {
   esac
 }
 
-for config in "$@"; do
+check_config() {
+  local config=$1
   if [[ ! -r $config ]]; then
     fail "unreadable config: $config"
-    continue
+    return
   fi
   require_builtin "$config" CONFIG_SOCK_CGROUP_DATA
   require_enabled "$config" CONFIG_NFT_SOCKET
   require_enabled "$config" CONFIG_NETFILTER_XT_MATCH_CGROUP
+}
+
+require_nft_socket_module() {
+  local root=$1
+  local match
+  if [[ -d $root/kernel/net/netfilter ]]; then
+    match=$(compgen -G "$root/kernel/net/netfilter/nft_socket.ko*" || true)
+  else
+    match=$(compgen -G "$root/nft_socket.ko*" || true)
+  fi
+  if [[ -z $match ]]; then
+    fail "missing nft_socket module under $root"
+  fi
+}
+
+for config in "${configs[@]}"; do
+  check_config "$config"
 done
 
+if ((live)); then
+  live_config=$(mktemp)
+  trap 'rtrash -f "$live_config"' EXIT
+  if [[ -r /proc/config.gz ]]; then
+    gzip -dc /proc/config.gz >"$live_config"
+  elif [[ -r /usr/lib/modules/$(uname -r)/config ]]; then
+    cp -- "/usr/lib/modules/$(uname -r)/config" "$live_config"
+  elif [[ -r /usr/lib/modules/$(uname -r)/build/.config ]]; then
+    cp -- "/usr/lib/modules/$(uname -r)/build/.config" "$live_config"
+  else
+    fail "no running kernel config at /proc/config.gz"
+    live_config=
+  fi
+  if [[ -n $live_config ]]; then
+    check_config "$live_config"
+  fi
+  require_nft_socket_module "/usr/lib/modules/$(uname -r)"
+fi
+
+if [[ -n $module_root ]]; then
+  require_nft_socket_module "$module_root"
+fi
+
 ((failures == 0)) || exit 1
-printf 'ok: %s file(s)\n' "$#"
+if ((${#configs[@]})); then
+  printf 'ok: %s file(s)\n' "${#configs[@]}"
+else
+  printf 'ok: live kernel %s\n' "$(uname -r)"
+fi

@@ -29,5 +29,19 @@ done
 
 "$check" "$repo/rgx1gen11.config" >/dev/null \
   || fail "rgx1gen11 overlay lacks the protected-process classifier contract"
+"$check" "$repo/rgam5terra.config" >/dev/null \
+  || fail "rgam5terra overlay lacks the protected-process classifier contract"
+"$check" "$repo/rgSURFLat.config" >/dev/null \
+  || fail "rgSURFLat overlay lacks the protected-process classifier contract"
+"$check" >/dev/null \
+  || fail "default check must accept every profile overlay"
+
+mkdir -p "$tmp/empty/kernel/net/netfilter"
+if "$check" --modules "$tmp/empty" "$tmp/good.config" >/dev/null 2>&1; then
+  fail "checker accepted a module tree without nft_socket"
+fi
+touch "$tmp/empty/kernel/net/netfilter/nft_socket.ko"
+"$check" --modules "$tmp/empty" "$tmp/good.config" >/dev/null \
+  || fail "checker rejected a module tree that contains nft_socket"
 
 printf 'ok\n'

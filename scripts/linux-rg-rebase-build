@@ -47,6 +47,18 @@ if ! grep -q '^CONFIG_SCHED_ASA=y' .config; then
   printf 'CONFIG_SCHED_ASA dropped after olddefconfig\n' >&2
   exit 2
 fi
+if ! grep -q '^CONFIG_SOCK_CGROUP_DATA=y' .config; then
+  printf 'CONFIG_SOCK_CGROUP_DATA dropped after olddefconfig\n' >&2
+  exit 2
+fi
+if ! grep -qE '^CONFIG_NFT_SOCKET=[ym]$' .config; then
+  printf 'CONFIG_NFT_SOCKET dropped after olddefconfig\n' >&2
+  exit 2
+fi
+if ! grep -qE '^CONFIG_NETFILTER_XT_MATCH_CGROUP=[ym]$' .config; then
+  printf 'CONFIG_NETFILTER_XT_MATCH_CGROUP dropped after olddefconfig\n' >&2
+  exit 2
+fi
 # SCHED_CLASS_EXT depends on DEBUG_INFO_BTF. Farm builds turn BTF off, so
 # EXT is n and scx_* cannot load. ASA still compiles and recommends.
 ext=$(grep -E '^CONFIG_SCHED_CLASS_EXT=|# CONFIG_SCHED_CLASS_EXT is not set' .config || true)
