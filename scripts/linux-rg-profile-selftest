@@ -46,6 +46,7 @@ grep -q 'ms / 1000' asa-router || fail "asa-router missing sample_ms to seconds"
 grep -q 'udevadm monitor' asa-router && fail "asa-router still waits on udev" || true
 grep -q 'linux-rg-grokos-seat-check' PKGBUILD || fail "PKGBUILD missing grokos seat-check install"
 grep -q 'linux-rg-criu-check' PKGBUILD || fail "PKGBUILD missing criu-check install"
+grep -q 'rgx1gen11-network-policy-check' PKGBUILD || fail "PKGBUILD missing network-policy check install"
 grep -q 'linux-rg-grokos-tune-check' PKGBUILD || fail "PKGBUILD missing grokos tune-check install"
 grep -q 'linux-rg-asa-router-check' PKGBUILD || fail "PKGBUILD missing asa-router-check install"
 grep -q 'linux-rg-grokos-sessiond-check' PKGBUILD || fail "PKGBUILD missing sessiond-check install"
