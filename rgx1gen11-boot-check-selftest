@@ -82,6 +82,7 @@ EOF
 vconsole_conf="$tmpdir/vconsole.conf"
 cat >"$vconsole_conf" <<'EOF'
 KEYMAP=colemak
+FONT=Lat2-Terminus16
 EOF
 
 output=$(
@@ -138,6 +139,8 @@ if command -v magick >/dev/null 2>&1; then
 fi
 printf '%s\n' "$output" | rg -q 'ok: vconsole keymap colemak' \
   || fail "installed check should require Colemak for the LUKS prompt"
+printf '%s\n' "$output" | rg -q 'ok: vconsole font Lat2-Terminus16' \
+  || fail "installed check should require FONT in vconsole.conf"
 
 base64 -d >"$tmpdir/boot/EFI/refind/icons/os_linux_rg.png" <<'EOF'
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqBhUWMjPZhyrsAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTA2LTIxVDIyOjUwOjUxKzAwOjAwhxfuQwAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0wNi0yMVQyMjo1MDo1MSswMDowMPZKVv8AAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMDYtMjFUMjI6NTA6NTErMDA6MDChX3cgAAAADElEQVQI12P4//8/AAX+Av7czFnnAAAAAElFTkSuQmCC

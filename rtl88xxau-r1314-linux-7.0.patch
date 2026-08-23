@@ -118,6 +118,17 @@ diff -ruN a/rtl88xxau-r1314.7344855/core/rtw_br_ext.c b/rtl88xxau-r1314.7344855/
  
  #if 1	/* rtw_wifi_driver */
  	#include <drv_types.h>
+@@ -953,8 +960,8 @@
+ 								return -1;
+ 							}
+ 
+-							memcpy(tag->tag_data + MAGIC_CODE_LEN + RTL_RELAY_TAG_LEN,
+-							       pOldTag->tag_data, old_tag_len);
++							memcpy(rtw_pppoe_tag_data(tag) + MAGIC_CODE_LEN + RTL_RELAY_TAG_LEN,
++							       rtw_pppoe_tag_data(pOldTag), old_tag_len);
+ 
+ 							if (skb_pull_and_merge(skb, (unsigned char *)pOldTag, TAG_HDR_LEN + old_tag_len) < 0) {
+ 								DEBUG_ERR("call skb_pull_and_merge() failed in PADI/R packet!\n");
 @@ -967,9 +974,9 @@
  						tag->tag_len = htons(MAGIC_CODE_LEN + RTL_RELAY_TAG_LEN + old_tag_len);
  

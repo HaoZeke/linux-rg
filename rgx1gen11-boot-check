@@ -403,6 +403,20 @@ want_vconsole_keymap() {
   fi
 }
 
+want_vconsole_font() {
+  local font
+  if [[ ! -r $vconsole_config ]]; then
+    fail "vconsole config is not readable: $vconsole_config"
+    return
+  fi
+  font=$(sed -nE 's/^[[:space:]]*FONT=([^[:space:]#]+).*/\1/p' "$vconsole_config" | tail -n 1)
+  if [[ -n $font ]]; then
+    pass "vconsole font $font"
+  else
+    fail "vconsole FONT missing from $vconsole_config (consolefont hook ignores mkinitcpio FONT=)"
+  fi
+}
+
 want_refind_entry() {
   local icon_path stock_line rg_line
 
@@ -553,6 +567,7 @@ check_installed() {
   want_refind_entry
   want_refind_linux_rg_options
   want_vconsole_keymap
+  want_vconsole_font
 
   kver=$(detect_rg_kver)
   want_rg_modules_tree "$kver"

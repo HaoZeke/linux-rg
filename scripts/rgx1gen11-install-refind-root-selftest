@@ -222,6 +222,8 @@ rg -q 'console_font=.*Lat2-Terminus16' "$installer" \
   || fail "installer should default the linux-rg console font"
 rg -Fq 'font_line="FONT=$console_font"' "$installer" \
   || fail "installer should write the configured console font into linux-rg mkinitcpio"
+rg -Fq 'write_vconsole_font' "$installer" \
+  || fail "installer should write FONT into vconsole.conf for the consolefont hook"
 rg -Fq 'systemctl daemon-reload' "$installer" \
   || fail "installer should reload systemd before enabling packaged units"
 rg -Fq 'icon     $refind_icon' "$installer" \

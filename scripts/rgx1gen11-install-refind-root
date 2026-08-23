@@ -295,6 +295,42 @@ vconsole_keymap() {
   fi
 }
 
+vconsole_font() {
+  if [[ -r $vconsole_conf ]]; then
+    sed -nE 's/^[[:space:]]*FONT=([^[:space:]#]+).*/\1/p' "$vconsole_conf" | tail -n 1
+  fi
+}
+
+write_vconsole_font() {
+  local tmp current
+  current=$(vconsole_font)
+  if [[ $current == "$console_font" ]]; then
+    echo "unchanged: $vconsole_conf FONT=$console_font"
+    return
+  fi
+  tmp=$(mktemp)
+  if [[ -r $vconsole_conf ]]; then
+    awk -v font_line="FONT=$console_font" '
+      BEGIN { replaced = 0 }
+      /^[[:space:]]*FONT=/ {
+        print font_line
+        replaced = 1
+        next
+      }
+      { print }
+      END {
+        if (!replaced) print font_line
+      }
+    ' "$vconsole_conf" >"$tmp"
+  else
+    printf 'FONT=%s\n' "$console_font" >"$tmp"
+  fi
+  backup_file "$vconsole_conf"
+  install -m 0644 "$tmp" "$vconsole_conf"
+  rm -f "$tmp"
+  echo "wrote: $vconsole_conf FONT=$console_font"
+}
+
 has_word() {
   local haystack=$1 needle=$2
   [[ " $haystack " == *" $needle "* ]]
@@ -723,6 +759,7 @@ main() {
   echo
   echo "== mkinitcpio =="
   write_mkinitcpio_config
+  write_vconsole_font
   write_mkinitcpio_preset
   mkinitcpio -p linux-rg
   chown root:root "$boot_kernel" "$boot_initramfs"
