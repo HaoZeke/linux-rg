@@ -8,9 +8,13 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 tmp=$(mktemp -d)
 trap 'rtrash -rf "$tmp"' EXIT
 printf '[Service]\nExecStart=/bin/false\n' >"$tmp/empty.conf"
-"$check" "$tmp/empty.conf" && fail "empty unit must fail" || true
+if "$check" "$tmp/empty.conf" >/dev/null 2>&1; then
+	fail "empty unit must fail"
+fi
 printf '[Service]\nManagedOOMMemoryPressure=kill\n' >"$tmp/kill.conf"
-"$check" "$tmp/kill.conf" && fail "kill-on-sessiond must fail" || true
+if "$check" "$tmp/kill.conf" >/dev/null 2>&1; then
+	fail "kill-on-sessiond must fail"
+fi
 cp "$repo/80-linux-rg-grokos-sessiond.conf" "$tmp/removed-accounting.conf"
 printf 'CPUAccounting=yes\n' >>"$tmp/removed-accounting.conf"
 if "$check" "$tmp/removed-accounting.conf" >/dev/null 2>&1; then

@@ -2,7 +2,7 @@
 
 pkgbase=linux-rg
 pkgver=7.1.8.arch1
-pkgrel=2
+pkgrel=3
 pkgdesc='Linux kernel for linux-rg machine profiles'
 url='https://github.com/archlinux/linux'
 arch=(
@@ -148,7 +148,7 @@ sha256sums=(
             'b8fb7602b75aed5b49315d359809b866051c125fbbd2f58ec39f34d87dd8164e'
             '9e1da6ad76ac419bc08fddd80aa0f584d66015247e59c228680aa6d510d6e338'
             '679db61df802494e7df6a86600d8c205cd49a58f7ac19097a5d0aaf66af84faf'
-            'a34a4cf5ff618506104dd229d02f275a35af76312df28b587ab37061b84f193b'
+            '50c578bd558d3c32def5cd6d4c84d49356d83e54b00415b5584529d0a8a3b9d9'
             '7ed090e02c037129860b9042b812751b80d0e9818faad9c6109857f9423be64e'
             '2c57224feb59907decd8b9822cbda1409ef6c2a30778fbea4ac381abf978ba49'
             'da416fe965d19ab353b12b3a7d5bcec5e28fb8589f354e1ce026b03abc41e683'

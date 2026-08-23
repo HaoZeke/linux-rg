@@ -21,8 +21,9 @@ starttime / pidfd mismatch means the identity is gone; else
 =cgroup.kill= on that sibling scope, =pidfd_send_signal=, never
 =kill(-pgid)=. Shared =user.slice= is refused. linux-rg ships
 =grokos-sessiond.service.d/linux-rg.conf= so the user unit has
-=Delegate=yes=, CPU/Memory/IO accounting, =ManagedOOMPreference=omit=,
-and =GROKOS_JAIL=auto=.
+=Delegate=yes=, always-available cgroup-v2 CPU usage, Memory/IO accounting,
+=ManagedOOMPreference=omit=, and =GROKOS_JAIL=auto=. =CPUAccounting== is
+rejected because systemd 258 removed the no-op directive.
 
 The kernel does not grow a GrokOS syscall. It has to keep the knobs that
 plane already uses.

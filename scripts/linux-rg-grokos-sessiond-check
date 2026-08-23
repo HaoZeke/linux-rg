@@ -16,7 +16,9 @@ fi
 [[ -f $unit ]] || fail "missing sessiond drop-in ($unit)"
 
 grep -Fqx -- 'Delegate=yes' "$unit" || fail "$unit missing Delegate=yes"
-grep -Fqx -- 'CPUAccounting=yes' "$unit" || fail "$unit missing CPUAccounting"
+if grep -Eq '^[[:space:]]*CPUAccounting=' "$unit"; then
+	fail "$unit uses removed CPUAccounting"
+fi
 grep -Fqx -- 'MemoryAccounting=yes' "$unit" || fail "$unit missing MemoryAccounting"
 grep -Fqx -- 'IOAccounting=yes' "$unit" || fail "$unit missing IOAccounting"
 grep -Fqx -- 'MemoryPressureWatch=on' "$unit" || fail "$unit missing MemoryPressureWatch"
