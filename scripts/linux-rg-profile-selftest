@@ -48,6 +48,8 @@ grep -q 'linux-rg-grokos-seat-check' PKGBUILD || fail "PKGBUILD missing grokos s
 grep -q 'linux-rg-criu-check' PKGBUILD || fail "PKGBUILD missing criu-check install"
 grep -q 'rgx1gen11-network-policy-check' PKGBUILD || fail "PKGBUILD missing network-policy check install"
 grep -q 'CONFIG_NFT_SOCKET dropped after olddefconfig' PKGBUILD || fail "PKGBUILD missing NFT_SOCKET olddefconfig gate"
+grep -q 'CONFIG_CRYPTO_CRYPTD dropped after olddefconfig' PKGBUILD || fail "PKGBUILD missing CRYPTO_CRYPTD olddefconfig gate"
+grep -q 'CONFIG_CRYPTO_CRYPTD=m' rgx1gen11.config rgam5terra.config rgSURFLat.config || fail "overlay missing CRYPTO_CRYPTD"
 grep -q 'CONFIG_NFT_SOCKET dropped after olddefconfig' scripts/linux-rg-rebase-build || fail "rebase-build missing NFT_SOCKET gate"
 grep -q 'CONFIG_NFT_SOCKET=m' rgx1gen11.config rgam5terra.config rgSURFLat.config || fail "overlay missing NFT_SOCKET"
 grep -q 'linux-rg-grokos-tune-check' PKGBUILD || fail "PKGBUILD missing grokos tune-check install"

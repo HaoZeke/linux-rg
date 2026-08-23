@@ -14,8 +14,17 @@ test -x "$checker" || fail "missing executable boot checker"
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-mkdir -p "$tmpdir/bin" "$tmpdir/boot/EFI/refind/icons" "$tmpdir/modules/9.9.9-rg/build" "$tmpdir/firmware"
-touch "$tmpdir/boot-kernel" "$tmpdir/boot-initramfs" "$tmpdir/modules/9.9.9-rg/build/.config"
+mkdir -p "$tmpdir/bin" "$tmpdir/boot/EFI/refind/icons" \
+  "$tmpdir/modules/9.9.9-rg/build" \
+  "$tmpdir/modules/9.9.9-rg/kernel/crypto" \
+  "$tmpdir/modules/9.9.9-rg/kernel/arch/x86/crypto" \
+  "$tmpdir/firmware"
+touch "$tmpdir/boot-kernel" "$tmpdir/boot-initramfs" "$tmpdir/modules/9.9.9-rg/build/.config" \
+  "$tmpdir/modules/9.9.9-rg/kernel/crypto/cryptd.ko" \
+  "$tmpdir/modules/9.9.9-rg/kernel/crypto/essiv.ko" \
+  "$tmpdir/modules/9.9.9-rg/kernel/crypto/lz4.ko" \
+  "$tmpdir/modules/9.9.9-rg/kernel/crypto/lz4hc.ko" \
+  "$tmpdir/modules/9.9.9-rg/kernel/arch/x86/crypto/aesni-intel.ko"
 cp "$repo/os_linux_rg.png" "$tmpdir/boot/EFI/refind/icons/os_linux_rg.png"
 
 cat >"$tmpdir/bin/pacman" <<'SH'
@@ -89,6 +98,22 @@ output=$(
       --vconsole-conf "$vconsole_conf"
 )
 
+printf '%s\n' "$output" | rg -q 'ok: crypto module cryptd:' \
+  || fail "installed check should require cryptd.ko in the linux-rg module tree"
+rtrash -f "$tmpdir/modules/9.9.9-rg/kernel/crypto/cryptd.ko"
+if RGX1GEN11_HELPER_DIR="$tmpdir/bin" PATH="$tmpdir/bin:$PATH" \
+    "$checker" --installed \
+      --refind-conf "$refind_conf" \
+      --refind-root "$tmpdir/boot" \
+      --mkinitcpio-conf "$mkinitcpio_conf" \
+      --boot-kernel "$tmpdir/boot-kernel" \
+      --boot-initramfs "$tmpdir/boot-initramfs" \
+      --modules-root "$tmpdir/modules" \
+      --firmware-root "$tmpdir/firmware" \
+      --vconsole-conf "$vconsole_conf" >/dev/null 2>&1; then
+  fail "installed check accepted a module tree without cryptd.ko"
+fi
+touch "$tmpdir/modules/9.9.9-rg/kernel/crypto/cryptd.ko"
 printf '%s\n' "$output" | rg -q 'ok: mkinitcpio hook encrypt' \
   || fail "installed check should require the encrypt hook"
 printf '%s\n' "$output" | rg -q 'ok: mkinitcpio hook btrfs' \

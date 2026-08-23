@@ -102,3 +102,49 @@ diff -ruN a/rtl88xxau-r1314.7344855/os_dep/linux/ioctl_cfg80211.c b/rtl88xxau-r1
  	_adapter *padapter = wiphy_to_adapter(wiphy);
  	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
  
+diff -ruN a/rtl88xxau-r1314.7344855/core/rtw_br_ext.c b/rtl88xxau-r1314.7344855/core/rtw_br_ext.c
+--- a/rtl88xxau-r1314.7344855/core/rtw_br_ext.c	2026-06-26 17:35:01.000000000 -0500
++++ b/rtl88xxau-r1314.7344855/core/rtw_br_ext.c	2026-08-23 07:40:00.000000000 -0500
+@@ -22,6 +22,13 @@
+ 	#include <linux/udp.h>
+ 	#include <linux/if_pppox.h>
+ #endif
++#if defined(__KERNEL__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
++/* 7.1 hides pppoe_tag.tag_data from kernel builds. Payload follows the header. */
++#define rtw_pppoe_tag_data(tag) ((char *)((tag) + 1))
++#else
++#define rtw_pppoe_tag_data(tag) ((tag)->tag_data)
++#endif
+ 
+ #if 1	/* rtw_wifi_driver */
+ 	#include <drv_types.h>
+@@ -967,9 +974,9 @@
+ 						tag->tag_len = htons(MAGIC_CODE_LEN + RTL_RELAY_TAG_LEN + old_tag_len);
+ 
+ 						/* insert the magic_code+client mac in relay tag */
+-						pMagic = (unsigned short *)tag->tag_data;
++						pMagic = (unsigned short *)rtw_pppoe_tag_data(tag);
+ 						*pMagic = htons(MAGIC_CODE);
+-						memcpy(tag->tag_data + MAGIC_CODE_LEN, skb->data + ETH_ALEN, ETH_ALEN);
++						memcpy(rtw_pppoe_tag_data(tag) + MAGIC_CODE_LEN, skb->data + ETH_ALEN, ETH_ALEN);
+ 
+ 						/* Add relay tag */
+ 						if (__nat25_add_pppoe_tag(skb, tag) < 0)
+@@ -1030,14 +1037,14 @@
+ 						return -1;
+ 					}
+ 
+-					pMagic = (unsigned short *)tag->tag_data;
++					pMagic = (unsigned short *)rtw_pppoe_tag_data(tag);
+ 					if (ntohs(*pMagic) != MAGIC_CODE) {
+ 						DEBUG_ERR("Can't find MAGIC_CODE in %s packet!\n",
+ 							(ph->code == PADO_CODE ? "PADO" : "PADS"));
+ 						return -1;
+ 					}
+ 
+-					memcpy(skb->data, tag->tag_data + MAGIC_CODE_LEN, ETH_ALEN);
++					memcpy(skb->data, rtw_pppoe_tag_data(tag) + MAGIC_CODE_LEN, ETH_ALEN);
+ 
+ 					if (tagLen > MAGIC_CODE_LEN + RTL_RELAY_TAG_LEN)
+ 						offset = TAG_HDR_LEN;
+ 

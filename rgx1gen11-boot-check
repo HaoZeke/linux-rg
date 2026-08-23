@@ -316,6 +316,32 @@ want_mkinitcpio_crypto_modules() {
   done
 }
 
+crypto_module_filename() {
+  case "$1" in
+    aesni_intel) printf 'aesni-intel' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+want_crypto_module_files() {
+  local kver=$1
+  local module filename match
+
+  if [[ -z $kver || ! -d $modules_root/$kver/kernel ]]; then
+    fail "crypto modules unverifiable without $modules_root/<kver>/kernel"
+    return
+  fi
+  for module in aesni_intel cryptd essiv lz4 lz4hc; do
+    filename=$(crypto_module_filename "$module")
+    match=$(find "$modules_root/$kver/kernel" -name "${filename}.ko*" -print -quit)
+    if [[ -n $match ]]; then
+      pass "crypto module $module: $match"
+    else
+      fail "crypto module missing: $module ($filename.ko*) under $modules_root/$kver"
+    fi
+  done
+}
+
 refind_options_for() {
   local title=$1
   sed -n "/^menuentry \"$title\" {/,/^}/p" "$refind_conf" |
@@ -534,6 +560,7 @@ check_installed() {
     config_path="$modules_root/$kver/build/.config"
     modules_dir="$modules_root/$kver"
     want_file "$config_path" "kernel config"
+    want_crypto_module_files "$kver"
     want_checker rgx1gen11-ax211-check --config "$config_path" --modules-dir "$modules_dir" \
       --modprobe-file /usr/lib/modprobe.d/rgx1gen11-iwlwifi.conf --firmware-root "$firmware_root" --require-firmware
     want_checker rgx1gen11-memory-check --config "$config_path"
