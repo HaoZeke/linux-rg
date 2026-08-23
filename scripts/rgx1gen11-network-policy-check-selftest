@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+check=$repo/scripts/rgx1gen11-network-policy-check
+tmp=$(mktemp -d)
+trap 'rtrash -rf "$tmp"' EXIT
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+cat >"$tmp/good.config" <<'EOF'
+CONFIG_SOCK_CGROUP_DATA=y
+CONFIG_NFT_SOCKET=m
+CONFIG_NETFILTER_XT_MATCH_CGROUP=m
+EOF
+
+test -x "$check" || fail "missing rgx1gen11 network-policy config checker"
+"$check" "$tmp/good.config" >/dev/null
+
+for key in CONFIG_SOCK_CGROUP_DATA CONFIG_NFT_SOCKET CONFIG_NETFILTER_XT_MATCH_CGROUP; do
+  sed "/^${key}=/d" "$tmp/good.config" >"$tmp/bad.config"
+  if "$check" "$tmp/bad.config" >/dev/null 2>&1; then
+    fail "checker accepted a config without $key"
+  fi
+done
+
+"$check" "$repo/rgx1gen11.config" >/dev/null \
+  || fail "rgx1gen11 overlay lacks the protected-process classifier contract"
+
+printf 'ok\n'
