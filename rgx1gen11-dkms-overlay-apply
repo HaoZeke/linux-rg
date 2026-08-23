@@ -148,19 +148,27 @@ refresh_module_symvers() {
 apply_patch_file() {
   local dir=$1
   local patch_file=$2
+  local log rc
 
-  if patch -d "$dir" -p2 --dry-run --forward --silent < "$patch_file"; then
-    patch -d "$dir" -p2 --forward < "$patch_file"
-    return 0
+  log=$(mktemp)
+  set +e
+  patch -d "$dir" -p2 --forward -N -r /dev/null --no-backup-if-mismatch \
+    <"$patch_file" >"$log" 2>&1
+  rc=$?
+  set -e
+  cat "$log"
+  if grep -Eq 'malformed patch|FAILED' "$log"; then
+    rm -f "$log"
+    printf 'error: patch does not apply cleanly: %s -> %s\n' "$patch_file" "$dir" >&2
+    return 1
   fi
-
-  if patch -d "$dir" -p2 --dry-run --reverse --silent < "$patch_file"; then
-    printf 'already patched: %s\n' "$dir"
-    return 0
+  if ((rc == 2)); then
+    rm -f "$log"
+    printf 'error: patch does not apply cleanly: %s -> %s\n' "$patch_file" "$dir" >&2
+    return 1
   fi
-
-  printf 'error: patch does not apply cleanly: %s -> %s\n' "$patch_file" "$dir" >&2
-  return 1
+  rm -f "$log"
+  return 0
 }
 
 backup_source() {
