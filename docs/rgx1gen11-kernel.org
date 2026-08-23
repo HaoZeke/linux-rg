@@ -94,6 +94,30 @@ such behavior. This package chooses BBRv3, not BBRv1, and keeps the kernel
 configuration explicit so reverting to Cubic is a config change rather than a
 patch-stack rewrite.
 
+** Netfilter cgroup classification
+
+Source: mainline nftables and xtables cgroup matching.
+
+Why: distinct user services share one Unix uid but require different routing
+policy. A cgroup-v2 socket match lets the firewall assign a route mark to one
+service slice without capturing every process owned by that user. The
+classifier is part of the fail-closed boundary, so its absence is an error
+rather than a reason to broaden the match.
+
+Fit: =localmodconfig= can prune classifiers that have no loaded module in the
+capture. The profile restores the socket metadata and both supported cgroup
+match paths after that pruning:
+
+- =CONFIG_SOCK_CGROUP_DATA=y=
+- =CONFIG_NFT_SOCKET=m=
+- =CONFIG_NETFILTER_XT_MATCH_CGROUP=m=
+
+Mechanical check:
+
+#+begin_example
+scripts/rgx1gen11-network-policy-check
+#+end_example
+
 ** v4l2loopback
 
 Source: pf-kernel 7.0 patch carrying the v4l2loopback driver.

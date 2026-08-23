@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if (($# == 0)); then
+  if [[ -r $repo/rgx1gen11.config ]]; then
+    set -- "$repo/rgx1gen11.config"
+  else
+    set -- /usr/share/linux-rg/profiles/rgx1gen11.config
+  fi
+fi
+
+failures=0
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  failures=$((failures + 1))
+}
+
+require_builtin() {
+  local config=$1 key=$2
+  grep -Fqx -- "$key=y" "$config" \
+    || fail "$config requires $key=y"
+}
+
+require_enabled() {
+  local config=$1 key=$2 value
+  value=$(sed -n "s/^${key}=//p" "$config" | tail -n 1)
+  case "$value" in
+    y|m) ;;
+    *) fail "$config requires $key=y or $key=m" ;;
+  esac
+}
+
+for config in "$@"; do
+  if [[ ! -r $config ]]; then
+    fail "unreadable config: $config"
+    continue
+  fi
+  require_builtin "$config" CONFIG_SOCK_CGROUP_DATA
+  require_enabled "$config" CONFIG_NFT_SOCKET
+  require_enabled "$config" CONFIG_NETFILTER_XT_MATCH_CGROUP
+done
+
+((failures == 0)) || exit 1
+printf 'ok: %s file(s)\n' "$#"

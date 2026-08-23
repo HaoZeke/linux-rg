@@ -2,7 +2,7 @@
 
 pkgbase=linux-rg
 pkgver=7.1.8.arch1
-pkgrel=1
+pkgrel=2
 pkgdesc='Linux kernel for linux-rg machine profiles'
 url='https://github.com/archlinux/linux'
 arch=(
@@ -456,6 +456,8 @@ _package() {
     "$pkgdir/usr/bin/linux-rg-grokos-seat-check"
   install -Dm755 "$startdir/scripts/linux-rg-criu-check" \
     "$pkgdir/usr/bin/linux-rg-criu-check"
+  install -Dm755 "$startdir/scripts/rgx1gen11-network-policy-check" \
+    "$pkgdir/usr/bin/rgx1gen11-network-policy-check"
   install -Dm755 "$startdir/scripts/linux-rg-grokos-tune-check" \
     "$pkgdir/usr/bin/linux-rg-grokos-tune-check"
   install -Dm755 "$startdir/scripts/linux-rg-asa-router-check" \

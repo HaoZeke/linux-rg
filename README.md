@@ -101,6 +101,12 @@ Validate the AX211 policy from the repo config:
 ./rgx1gen11-ax211-check
 ```
 
+Validate the cgroup-aware network-policy classifier contract:
+
+```sh
+scripts/rgx1gen11-network-policy-check
+```
+
 Validate a prepared build tree before packaging:
 
 ```sh
