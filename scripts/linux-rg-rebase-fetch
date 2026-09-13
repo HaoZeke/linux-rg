@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Fetch Arch 7.1.8.arch1 sources into DEST and unpack + apply the Arch patch.
+set -euo pipefail
+
+dest=${1:-}
+ver=${2:-7.1.8}
+archtag=${3:-arch1}
+if [[ -z $dest ]]; then
+  printf 'usage: %s DEST [7.1.8] [arch1]\n' "$0" >&2
+  exit 2
+fi
+mkdir -p "$dest"
+cd "$dest"
+
+tarball=linux-${ver}.tar.xz
+archpatch=linux-v${ver}-${archtag}.patch.zst
+base=https://cdn.kernel.org/pub/linux/kernel/v${ver%%.*}.x
+archurl=https://github.com/archlinux/linux/releases/download/v${ver}-${archtag}
+
+if [[ ! -f $tarball ]]; then
+  curl -fL --retry 3 -o "$tarball" "$base/$tarball"
+fi
+if [[ ! -f $archpatch ]]; then
+  curl -fL --retry 3 -o "$archpatch" "$archurl/$archpatch"
+fi
+
+rm -rf "linux-${ver}"
+tar -xf "$tarball"
+zstd -d -c "$archpatch" | patch -d "linux-${ver}" -p1 --batch --forward
+printf '%s/linux-%s\n' "$dest" "$ver"

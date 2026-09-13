@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# olddefconfig + compile a patched 7.1.8 linux-rg tree on rg.terra.
+# Usage: linux-rg-rebase-build TREE [rgam5terra]
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+tree=${1:-}
+profile=${2:-rgam5terra}
+if [[ -z $tree || ! -d $tree ]]; then
+  printf 'usage: %s /path/to/linux-7.1.8 [rgam5terra]\n' "$0" >&2
+  exit 2
+fi
+case $profile in
+  rgx1gen11|rgam5terra|rgSURFLat) ;;
+  *) printf 'unsupported profile: %s\n' "$profile" >&2; exit 2 ;;
+esac
+
+cd -- "$tree"
+if [[ ! -f .config ]]; then
+  cp -- "$repo/config.x86_64" .config
+fi
+while IFS= read -r rg_cfg; do
+  case "$rg_cfg" in "") continue ;; esac
+  if [[ "$rg_cfg" =~ ^\#\ CONFIG_([A-Za-z0-9_]+)\ is\ not\ set$ ]]; then
+    scripts/config --disable "${BASH_REMATCH[1]}"
+  elif [[ "$rg_cfg" =~ ^\#.*$ ]]; then
+    continue
+  elif [[ "$rg_cfg" =~ ^CONFIG_([A-Za-z0-9_]+)=(y|m)$ ]]; then
+    if [[ "${BASH_REMATCH[2]}" == y ]]; then
+      scripts/config --enable "${BASH_REMATCH[1]}"
+    else
+      scripts/config --module "${BASH_REMATCH[1]}"
+    fi
+  elif [[ "$rg_cfg" =~ ^CONFIG_([A-Za-z0-9_]+)=\"(.*)\"$ ]]; then
+    scripts/config --set-str "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  elif [[ "$rg_cfg" =~ ^CONFIG_([A-Za-z0-9_]+)=([0-9]+)$ ]]; then
+    scripts/config --set-val "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  else
+    printf 'unsupported %s config line: %s\n' "$profile" "$rg_cfg" >&2
+    exit 1
+  fi
+done < "$repo/$profile.config"
+make olddefconfig
+make -s kernelrelease
+nproc=$(nproc)
+echo "building $(cat include/config/kernel.release 2>/dev/null || make -s kernelrelease) with -j${nproc}"
+make -j"${nproc}" all
+echo "build ok: $(make -s kernelrelease)"

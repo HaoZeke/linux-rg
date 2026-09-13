@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Fix leftover hunks, rebuild mid/clean trees, refresh failing patches.
+# Run on rg.terra. No compile.
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+root=${1:-$HOME/tmp/linux-rg-rebase}
+work=$root/linux-7.1.8
+clean=$root/linux-7.1.8-clean
+mid=$root/linux-7.1.8-mid
+
+python3 -m py_compile "$repo/scripts/linux-rg-rebase-fixup.py"
+bash -n "$repo/scripts/linux-rg-rebase-apply"
+bash -n "$repo/scripts/linux-rg-rebase-regen"
+
+echo "=== fixup work tree ==="
+python3 "$repo/scripts/linux-rg-rebase-fixup.py" "$work"
+
+echo "=== ensure clean tree ==="
+if [[ ! -d $clean ]]; then
+  mkdir -p "$root/extract"
+  rm -rf "$root/extract/linux-7.1.8"
+  tar -C "$root/extract" -xf "$root/linux-7.1.8.tar.xz"
+  rm -rf "$clean"
+  mv "$root/extract/linux-7.1.8" "$clean"
+  zstd -d -c "$root/linux-v7.1.8-arch1.patch.zst" | patch -d "$clean" -p1 --batch --forward
+fi
+
+echo "=== build mid tree ==="
+rm -rf "$mid"
+cp -a "$clean" "$mid"
+cd -- "$mid"
+fail=0
+for src in "$repo"/00*.patch; do
+  base=${src##*/}
+  case $base in
+    0002-bore-fair-arch-adapt.patch|0003-bbr3-cachy.patch|0004-bbr3-arch7-adapt.patch) continue ;;
+    0010-cachy-hotpath-inline.patch|0012-sched-ext-smt-idle.patch) continue ;;
+    0018-cachy-mm-ratios.patch|0019-mglru-devtree-adapt.patch) continue ;;
+    0020-cache-aware-sched.patch|0021-mm-bulk-free-hotpaths.patch) continue ;;
+    0022-amd-znver5-rdseed.patch|0029-udmabuf-sg-table-from-pages.patch) continue ;;
+  esac
+  echo "mid apply $base"
+  if [[ $base == 0001-bore-cachy.patch ]]; then
+    if ! patch -Np1 --batch --forward <"$src"; then
+      patch -Np1 --batch --forward <"$repo/0002-bore-fair-arch-adapt.patch"
+      rm -f kernel/sched/fair.c.rej
+    fi
+  else
+    patch -Np1 --batch --forward <"$src" || fail=$((fail + 1))
+  fi
+done
+find . -name '*.rej' -print
+if (( fail > 0 )); then
+  echo "mid-tree apply failures: $fail" >&2
+fi
+
+echo "=== regen patches ==="
+bash "$repo/scripts/linux-rg-rebase-regen" "$work" "$clean" "$mid"
+
+echo "=== verify fresh apply ==="
+rm -rf "$root/linux-7.1.8-verify"
+cp -a "$clean" "$root/linux-7.1.8-verify"
+set +e
+bash "$repo/scripts/linux-rg-rebase-apply" "$root/linux-7.1.8-verify"
+rc=$?
+set -e
+echo "verify apply exit=$rc"
+find "$root/linux-7.1.8-verify" -name '*.rej' -print | sort
+exit "$rc"
