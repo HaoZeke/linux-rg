@@ -94,7 +94,7 @@ source=(
   rgSURFLat-btusb.conf
   rgam5terra-nvidia.conf
   ddcci-0.4.5-linux-7.0.patch
-  rtl88xxau-r1298-linux-7.0.patch
+  rtl88xxau-r1314-linux-7.0.patch
   evdi-1.14.7-linux-7.0.patch
 )
 source_x86_64=(config.x86_64)
@@ -161,7 +161,7 @@ sha256sums=('3c81edd0f716aca3dd48dff691681827580cc53d35a8eec3be47d346d1f89913'
             '5493c4bf773dc0f274fe5d526d900556a43cadf39338a1bb0792aeb24c55ed30'
             'ff29e5618ea5100bd7938b0da57edcce340f9202773a9ae1f07c62c8e6fcf5d3'
             '7332851854410e619113de8ea64bc0b917ee74d7edefa807626cadbc3850a37c'
-            '3f2e0bc333e1fd3a8727714fcd4e574edc4d875884a972cdd61cbcbe25fed0b5'
+            '03587b1af8109f3283a78155261953133d5487f7a8615aad1ce69acd6c303102'
             '91dd3f39a7204db4dbc8c288dbf199120d4ce796f00c67cf1911ee57715e202b')
 sha256sums_x86_64=('0ed8c43b4ad6c3c3f3affe1317581992ba0eac6697d421a5c6d8210bf1e29ad7')
 b2sums=('c92878038062d7f41f805fa8d2bcbc4f1621c7d07e6b210b0ed03b3aa078832b4978761c391db3583459902acb1b22072ee5ebbcd6e37e9e263308b9c9521a5d'
@@ -222,7 +222,7 @@ b2sums=('c92878038062d7f41f805fa8d2bcbc4f1621c7d07e6b210b0ed03b3aa078832b4978761
             'ebc6c13c18776dc5d366713a0e6fec82f094ecfef8b95eca5a5db842fd710db9fb7ff8b4e276dfb9adace6b343e15b5f342d9eda25b51fb9408acd44f839e835'
             'eff9fd360fcf2299deea61132a10818f7a674811fbe74848bcb405773e97e8dee5db2aa1ad1b2681504ea0a6e78e10e209522f42754ea7f84294832b12330c16'
             '687e4c74aba0e69a5f6a8f8989d62ca38cceaadd5100f5c7773c010c84efece4968ffed9e7cf429571ee934c09f5fc5cc7835771ee62e7cdd5998561427c8e70'
-            '0731dbc14f9b3cf1023d7d35382c221b95eb44b4a18f883e47d1b537a81d81e588edcf401f5a1b958035ab3ed3305bd4929baa66123f90c9796243baa65645b3'
+            '21058c001b839b0500b659944879e232f8a316ad2818bd58fc33cd43d028c40217bd75e71f6be44649016d08d17065c303721d3374c30c2cf0c3f8251f7f86e0'
             '7b9c5e5e3d3393d2ae1cc2c2cd55c1896c5e6ecc0c7a71178ebb297f9426b11cb7c5f98efc610e09cbaf808ea172375242d38d00bad81a7c08968f499e3869a6')
 b2sums_x86_64=('7082013345352c95303ee87cd78bf5d93ab49ec9f270e6cb803a05cb7f9a67c554bbd260de922d6d44145fd3712b410c13d67c8f76dc2b9f4088be86aeaec835')
 
@@ -269,7 +269,7 @@ prepare() {
     [[ $src = 0002-bore-fair-arch-adapt.patch ]] && continue
     [[ $src = 0004-bbr3-arch7-adapt.patch ]] && continue
     [[ $src = ddcci-0.4.5-linux-7.0.patch ]] && continue
-    [[ $src = rtl88xxau-r1298-linux-7.0.patch ]] && continue
+    [[ $src = rtl88xxau-r1314-linux-7.0.patch ]] && continue
     [[ $src = evdi-1.14.7-linux-7.0.patch ]] && continue
     [[ $src = 0022-amd-znver5-rdseed.patch && $linux_rg_profile != rgam5terra ]] && continue
     echo "Applying patch $src..."
@@ -443,8 +443,8 @@ _package() {
   install -Dm644 "$srcdir/rgam5terra-nvidia.conf" "$pkgdir/usr/lib/modprobe.d/rgam5terra-nvidia.conf"
   install -Dm644 "$srcdir/ddcci-0.4.5-linux-7.0.patch" \
     "$pkgdir/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
-  install -Dm644 "$srcdir/rtl88xxau-r1298-linux-7.0.patch" \
-    "$pkgdir/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+  install -Dm644 "$srcdir/rtl88xxau-r1314-linux-7.0.patch" \
+    "$pkgdir/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1314-linux-7.0.patch"
   install -Dm644 "$srcdir/evdi-1.14.7-linux-7.0.patch" \
     "$pkgdir/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
 

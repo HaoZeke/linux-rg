@@ -78,7 +78,7 @@ make_pkg() {
   : > "$root/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
   : > "$root/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
   : > "$root/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
-  : > "$root/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+  : > "$root/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1314-linux-7.0.patch"
   bsdtar --zstd -cf "$pkg" -C "$root" usr
 }
 

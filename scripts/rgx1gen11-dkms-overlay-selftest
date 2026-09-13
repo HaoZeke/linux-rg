@@ -34,8 +34,8 @@ dry_run_patch() {
   local src_root=/usr/src/$src_name
 
   if [[ ! -d $src_root ]]; then
-    printf 'skip dry-run: %s not present\n' "$src_root"
-    return 0
+    printf 'FAIL: missing DKMS source for dry-run: %s\n' "$src_root" >&2
+    return 1
   fi
 
   local tmp
@@ -52,14 +52,16 @@ require_executable rgx1gen11-dkms-overlay-apply
 require_file 69-linux-rg-dkms-overlays.hook
 
 require_file dkms-overlays/ddcci-0.4.5-linux-7.0.patch
-require_file dkms-overlays/rtl88xxau-r1298-linux-7.0.patch
+require_file dkms-overlays/rtl88xxau-r1314-linux-7.0.patch
 require_file dkms-overlays/evdi-1.14.7-linux-7.0.patch
 
 require_text dkms-overlays/ddcci-0.4.5-linux-7.0.patch 'I2C_CLASS_HWMON'
 require_text dkms-overlays/ddcci-0.4.5-linux-7.0.patch 'controls_device'
-require_text dkms-overlays/rtl88xxau-r1298-linux-7.0.patch 'timer_container_of'
-require_text dkms-overlays/rtl88xxau-r1298-linux-7.0.patch 'timer_delete_sync'
-require_text dkms-overlays/rtl88xxau-r1298-linux-7.0.patch 'radio_idx'
+require_text dkms-overlays/rtl88xxau-r1314-linux-7.0.patch 'timer_container_of'
+require_text dkms-overlays/rtl88xxau-r1314-linux-7.0.patch 'timer_delete_sync'
+require_text dkms-overlays/rtl88xxau-r1314-linux-7.0.patch 'radio_idx'
+require_text dkms-overlays/rtl88xxau-r1314-linux-7.0.patch 'KERNEL_VERSION(6, 16, 0)'
+require_text dkms-overlays/rtl88xxau-r1314-linux-7.0.patch 'KERNEL_VERSION(6, 17, 0)'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'EVDI_ENABLE_FBDEV'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'const struct drm_format_info *info'
 require_text dkms-overlays/evdi-1.14.7-linux-7.0.patch 'MODULE_IMPORT_NS("DMA_BUF")'
@@ -68,10 +70,13 @@ require_text rgx1gen11-dkms-overlay-apply 'linux-rg ships v4l2loopback in-tree'
 require_text 69-linux-rg-dkms-overlays.hook 'Exec = /usr/bin/rgx1gen11-dkms-overlay-apply --patch-only --if-present'
 require_text 69-linux-rg-dkms-overlays.hook 'Target = linux-rg'
 require_text 69-linux-rg-dkms-overlays.hook 'Target = linux-rg-headers'
+require_text 69-linux-rg-dkms-overlays.hook 'Target = usr/src/*/dkms.conf'
+require_text rgx1gen11-dkms-overlay-apply 'linux-rg ships ddcci in-tree'
+require_text rgx1gen11-dkms-overlay-apply 'rtl88xxau-r1314'
 require_text PKGBUILD 'patch'
 
 dry_run_patch dkms-overlays/ddcci-0.4.5-linux-7.0.patch ddcci-0.4.5
-dry_run_patch dkms-overlays/rtl88xxau-r1298-linux-7.0.patch rtl88xxau-r1298.b44d288
+dry_run_patch dkms-overlays/rtl88xxau-r1314-linux-7.0.patch rtl88xxau-r1314.7344855
 dry_run_patch dkms-overlays/evdi-1.14.7-linux-7.0.patch evdi-1.14.7
 
 printf 'ok: dkms overlays are present and apply cleanly\n'

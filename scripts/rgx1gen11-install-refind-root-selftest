@@ -76,7 +76,7 @@ write_alpha_icon "$pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
-touch "$pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+touch "$pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1314-linux-7.0.patch"
 add_initramfs_modules "$pkgroot" 9.9.9-rg
 bsdtar -cf "$artifact_dir/linux-rg-9.9.9-x86_64.pkg.tar.zst" -C "$pkgroot" usr
 touch "$artifact_dir/linux-rg-headers-9.9.9-x86_64.pkg.tar.zst"
@@ -101,7 +101,7 @@ write_alpha_icon "$bad_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
-touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+touch "$bad_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1314-linux-7.0.patch"
 add_initramfs_modules "$bad_pkgroot" 9.9.8-rg
 bsdtar -cf "$bad_artifact_dir/linux-rg-9.9.8-x86_64.pkg.tar.zst" -C "$bad_pkgroot" usr
 touch "$bad_artifact_dir/linux-rg-headers-9.9.8-x86_64.pkg.tar.zst"
@@ -127,7 +127,7 @@ write_alpha_icon "$bad_payload_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png
 touch "$bad_payload_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
-touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+touch "$bad_payload_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1314-linux-7.0.patch"
 add_initramfs_modules "$bad_payload_pkgroot" 9.9.7-rg
 bsdtar -cf "$bad_payload_artifact_dir/linux-rg-9.9.7-x86_64.pkg.tar.zst" -C "$bad_payload_pkgroot" usr
 touch "$bad_payload_artifact_dir/linux-rg-headers-9.9.7-x86_64.pkg.tar.zst"
@@ -153,7 +153,7 @@ write_alpha_icon "$bad_live_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_live_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
-touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+touch "$bad_live_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1314-linux-7.0.patch"
 add_initramfs_modules "$bad_live_pkgroot" 9.9.7-rg
 bsdtar -cf "$bad_live_artifact_dir/linux-rg-9.9.7-x86_64.pkg.tar.zst" -C "$bad_live_pkgroot" usr
 touch "$bad_live_artifact_dir/linux-rg-headers-9.9.7-x86_64.pkg.tar.zst"
@@ -289,7 +289,7 @@ write_rgb_icon "$bad_icon_pkgroot/usr/share/linux-rg/refind/os_linux_rg.png"
 touch "$bad_icon_pkgroot/usr/share/libalpm/hooks/69-linux-rg-dkms-overlays.hook"
 touch "$bad_icon_pkgroot/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"
 touch "$bad_icon_pkgroot/usr/share/linux-rg/dkms-overlays/evdi-1.14.7-linux-7.0.patch"
-touch "$bad_icon_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1298-linux-7.0.patch"
+touch "$bad_icon_pkgroot/usr/share/linux-rg/dkms-overlays/rtl88xxau-r1314-linux-7.0.patch"
 add_initramfs_modules "$bad_icon_pkgroot" 9.9.6-rg
 bsdtar -cf "$bad_icon_artifact_dir/linux-rg-9.9.6-x86_64.pkg.tar.zst" -C "$bad_icon_pkgroot" usr
 touch "$bad_icon_artifact_dir/linux-rg-headers-9.9.6-x86_64.pkg.tar.zst"
