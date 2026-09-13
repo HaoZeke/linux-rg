@@ -96,7 +96,10 @@ success path on these profiles.
 =CONFIG_SCHED_ASA= does not depend on BTF or =SCHED_CLASS_EXT=. Sysfs
 is =/sys/kernel/sched_ext/asa/= when sched_ext is on, otherwise
 =/sys/kernel/asa/=. =0023= moves sampling onto a freezable workqueue
-so PSI and cgroup lookup run in process context, and adds:
+so PSI and cgroup lookup run in process context. =0031= pins each
+descendant css with =css_next_descendant_pre= instead of dropping
+RCU mid-=css_for_each_descendant_pre=, and treats a shrinking seat
+=nvcsw= sum as a zero rate. =0023= also adds:
 
 | Sysfs | Role |
 |-------|------|

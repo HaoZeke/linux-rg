@@ -1,0 +1,76 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Sat, 13 Sep 2026 00:00:00 +0000
+Subject: [PATCH] sched/asa: pin descendants across the seat walk
+
+css_for_each_descendant_pre requires rcu_read_lock for the whole
+loop. Dropping it after css_tryget and continuing the macro is a
+use-after-free if that css is released. Advance with
+css_next_descendant_pre while the current css is still pinned.
+
+Seat task exit can shrink the nvcsw sum; treat a backward count as
+a zero rate instead of wrapping to a huge interactive score.
+
+---
+--- a/kernel/sched/asa.c
++++ b/kernel/sched/asa.c
+@@ -129,6 +129,8 @@ static u32 asa_ctxsw_rate(u64 last_ctxsw, u64 ctxsw, unsigned long last_jiffies,
+ 	unsigned long dt_jiffies = max(now - last_jiffies, 1UL);
+ 
+ 	*now_out = now;
++	if (ctxsw < last_ctxsw)
++		return 0;
+ 	return div64_u64((ctxsw - last_ctxsw) * HZ, dt_jiffies);
+ }
+ 
+@@ -188,14 +190,21 @@ static void asa_read_seat_sched(struct cgroup *seat, u32 *rq_avg, u64 *csw_sum,
+ 	}
+ 
+ 	rcu_read_lock();
+-	css_for_each_descendant_pre(css, &seat->self) {
++	css = &seat->self;
++	if (!css_tryget(css)) {
++		rcu_read_unlock();
++		*rq_avg = 0;
++		*csw_sum = 0;
++		*n_tasks = 0;
++		return;
++	}
++	rcu_read_unlock();
++
++	while (css) {
++		struct cgroup_subsys_state *next;
+ 		struct css_task_iter it;
+ 		struct task_struct *p;
+ 
+-		if (!css_tryget(css))
+-			continue;
+-		rcu_read_unlock();
+-
+ 		css_task_iter_start(css, 0, &it);
+ 		while ((p = css_task_iter_next(&it))) {
+ 			if (nr >= ASA_SEAT_TASK_CAP)
+@@ -206,13 +215,20 @@ static void asa_read_seat_sched(struct cgroup *seat, u32 *rq_avg, u64 *csw_sum,
+ 			csw += p->nvcsw + p->nivcsw;
+ 		}
+ 		css_task_iter_end(&it);
+-		css_put(css);
+ 
+ 		rcu_read_lock();
+-		if (nr >= ASA_SEAT_TASK_CAP)
++		next = css_next_descendant_pre(css, &seat->self);
++		while (next && !css_tryget(next))
++			next = css_next_descendant_pre(next, &seat->self);
++		rcu_read_unlock();
++		css_put(css);
++		css = next;
++		if (nr >= ASA_SEAT_TASK_CAP) {
++			if (css)
++				css_put(css);
+ 			break;
++		}
+ 	}
+-	rcu_read_unlock();
+ 
+ 	*n_tasks = nr;
+ 	*csw_sum = csw;

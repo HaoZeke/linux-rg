@@ -220,9 +220,11 @@ Skipped from zen: PDS/BMQ alt scheduler, fair.c ZEN_INTERACTIVE sysctl (0013
 covers migration_cost), duplicate 0010 inlines, CONFIG_ZEN_INTERACTIVE elevator
 and swap tuning. See =docs/candidates.org= Liquorix section for the full matrix.
 
-** ASA sched_ext router (0009)
+** ASA sched_ext router (0009 + 0023–0028, 0030, 0031)
 
 Source: arXiv:2511.11628 prototype; =asa-router= userspace helper.
+=0028= builds =asa.o= without BTF/EXT. =0030= drops goal-prefix classify.
+=0031= pins the seat css walk.
 
 Why: reversible sched_ext expert switching (interactive/cpu/io/mixed) without
 replacing EEVDF fair class. Pairs with =CONFIG_SCHED_CLASS_EXT=y= on hybrid CPUs.
