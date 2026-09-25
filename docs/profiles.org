@@ -118,7 +118,7 @@ AMD-only =0022= is skipped.
 | Audio | SOF Intel Alder Lake / Tiger Lake path |
 | Platform | Dell WMI / SMBIOS laptop drivers |
 | Status | Active profile (installer + kernel overlay) |
-| Config overlay | =rgSURFLat.config= |
+| Config overlay | =rgSURFLat.config= with =rgSURFLat.lsmod= |
 
 Docs:
 - =docs/rgSURFLat-kernel.org=
