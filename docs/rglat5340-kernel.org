@@ -28,9 +28,17 @@ The 5340 pairs the X1's CPU family with the 7430's platform:
 - Nothing else. The Dell pins, SOF TGL/ADL pins, btrfs, dm-crypt, zram and the
   localmodconfig re-pins carry over unchanged.
 
-=rglat5340.lsmod= is =lsmod= from the 5340 itself, taken from the hzArchiso
-live session with the LUKS btrfs target open. localmodconfig prunes against it,
-so the build stays inside the 1500-module laptop budget. btrfs is absent from
+=rglat5340.lsmod= is the union of two module lists, and localmodconfig prunes
+against it so the build stays inside the 1500-module laptop budget:
+
+- =lsmod= from the 5340 itself, taken from the hzArchiso live session with the
+  LUKS btrfs target open. That covers the hardware.
+- =rgx1gen11.lsmod= without =thinkpad_acpi= and =think_lmi=. The live session
+  runs no daily workload, so on its own it prunes =x_tables= and
+  =nf_tables= (which drops =NETFILTER_XT_MATCH_CGROUP= and fails the prepare
+  guard), =uinput= (kanata), =wireguard= (tailscale), =zram= and the
+  Bluetooth =bnep= and =rfcomm=. The X1 ran the same workload on the same
+  CPU family. btrfs is absent from
 the snapshot because the live kernel has it built in; the overlay pins
 =CONFIG_BTRFS_FS=y=.
 
