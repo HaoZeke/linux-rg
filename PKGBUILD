@@ -391,6 +391,19 @@ prepare() {
     echo "CONFIG_CRYPTO_CRYPTD dropped after olddefconfig" >&2
     exit 1
   fi
+  # The routing helpers' network stack. A snapshot taken without the tunnels
+  # and policy rules loaded lets localmodconfig drop these; refuse to build a
+  # kernel whose network planes would come up dead.
+  local rg_net_opt
+  for rg_net_opt in NF_TABLES_INET NF_CONNTRACK NFT_COMPAT NFT_CT NFT_REJECT NFT_REJECT_INET \
+      NFT_FIB_INET NFT_NAT NFT_MASQ NETFILTER_XT_MATCH_COMMENT NETFILTER_XT_MATCH_OWNER \
+      NETFILTER_XT_MATCH_ADDRTYPE NETFILTER_XT_MATCH_CONNTRACK NET_CLS_CGROUP WIREGUARD \
+      VETH TUN IP_MULTIPLE_TABLES IPV6_MULTIPLE_TABLES; do
+    if ! grep -qE "^CONFIG_${rg_net_opt}=[ym]$" .config; then
+      echo "CONFIG_${rg_net_opt} dropped after olddefconfig" >&2
+      exit 1
+    fi
+  done
   local module_count module_budget
   module_count=$(grep -c '^CONFIG_.*=m$' .config || :)
   case "$linux_rg_profile" in

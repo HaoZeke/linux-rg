@@ -70,13 +70,13 @@ if not pkgs:
 pkg = pkgs[-1]
 want = "usr/lib/modules/"
 found = False
+wanted = ["nft_socket", "xt_cgroup", "nft_reject", "nft_reject_inet", "nft_fib_inet",
+          "nft_nat", "nft_masq", "xt_comment", "xt_owner", "cls_cgroup", "wireguard", "veth"]
 with tarfile.open(pkg) as tf:
-    for name in tf.getnames():
-        if name.endswith("nft_socket.ko.zst") or name.endswith("nft_socket.ko"):
-            print("packed", name)
-            found = True
-            break
-if not found:
-    raise SystemExit(f"{pkg} has no nft_socket module")
-print("nft_socket present in", os.path.basename(pkg), "profile", profile)
+    names = tf.getnames()
+missing = [m for m in wanted
+           if not any(n.endswith(f"/{m}.ko.zst") or n.endswith(f"/{m}.ko") for n in names)]
+if missing:
+    raise SystemExit(f"{pkg} lacks network modules: {' '.join(missing)}")
+print("network modules present in", os.path.basename(pkg), "profile", profile)
 PY

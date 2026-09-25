@@ -42,6 +42,12 @@ against it so the build stays inside the 1500-module laptop budget:
 the snapshot because the live kernel has it built in; the overlay pins
 =CONFIG_BTRFS_FS=y=.
 
+Both snapshots also list the network stack the routing helpers depend on
+(nftables sets, reject, fib, nat, the comment, owner and cgroup matches,
+WireGuard, veth, the cgroup classifier), and every overlay pins the same
+set after the prune. The prepare guard refuses a config that lost any of
+them, and the Terra build script checks the packaged modules.
+
 Build:
 : LINUX_RG_PROFILE=rglat5340 makepkg
 
