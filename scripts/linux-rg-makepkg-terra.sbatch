@@ -14,7 +14,7 @@ set -euo pipefail
 
 profile=${LINUX_RG_PROFILE:-rgx1gen11}
 case "$profile" in
-  rgx1gen11|rgam5terra|rgSURFLat) ;;
+  rgx1gen11|rgam5terra|rgSURFLat|rglat5340) ;;
   *) printf 'unsupported linux-rg profile: %s\n' "$profile" >&2; exit 2 ;;
 esac
 

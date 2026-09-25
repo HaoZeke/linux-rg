@@ -58,7 +58,7 @@ Vissues: epic =linux-rg-ln3w= (and children).
 | Cooler | Noctua NH-L9a-AM4 low-profile, physically mounted on AM5; no separate mounting kit assumed (MC SKU 958454) |
 | Case fan | ARCTIC P12 Pro 120 mm Black (MC SKU 953612) |
 | PSU | Lian Li SP850 V2 Gold 850W ATX 3.1 White (MC SKU 911693) |
-| RAM | T-Force Xtreem 48 GiB DDR5-8000 CL38 (MC SKU 655191) |
+| RAM | T-Force Xtreem 48 GiB DDR5 at 8000 MT/s CL38 (MC SKU 655191) |
 | Retailer | Micro Center Cambridge (store 121); receipt total $2,961.09 |
 | Status | Receipts captured; docs populated, live probe pending |
 | Config overlay | =rgam5terra.config= |
@@ -81,6 +81,30 @@ Research plan: gather primary sources for Zen 5 scheduling, AM5 power/thermal,
 NVIDIA firmware paths, NVMe (SN850X) behavior, and memory pressure on 48 GiB,
 then feed the profile contract into Archiso and NixOS provisioning work.
 
+
+** rglat5340 (Dell Latitude 5340)
+
+| Attribute | Value |
+|-----------|-------|
+| Slug | rglat5340 |
+| Form | 13.3" business laptop (Dell Latitude 5340), replaces =rgx1gen11= |
+| CPU | Intel Core i5-1345U (Raptor Lake-P/U, 2P+8E, 12 threads) |
+| iGPU | Intel Iris Xe (Raptor Lake-P) |
+| Storage | KIOXIA BG5 256 GB NVMe (DRAM-less) |
+| Network | Intel CNVi AX211 Wi-Fi + USB BT (8087:0033) |
+| Audio | Realtek ALC3254 on HDA-Intel, RPL-P cAVS with SOF available |
+| Input | ELAN900C touchscreen and ELAN 04F3:328E touchpad on LPSS I2C |
+| Platform | Dell WMI / SMBIOS laptop drivers, Broadcom ControlVault 3 |
+| RAM | 16 GiB LPDDR5 at 6400 MT/s |
+| Status | Active profile (installer + kernel overlay) |
+| Config overlay | =rglat5340.config= with =rglat5340.lsmod= |
+
+Docs:
+- =docs/rglat5340-kernel.org=
+- =docs/rglat5340-drivers.org=
+
+Build with =LINUX_RG_PROFILE=rglat5340 makepkg=. Shares the carried patch series;
+AMD-only =0022= is skipped.
 
 ** rgSURFLat (Dell Latitude 7430)
 

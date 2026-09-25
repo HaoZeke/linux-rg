@@ -69,6 +69,7 @@ source=(
   rgx1gen11.config
   rgam5terra.config
   rgSURFLat.config
+  rglat5340.config
   os_linux_rg.png
   asa-router
   asa-router.service
@@ -100,6 +101,8 @@ source=(
   rgx1gen11-btusb.conf
   rgSURFLat-iwlwifi.conf
   rgSURFLat-btusb.conf
+  rglat5340-iwlwifi.conf
+  rglat5340-btusb.conf
   rgam5terra-nvidia.conf
   ddcci-0.4.5-linux-7.0.patch
   rtl88xxau-r1314-linux-7.0.patch
@@ -145,6 +148,7 @@ sha256sums=(
             '12f58df22c6fa60d291a146d2593ca76740ace5692b62b4cf703bfc1c372aae9'
             '1616ef0f326f62ab42558aeed8c0b856f8f4bdd45dbadb245b373f4f1d77973b'
             '82bff114a78cf1834caa5f4c0b40a33699f5e19684f28ab7ec255c8a28e42e48'
+            '3fd6f615c4fd94104a33001a8cd762c1615d587ce9aae3dd722967d4bf3b4eba'
             '72a8dcd7d2fb934152a4608641abb2638dbedbf41a4ab614be227f1752384e1f'
             '74451ca1ed7c72d875ef44760171a514fe9e3885d692e1fb373195bc951f9395'
             'b8fb7602b75aed5b49315d359809b866051c125fbbd2f58ec39f34d87dd8164e'
@@ -176,6 +180,8 @@ sha256sums=(
             '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74'
             '717e3d383aa468f29ecb6a366cf45cf73bcd21d28723395770d58123cfd87755'
             '5493c4bf773dc0f274fe5d526d900556a43cadf39338a1bb0792aeb24c55ed30'
+            'a51cbe185cba81e2104ccf8ce795cdb1562613215c41a915bc4cd2a6439766a1'
+            '3879b286274def79525900445c560a8584b5cff49789da04aa1b0fff41db9184'
             'ff29e5618ea5100bd7938b0da57edcce340f9202773a9ae1f07c62c8e6fcf5d3'
             '7332851854410e619113de8ea64bc0b917ee74d7edefa807626cadbc3850a37c'
             '7d94ba2a4decc1143152e7e7699b82a14ecc23cc003b45669116f0b6946d64ca'
@@ -216,6 +222,7 @@ b2sums=(
             '5a2b7fd5e7df5d805ab237e4b7b2f0dd32e3349c133e8b3dcbd2c5638b784270e09f8f0174281e8268f63e7415c8ee787e7178cb6309b02a421442ca01060392'
             'd3ce65aba7af6d607b75d63916c93f865d87928c61f24892227c188370505d8e7071b006404fce857b6d19e3dc8cdea8273cb6acd9552c9d0ca3571826fce2c4'
             'cc35057a89f7967199c50c67cf0aff9ad11cb1bc54b6be0804b5ff28f26ee5faa81ae3a3c0e30b803f8bc56027d781f3ab0cf76bb7674deabda8f2f4967f527f'
+            '7f5880c649514026485b06a54a0016b58226e11a25e79b3074ee63c993a682249babf1f7fcca3332db7b070f043199feee36f49d8977007f91f99509b95b28f0'
             '064a62fc3b63c501cf369e65fb0d9e89d1e87348f373051f37c3ed23630fd77b2b90efc351c2a37663be18d488e623b19e3f25b4922343ab4cfe937224938d93'
             '6b9ea66c172ae82926bf5bd18fbed6f6a246fa3cc6104599d88709dc634a9e9cdd861cbfcfc86820fe687d80191de2427fa8b48dad11579b2b8335ceb59e2808'
             '204eb91154ea27a891941a6ce71e6fff2ebf84e815d2ae3bcd03a188759ad4782b6dfb69295558c7598ab0b6c93bc6c739b86e4ae68921707e98cfae2a338a26'
@@ -247,6 +254,8 @@ b2sums=(
             '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a'
             'cdcdec4d9ab47632fec84dcafbd128181af5abda7e36c906edd995d25053f2244a6ffebfb97ebecf8f217dfcdf3a6e346fa111f177c23b463504125cb0535f98'
             'ebc6c13c18776dc5d366713a0e6fec82f094ecfef8b95eca5a5db842fd710db9fb7ff8b4e276dfb9adace6b343e15b5f342d9eda25b51fb9408acd44f839e835'
+            'c0d0cd61a4c1448b75dc43599432521c8a2edeb151abb1542f8f9ca59f9ddd1c7c60d8c6097ff3d19c92170b004c101053493572de592737bca708412089aef8'
+            'c8209c046435a5ae61d84f19da49fbb2301f81d72c89b4346e7378ad60f523ffb4d16c61272d5e48d141cbedf4f8a30bbb5e4bb17266453a3b56facd4bbeaf15'
             'eff9fd360fcf2299deea61132a10818f7a674811fbe74848bcb405773e97e8dee5db2aa1ad1b2681504ea0a6e78e10e209522f42754ea7f84294832b12330c16'
             '687e4c74aba0e69a5f6a8f8989d62ca38cceaadd5100f5c7773c010c84efece4968ffed9e7cf429571ee934c09f5fc5cc7835771ee62e7cdd5998561427c8e70'
             '303599598195026b76c1d8b6a6456a4f2b2ade01026e93c96ae4bc968eee4bea015b7fe0e4180d0a250f98828d52b42b4f4a4d47d3811ce735da9dc0bac3d445'
@@ -283,7 +292,7 @@ prepare() {
   echo "${pkgbase#linux}" > localversion.20-pkgname
   local linux_rg_profile=${LINUX_RG_PROFILE:-rgx1gen11}
   case "$linux_rg_profile" in
-    rgx1gen11|rgam5terra|rgSURFLat) ;;
+    rgx1gen11|rgam5terra|rgSURFLat|rglat5340) ;;
     *) echo "unsupported linux-rg profile: $linux_rg_profile" >&2; exit 1 ;;
   esac
   echo "Using linux-rg profile: $linux_rg_profile"
@@ -385,7 +394,7 @@ prepare() {
   local module_count module_budget
   module_count=$(grep -c '^CONFIG_.*=m$' .config || :)
   case "$linux_rg_profile" in
-    rgx1gen11|rgSURFLat) module_budget=${LINUX_RG_MODULE_BUDGET:-1500} ;;
+    rgx1gen11|rgSURFLat|rglat5340) module_budget=${LINUX_RG_MODULE_BUDGET:-1500} ;;
     *) module_budget=${LINUX_RG_MODULE_BUDGET:-0} ;;
   esac
   if (( module_budget > 0 )); then
@@ -453,6 +462,7 @@ _package() {
   install -Dm644 "$srcdir/rgx1gen11.config" "$pkgdir/usr/share/linux-rg/profiles/rgx1gen11.config"
   install -Dm644 "$srcdir/rgam5terra.config" "$pkgdir/usr/share/linux-rg/profiles/rgam5terra.config"
   install -Dm644 "$srcdir/rgSURFLat.config" "$pkgdir/usr/share/linux-rg/profiles/rgSURFLat.config"
+  install -Dm644 "$srcdir/rglat5340.config" "$pkgdir/usr/share/linux-rg/profiles/rglat5340.config"
   install -Dm644 "$srcdir/os_linux_rg.png" "$pkgdir/usr/share/linux-rg/refind/os_linux_rg.png"
   echo "$pkgbase" | install -Dm644 /dev/stdin "$modulesdir/pkgbase"
 
@@ -508,6 +518,8 @@ _package() {
   install -Dm644 "$srcdir/rgx1gen11-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rgx1gen11-btusb.conf"
   install -Dm644 "$srcdir/rgSURFLat-iwlwifi.conf" "$pkgdir/usr/lib/modprobe.d/rgSURFLat-iwlwifi.conf"
   install -Dm644 "$srcdir/rgSURFLat-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rgSURFLat-btusb.conf"
+  install -Dm644 "$srcdir/rglat5340-iwlwifi.conf" "$pkgdir/usr/lib/modprobe.d/rglat5340-iwlwifi.conf"
+  install -Dm644 "$srcdir/rglat5340-btusb.conf" "$pkgdir/usr/lib/modprobe.d/rglat5340-btusb.conf"
   install -Dm644 "$srcdir/rgam5terra-nvidia.conf" "$pkgdir/usr/lib/modprobe.d/rgam5terra-nvidia.conf"
   install -Dm644 "$srcdir/ddcci-0.4.5-linux-7.0.patch" \
     "$pkgdir/usr/share/linux-rg/dkms-overlays/ddcci-0.4.5-linux-7.0.patch"

@@ -7,11 +7,12 @@ set -euo pipefail
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 if (($# == 0)); then
   if [[ -f $repo/rgx1gen11.config ]]; then
-    set -- "$repo/rgx1gen11.config" "$repo/rgam5terra.config" "$repo/rgSURFLat.config"
+    set -- "$repo/rgx1gen11.config" "$repo/rgam5terra.config" "$repo/rgSURFLat.config" "$repo/rglat5340.config"
   else
     set -- /usr/share/linux-rg/profiles/rgx1gen11.config \
       /usr/share/linux-rg/profiles/rgam5terra.config \
-      /usr/share/linux-rg/profiles/rgSURFLat.config
+      /usr/share/linux-rg/profiles/rgSURFLat.config \
+      /usr/share/linux-rg/profiles/rglat5340.config
   fi
 fi
 

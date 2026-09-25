@@ -10,12 +10,12 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 accept_profile() {
   local linux_rg_profile=$1
   case "$linux_rg_profile" in
-    rgx1gen11|rgam5terra|rgSURFLat) return 0 ;;
+    rgx1gen11|rgam5terra|rgSURFLat|rglat5340) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-for p in rgx1gen11 rgam5terra rgSURFLat; do
+for p in rgx1gen11 rgam5terra rgSURFLat rglat5340; do
   accept_profile "$p" || fail "expected accept $p"
   test -f "$p.config" || fail "missing overlay $p.config"
 done
@@ -31,6 +31,11 @@ grep -q 'rgSURFLat' docs/profiles.org || fail "profiles.org missing rgSURFLat"
 grep -q 'Dell Latitude 7430' docs/profiles.org || fail "profiles.org missing Latitude 7430"
 test -f docs/rgSURFLat-drivers.org || fail "missing drivers doc"
 test -f docs/rgSURFLat-kernel.org || fail "missing kernel doc"
+grep -q 'rglat5340' PKGBUILD || fail "PKGBUILD missing rglat5340 allowlist"
+grep -q 'Dell Latitude 5340' docs/profiles.org || fail "profiles.org missing Latitude 5340"
+test -f docs/rglat5340-drivers.org || fail "missing rglat5340 drivers doc"
+test -f docs/rglat5340-kernel.org || fail "missing rglat5340 kernel doc"
+test -s rglat5340.lsmod || fail "missing rglat5340.lsmod module allowlist"
 test -f docs/grokos-kernel.org || fail "missing grokos kernel doc"
 "$repo_root/scripts/linux-rg-grokos-seat-check-selftest" || fail "grokos seat check"
 "$repo_root/scripts/linux-rg-criu-check-selftest" || fail "criu check"
@@ -49,9 +54,9 @@ grep -q 'linux-rg-criu-check' PKGBUILD || fail "PKGBUILD missing criu-check inst
 grep -q 'rgx1gen11-network-policy-check' PKGBUILD || fail "PKGBUILD missing network-policy check install"
 grep -q 'CONFIG_NFT_SOCKET dropped after olddefconfig' PKGBUILD || fail "PKGBUILD missing NFT_SOCKET olddefconfig gate"
 grep -q 'CONFIG_CRYPTO_CRYPTD dropped after olddefconfig' PKGBUILD || fail "PKGBUILD missing CRYPTO_CRYPTD olddefconfig gate"
-grep -q 'CONFIG_CRYPTO_CRYPTD=m' rgx1gen11.config rgam5terra.config rgSURFLat.config || fail "overlay missing CRYPTO_CRYPTD"
+grep -q 'CONFIG_CRYPTO_CRYPTD=m' rgx1gen11.config rgam5terra.config rgSURFLat.config rglat5340.config || fail "overlay missing CRYPTO_CRYPTD"
 grep -q 'CONFIG_NFT_SOCKET dropped after olddefconfig' scripts/linux-rg-rebase-build || fail "rebase-build missing NFT_SOCKET gate"
-grep -q 'CONFIG_NFT_SOCKET=m' rgx1gen11.config rgam5terra.config rgSURFLat.config || fail "overlay missing NFT_SOCKET"
+grep -q 'CONFIG_NFT_SOCKET=m' rgx1gen11.config rgam5terra.config rgSURFLat.config rglat5340.config || fail "overlay missing NFT_SOCKET"
 grep -q 'linux-rg-grokos-tune-check' PKGBUILD || fail "PKGBUILD missing grokos tune-check install"
 grep -q 'linux-rg-asa-router-check' PKGBUILD || fail "PKGBUILD missing asa-router-check install"
 grep -q 'linux-rg-grokos-sessiond-check' PKGBUILD || fail "PKGBUILD missing sessiond-check install"
@@ -92,7 +97,7 @@ grep -q 'CONFIG_SCHED_ASA dropped' scripts/linux-rg-rebase-build || fail "rebase
 grep -q 'CONFIG_PROC_CHILDREN=y' scripts/linux-rg-grokos-seat-check || fail "seat-check missing PROC_CHILDREN cancel pin"
 grep -q 'cancelAgent' docs/grokos-kernel.org || fail "grokos-kernel.org missing cancelAgent"
 grep -q 'farm kconfig:' scripts/linux-rg-rebase-build || fail "rebase-build missing EXT farm print"
-grep -q 'CONFIG_SCHED_CLASS_EXT=y' rgx1gen11.config rgam5terra.config rgSURFLat.config || fail "overlay missing SCHED_CLASS_EXT"
+grep -q 'CONFIG_SCHED_CLASS_EXT=y' rgx1gen11.config rgam5terra.config rgSURFLat.config rglat5340.config || fail "overlay missing SCHED_CLASS_EXT"
 grep -q 'CONFIG_FAIR_GROUP_SCHED=y' scripts/linux-rg-grokos-seat-check || fail "seat-check missing FAIR_GROUP_SCHED"
 grep -q 'CONFIG_CFS_BANDWIDTH=y' scripts/linux-rg-grokos-seat-check || fail "seat-check missing CFS_BANDWIDTH"
 grep -q 'cpu.weight' docs/grokos-kernel.org || fail "grokos-kernel.org missing cpu.weight"
@@ -100,8 +105,8 @@ grep -q 'CONFIG_BLK_CGROUP_IOPRIO=y' scripts/linux-rg-grokos-seat-check || fail 
 grep -q 'CONFIG_BLK_CGROUP_IOCOST=y' scripts/linux-rg-grokos-seat-check || fail "seat-check missing IOCOST"
 grep -q 'CONFIG_PREEMPT_DYNAMIC=y' scripts/linux-rg-grokos-seat-check || fail "seat-check missing PREEMPT_DYNAMIC"
 grep -q 'io.prio.class' docs/grokos-kernel.org || fail "grokos-kernel.org missing I/O niceness"
-grep -q 'PREEMPT_RT=y' rgx1gen11.config rgam5terra.config rgSURFLat.config && fail "overlay enabled PREEMPT_RT" || true
-grep -q 'CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y' rgx1gen11.config rgam5terra.config rgSURFLat.config && fail "overlay defaults ADIOS" || true
+grep -q 'PREEMPT_RT=y' rgx1gen11.config rgam5terra.config rgSURFLat.config rglat5340.config && fail "overlay enabled PREEMPT_RT" || true
+grep -q 'CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y' rgx1gen11.config rgam5terra.config rgSURFLat.config rglat5340.config && fail "overlay defaults ADIOS" || true
 grep -q 'seat_cgroup' 0023-asa-workqueue-seat.patch || fail "0023 missing seat_cgroup"
 grep -q 'delayed_work' 0023-asa-workqueue-seat.patch || fail "0023 missing delayed_work"
 grep -q 'cancel_delayed_work_sync' 0023-asa-workqueue-seat.patch || fail "0023 missing disable cancel"
@@ -109,14 +114,14 @@ grep -q 'seat_cgroup' docs/grokos-kernel.org || fail "grokos-kernel.org missing 
 grep -q -- '--seat-cgroup' asa-router || fail "asa-router missing --seat-cgroup"
 
 # Simulate prepare profile switch using same case as PKGBUILD
-for linux_rg_profile in rgSURFLat rgx1gen11 rgam5terra; do
+for linux_rg_profile in rgSURFLat rgx1gen11 rgam5terra rglat5340; do
   case "$linux_rg_profile" in
-    rgx1gen11|rgam5terra|rgSURFLat) ;;
+    rgx1gen11|rgam5terra|rgSURFLat|rglat5340) ;;
     *) fail "unsupported linux-rg profile: $linux_rg_profile" ;;
   esac
 done
 linux_rg_profile=nope
-if case "$linux_rg_profile" in rgx1gen11|rgam5terra|rgSURFLat) true ;; *) false ;; esac; then
+if case "$linux_rg_profile" in rgx1gen11|rgam5terra|rgSURFLat|rglat5340) true ;; *) false ;; esac; then
   fail "nope accepted"
 fi
 
@@ -125,6 +130,13 @@ for key in CONFIG_DELL_LAPTOP=m CONFIG_DRM_I915=m CONFIG_IWLWIFI=m CONFIG_SND_SO
   grep -Fqx -- "$key" rgSURFLat.config || fail "rgSURFLat.config missing $key"
 done
 grep -q THINKPAD_ACPI rgSURFLat.config && fail "rgSURFLat.config should not pin THINKPAD_ACPI" || true
+
+# Same Dell + Intel pins for rglat5340, and AVS stays off on its RPL-P cAVS
+for key in CONFIG_DELL_LAPTOP=m CONFIG_DRM_I915=m CONFIG_IWLWIFI=m CONFIG_SND_SOC_SOF_INTEL_TGL=m CONFIG_BTRFS_FS=y CONFIG_DM_CRYPT=m; do
+  grep -Fqx -- "$key" rglat5340.config || fail "rglat5340.config missing $key"
+done
+grep -Fqx -- '# CONFIG_SND_SOC_INTEL_AVS is not set' rglat5340.config || fail "rglat5340.config must disable SND_SOC_INTEL_AVS"
+grep -q THINKPAD_ACPI rglat5340.config && fail "rglat5340.config should not pin THINKPAD_ACPI" || true
 
 # PKGBUILD source= vs sha256sums/b2sums parity (expanded brace sources, not ${...}).
 # Ensures new profile assets cannot land without matching integrity hashes.
@@ -191,6 +203,9 @@ profile_locals = (
     "rgSURFLat.config",
     "rgSURFLat-iwlwifi.conf",
     "rgSURFLat-btusb.conf",
+    "rglat5340.config",
+    "rglat5340-iwlwifi.conf",
+    "rglat5340-btusb.conf",
     "rgx1gen11.config",
     "rgam5terra.config",
 )

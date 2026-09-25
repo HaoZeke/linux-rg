@@ -1,0 +1,54 @@
+#+title: linux-rg rglat5340 driver map
+#+date: [2026-09-25 Fri]
+
+* Purpose
+
+Driver and firmware map for the Dell Latitude 5340 (=rglat5340=), from the
+hardware as enumerated on 2026-09-25.
+
+* Microcode and GPU
+
+- =intel-ucode= early microcode (Raptor Lake-P, family 6 model 186).
+- Iris Xe (Raptor Lake-P, 8086:a7a1, the X1's device ID) bound by =i915=;
+  =xe= also loads and does not bind.
+- Panel 1920x1080 on eDP-1, backlight =intel_backlight=.
+
+* Wi-Fi / Bluetooth
+
+- AX211 CNVi Wi-Fi on =iwlwifi= (PCI 00:14.3).
+- AX211 Bluetooth on =btusb= (USB 8087:0033).
+- =rglat5340-iwlwifi.conf= keeps =bt_coex_active=1= for the combo module.
+
+* Audio
+
+- RPL-P cAVS (PCI 00:1f.3). The card enumerates as =HDA-Intel= with the
+  Realtek ALC3254 codec (=snd_hda_codec_alc269=) and Raptor Lake HDMI.
+- =snd_sof_pci_intel_tgl= is present for the DSP path; =sof-firmware= is
+  installed by the hzArchiso =rglat5340= profile.
+- The overlay disables =SND_SOC_INTEL_AVS=.
+
+* Input
+
+- ELAN900C touchscreen on LPSS I2C 00:15.0 and ELAN 04F3:328E touchpad on
+  00:15.1, both through =i2c_hid=. Userspace pins both controllers'
+  runtime PM on, because auto suspend freezes input.
+- Internal keyboard is =AT Translated Set 2 keyboard= on i8042, which kanata
+  grabs for Colemak.
+
+* Dell platform
+
+- =dell_laptop=, =dell_wmi=, =dell_smbios=, =dell_smm_hwmon=, =dell_wmi_ddv=,
+  =dell_pc= platform profile (=cool quiet balanced performance=).
+- Battery exposes =charge_control_start_threshold= and
+  =charge_control_end_threshold= and =charge_types= (Trickle Fast Standard
+  Adaptive Custom).
+- Suspend is s2idle only (=/sys/power/mem_sleep=).
+
+* Other devices
+
+- Integrated Sensor Hub (=intel_ishtp_hid=): ambient light and hinge sensors.
+- Webcam: Microdia 0c45:6a20 on =uvcvideo=, not an IPU6 camera.
+- Fingerprint: Broadcom ControlVault 3 (0a5c:5843). libfprint has no open
+  driver for it; it stays unused.
+- Thunderbolt 4 on =thunderbolt=.
+- NVMe KIOXIA BG5 (DRAM-less) on =nvme=.

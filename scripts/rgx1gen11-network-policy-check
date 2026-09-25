@@ -54,12 +54,14 @@ if ((${#configs[@]} == 0)) && ((live == 0)); then
       "$repo/rgx1gen11.config"
       "$repo/rgam5terra.config"
       "$repo/rgSURFLat.config"
+      "$repo/rglat5340.config"
     )
   else
     configs=(
       /usr/share/linux-rg/profiles/rgx1gen11.config
       /usr/share/linux-rg/profiles/rgam5terra.config
       /usr/share/linux-rg/profiles/rgSURFLat.config
+      /usr/share/linux-rg/profiles/rglat5340.config
     )
   fi
 fi

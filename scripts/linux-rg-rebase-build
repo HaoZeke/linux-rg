@@ -11,7 +11,7 @@ if [[ -z $tree || ! -d $tree ]]; then
   exit 2
 fi
 case $profile in
-  rgx1gen11|rgam5terra|rgSURFLat) ;;
+  rgx1gen11|rgam5terra|rgSURFLat|rglat5340) ;;
   *) printf 'unsupported profile: %s\n' "$profile" >&2; exit 2 ;;
 esac
 

@@ -1,0 +1,43 @@
+#+title: linux-rg rglat5340 kernel profile
+#+date: [2026-09-25 Fri]
+
+* Purpose
+
+Kernel overlay for =rglat5340=, the Dell Latitude 5340 that replaces the
+=rgx1gen11= ThinkPad. See =docs/profiles.org= for the index.
+
+* Hardware class
+
+The 5340 pairs the X1's CPU family with the 7430's platform:
+
+- Raptor Lake-P/U hybrid CPU (i5-1345U) with Intel P-state and intel_idle, as
+  on =rgx1gen11= (i7-1365U)
+- Iris Xe iGPU on =i915=, with =xe= also probing on 7.x
+- Intel CNVi AX211 Wi-Fi and USB Bluetooth
+- RPL-P cAVS audio; the card runs on HDA-Intel with the Realtek ALC3254 codec
+- Dell WMI, SMBIOS and laptop drivers, as on =rgSURFLat=
+
+* Config overlay
+
+=rglat5340.config= is the =rgSURFLat.config= overlay with three changes:
+
+- The comments name the 5340 and its =rglat5340.lsmod= snapshot.
+- =CONFIG_SND_SOC_INTEL_AVS= is disabled. The 5340 has no AVS machine board,
+  yet =snd_soc_avs= loads and competes for the cAVS device; on the X1's
+  identical cAVS its probe oopsed and soft-locked during rebind.
+- Nothing else. The Dell pins, SOF TGL/ADL pins, btrfs, dm-crypt, zram and the
+  localmodconfig re-pins carry over unchanged.
+
+=rglat5340.lsmod= is =lsmod= from the 5340 itself, taken from the hzArchiso
+live session with the LUKS btrfs target open. localmodconfig prunes against it,
+so the build stays inside the 1500-module laptop budget. btrfs is absent from
+the snapshot because the live kernel has it built in; the overlay pins
+=CONFIG_BTRFS_FS=y=.
+
+Build:
+: LINUX_RG_PROFILE=rglat5340 makepkg
+
+* Patch applicability
+
+Same as =rgSURFLat=: the shared series is carried, and the AMD-only
+=0022-amd-znver5-rdseed.patch= is skipped by the PKGBUILD gate.
