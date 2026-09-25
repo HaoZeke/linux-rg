@@ -64,7 +64,8 @@ ls -lh "$pkgdest"/linux-rg-*.pkg.tar.*
 python3 - "$pkgdest" "$profile" <<'PY'
 import glob, os, sys, tarfile
 pkgdest, profile = sys.argv[1], sys.argv[2]
-pkgs = sorted(glob.glob(os.path.join(pkgdest, "linux-rg-7.1.8.arch1-4-x86_64.pkg.tar.*")))
+pkgs = sorted(p for p in glob.glob(os.path.join(pkgdest, "linux-rg-*-x86_64.pkg.tar.*"))
+              if "-headers-" not in p and "-debug-" not in p)
 if not pkgs:
     raise SystemExit("missing linux-rg package")
 pkg = pkgs[-1]
