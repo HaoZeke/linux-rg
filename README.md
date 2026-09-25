@@ -101,7 +101,9 @@ Validate the AX211 policy from the repo config:
 ./rgx1gen11-ax211-check
 ```
 
-Validate the cgroup-aware network-policy classifier contract:
+Validate the cgroup-aware network-policy classifier contract. The same
+command checks the routing symbols prepare() refuses to drop, the NIC pin
+for each overlay, and the per-host sysctl files (`51-linux-rg-net-*.conf`):
 
 ```sh
 scripts/rgx1gen11-network-policy-check

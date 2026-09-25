@@ -68,6 +68,7 @@ admission spam DOIs), **reject the hit** and keep the PDF URL as evidence.
 
 | DOI | Title | Use in linux-rg |
 | 10.1145/3012426.3022184 | BBR (Cardwell et al., Queue 2016) | BBRv3 default justification |
+| 10.48550/arxiv.2509.06245 | BBRv3 on AQM Wi-Fi (2025) | FQ-CoDel restores fairness; CAKE stays the shaped edge |
 | 10.1145/3517745.3561420 | BBR model IMC 2022 (Scherrer et al.) | Fairness caveats |
 | 10.1145/2367589.2367590 | BFQ (Valente & Andreolini, SYSTOR 2012) | Block default |
 | 10.1145/2901318.2901326 | The Linux scheduler (Lozi et al., EuroSys 2016) | Server load-balance context |

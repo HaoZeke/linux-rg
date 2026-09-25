@@ -32,6 +32,7 @@ See =docs/profiles.org=.
 | Kernel modules | =iwlwifi= / =iwlmvm=; BT via =btusb= + =btintel= |
 | Firmware | =linux-firmware= iwlwifi ucode + =wireless-regdb= |
 | Modprobe | =/usr/lib/modprobe.d/rgSURFLat-iwlwifi.conf= (=bt_coex_active=1=) |
+| Sysctl | =51-linux-rg-net-rgSURFLat.conf= (=tcp_notsent_lowat=131072=, budget 300) |
 
 Typical Latitude 7430 units use AX201- or AX211-class CNVi; confirm with
 =lspci -nnk= / =lsusb= after install.

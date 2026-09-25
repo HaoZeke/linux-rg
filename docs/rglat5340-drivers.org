@@ -18,6 +18,10 @@ hardware as enumerated on 2026-09-25.
 - AX211 CNVi Wi-Fi on =iwlwifi= (PCI 00:14.3).
 - AX211 Bluetooth on =btusb= (USB 8087:0033).
 - =rglat5340-iwlwifi.conf= keeps =bt_coex_active=1= for the combo module.
+- Host policy is NetworkManager plus wpa_supplicant, not the X1 iwd path.
+- =51-linux-rg-net-rglat5340.conf= sets =tcp_notsent_lowat=131072= and a
+  Wi-Fi budget. The kernel default stays BBR + fq. CAKE is not installed
+  as the host qdisc.
 
 * Audio
 

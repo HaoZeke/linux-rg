@@ -103,6 +103,9 @@ source=(
   rgSURFLat-btusb.conf
   rglat5340-iwlwifi.conf
   rglat5340-btusb.conf
+  51-linux-rg-net-rglat5340.conf
+  51-linux-rg-net-rgSURFLat.conf
+  51-linux-rg-net-rgam5terra.conf
   rgam5terra-nvidia.conf
   ddcci-0.4.5-linux-7.0.patch
   rtl88xxau-r1314-linux-7.0.patch
@@ -179,8 +182,11 @@ sha256sums=('ff01dcb449279d5b4cfccdb01fee639cf5ff1803f1749a77844dd33915422c49'
             '3ef3c4a79ef713154998cfecf47f66244ed81dd8d181b970f768e0a873e65e74'
             '717e3d383aa468f29ecb6a366cf45cf73bcd21d28723395770d58123cfd87755'
             '5493c4bf773dc0f274fe5d526d900556a43cadf39338a1bb0792aeb24c55ed30'
-            'a51cbe185cba81e2104ccf8ce795cdb1562613215c41a915bc4cd2a6439766a1'
+            'e65a762e14f1af909084c8f4cf591e991b1d42a300d210c8fa1e6fc644fb13a9'
             '3879b286274def79525900445c560a8584b5cff49789da04aa1b0fff41db9184'
+            '198b8d371cc71d57af8bd48d944388180b335b7dc03402a7bad18e312b8ab885'
+            'b386767a9c26255a692371a9ebef3f6cd4d4d74365131f281c84cd5ebc0dfde6'
+            '22e1e518a94e6f0c9b60d202467c0f9244c77b0807813be4584453eb9c437224'
             'ff29e5618ea5100bd7938b0da57edcce340f9202773a9ae1f07c62c8e6fcf5d3'
             '7332851854410e619113de8ea64bc0b917ee74d7edefa807626cadbc3850a37c'
             '7d94ba2a4decc1143152e7e7699b82a14ecc23cc003b45669116f0b6946d64ca'
@@ -251,8 +257,11 @@ b2sums=('84b59e5572d91f5ea1bb603aa7691851bd9549e1bf18a6bec8e27eb8a6e2de2e33da2ad
         '800007316ffd19470b262b109d225952860986f45d74156a680b8297d5ffbff86f8da44390153617df16edb89693765c3825b2e14f053f966c6377109c57997a'
         'cdcdec4d9ab47632fec84dcafbd128181af5abda7e36c906edd995d25053f2244a6ffebfb97ebecf8f217dfcdf3a6e346fa111f177c23b463504125cb0535f98'
         'ebc6c13c18776dc5d366713a0e6fec82f094ecfef8b95eca5a5db842fd710db9fb7ff8b4e276dfb9adace6b343e15b5f342d9eda25b51fb9408acd44f839e835'
-        'c0d0cd61a4c1448b75dc43599432521c8a2edeb151abb1542f8f9ca59f9ddd1c7c60d8c6097ff3d19c92170b004c101053493572de592737bca708412089aef8'
+        '5dc0334264fbdbf520b0901acb7d158e7d94b9e50cc0ff548822afb3bf08a3e6277c3487406193742b23a2b0da6ad7193b6ee8720a2a5451dca35b9fcfaaa5f6'
         'c8209c046435a5ae61d84f19da49fbb2301f81d72c89b4346e7378ad60f523ffb4d16c61272d5e48d141cbedf4f8a30bbb5e4bb17266453a3b56facd4bbeaf15'
+        '9d9e6c5de426e1c6d6408f38538d352964e0eaa9a05e9d2f67dd9f3663c5d48df2d294c1f15b2e2e41ab1a0ce0ae507ce8a629c5bbcc223fc7241d87598045b4'
+        '84551a56f6fff993b031fc83d7c23cfdd6d047c411859ce333c093f8aa5ccfcc14b0bb8d97eaabf5990b83d1c643a1b4741fe191c9fed0768d6bca583fcf9d33'
+        'd380f5180ac93f13d55b920f54be62622ba4e08b65666a1b0753c053c384596ff65530ca576bec23636d88693364bb0d3d3c9c56802be7ffadec5974883f1b2e'
         'eff9fd360fcf2299deea61132a10818f7a674811fbe74848bcb405773e97e8dee5db2aa1ad1b2681504ea0a6e78e10e209522f42754ea7f84294832b12330c16'
         '687e4c74aba0e69a5f6a8f8989d62ca38cceaadd5100f5c7773c010c84efece4968ffed9e7cf429571ee934c09f5fc5cc7835771ee62e7cdd5998561427c8e70'
         '303599598195026b76c1d8b6a6456a4f2b2ade01026e93c96ae4bc968eee4bea015b7fe0e4180d0a250f98828d52b42b4f4a4d47d3811ce735da9dc0bac3d445'
@@ -486,6 +495,19 @@ _package() {
     "$pkgdir/usr/lib/systemd/system-preset/80-linux-rg.preset"
   install -Dm644 "$srcdir/50-linux-rg-grokos.conf" \
     "$pkgdir/usr/lib/sysctl.d/50-linux-rg-grokos.conf"
+  local linux_rg_net_profile=${LINUX_RG_PROFILE:-rgx1gen11}
+  case "$linux_rg_net_profile" in
+    rglat5340|rgSURFLat|rgam5terra)
+      install -Dm644 "$srcdir/51-linux-rg-net-${linux_rg_net_profile}.conf" \
+        "$pkgdir/usr/lib/sysctl.d/51-linux-rg-net-${linux_rg_net_profile}.conf"
+      ;;
+  esac
+  install -Dm644 "$srcdir/51-linux-rg-net-rglat5340.conf" \
+    "$pkgdir/usr/share/linux-rg/net/51-linux-rg-net-rglat5340.conf"
+  install -Dm644 "$srcdir/51-linux-rg-net-rgSURFLat.conf" \
+    "$pkgdir/usr/share/linux-rg/net/51-linux-rg-net-rgSURFLat.conf"
+  install -Dm644 "$srcdir/51-linux-rg-net-rgam5terra.conf" \
+    "$pkgdir/usr/share/linux-rg/net/51-linux-rg-net-rgam5terra.conf"
   install -Dm644 "$srcdir/80-linux-rg-grokos-sessiond.conf" \
     "$pkgdir/usr/lib/systemd/user/grokos-sessiond.service.d/linux-rg.conf"
   install -Dm755 "$startdir/scripts/linux-rg-grokos-sessiond-check" \

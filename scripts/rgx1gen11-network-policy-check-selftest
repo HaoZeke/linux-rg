@@ -36,6 +36,21 @@ done
 "$check" >/dev/null \
   || fail "default check must accept every profile overlay"
 
+sed '/^CONFIG_NFT_REJECT=/d' "$repo/rglat5340.config" >"$tmp/noreject.config"
+if "$check" "$tmp/noreject.config" >/dev/null 2>&1; then
+  fail "checker accepted an overlay missing CONFIG_NFT_REJECT"
+fi
+mkdir -p "$tmp/hw"
+sed 's/^# CONFIG_IWLWIFI is not set$/CONFIG_IWLWIFI=m/' "$repo/rgam5terra.config" >"$tmp/hw/rgam5terra.config"
+if "$check" "$tmp/hw/rgam5terra.config" >/dev/null 2>&1; then
+  fail "checker accepted iwlwifi on rgam5terra"
+fi
+grep -q 'NetworkManager' "$repo/51-linux-rg-net-rglat5340.conf" \
+  || fail "rglat5340 sysctl must name NetworkManager"
+if grep -q '^net.ipv4.tcp_notsent_lowat' "$repo/51-linux-rg-net-rgam5terra.conf"; then
+  fail "terra sysctl must not carry the laptop lowat"
+fi
+
 mkdir -p "$tmp/empty/kernel/net/netfilter"
 if "$check" --modules "$tmp/empty" "$tmp/good.config" >/dev/null 2>&1; then
   fail "checker accepted a module tree without nft_socket"

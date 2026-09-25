@@ -88,6 +88,78 @@ require_enabled() {
   esac
 }
 
+require_absent() {
+  local config=$1 key=$2
+  grep -Fqx -- "# $key is not set" "$config" \
+    || fail "$config requires $key disabled"
+}
+
+require_set_str() {
+  local config=$1 key=$2 want=$3 value
+  value=$(sed -n "s/^${key}=//p" "$config" | tail -n 1)
+  value=${value//\"/}
+  [[ $value == "$want" ]] || fail "$config requires $key=\"$want\""
+}
+
+# Symbols prepare() refuses to ship without. Present on every overlay that
+# selects a TCP default. A three-symbol fixture still passes the classifier.
+routing_symbols=(
+  NF_TABLES_INET
+  NF_CONNTRACK
+  NFT_COMPAT
+  NFT_CT
+  NFT_REJECT
+  NFT_REJECT_INET
+  NFT_FIB_INET
+  NFT_NAT
+  NFT_MASQ
+  NETFILTER_XT_MATCH_COMMENT
+  NETFILTER_XT_MATCH_OWNER
+  NETFILTER_XT_MATCH_ADDRTYPE
+  NETFILTER_XT_MATCH_CONNTRACK
+  NET_CLS_CGROUP
+  WIREGUARD
+  VETH
+  TUN
+  IP_MULTIPLE_TABLES
+  IPV6_MULTIPLE_TABLES
+  TCP_CONG_BBR
+  DEFAULT_BBR
+  NET_SCH_FQ
+  DEFAULT_FQ
+)
+
+check_routing() {
+  local config=$1 key
+  require_set_str "$config" CONFIG_DEFAULT_TCP_CONG bbr
+  require_set_str "$config" CONFIG_DEFAULT_NET_SCH fq
+  for key in "${routing_symbols[@]}"; do
+    require_enabled "$config" "CONFIG_$key"
+  done
+  if grep -q '^CONFIG_IP_ROUTE_CLASSID=' "$config"; then
+    fail "$config pins CONFIG_IP_ROUTE_CLASSID; it is select-only from XT_MATCH_REALM"
+  fi
+}
+
+check_hardware() {
+  local config=$1 slug
+  slug=$(basename "$config" .config)
+  case "$slug" in
+    rgx1gen11|rglat5340|rgSURFLat)
+      require_enabled "$config" CONFIG_IWLWIFI
+      require_enabled "$config" CONFIG_IWLMVM
+      if grep -Fqx -- '# CONFIG_IWLWIFI is not set' "$config"; then
+        fail "$config disables CONFIG_IWLWIFI"
+      fi
+      ;;
+    rgam5terra)
+      require_enabled "$config" CONFIG_R8169
+      require_enabled "$config" CONFIG_RTW89
+      require_absent "$config" CONFIG_IWLWIFI
+      ;;
+  esac
+}
+
 check_config() {
   local config=$1
   if [[ ! -r $config ]]; then
@@ -97,6 +169,32 @@ check_config() {
   require_builtin "$config" CONFIG_SOCK_CGROUP_DATA
   require_enabled "$config" CONFIG_NFT_SOCKET
   require_enabled "$config" CONFIG_NETFILTER_XT_MATCH_CGROUP
+  if grep -q '^CONFIG_DEFAULT_TCP_CONG=' "$config"; then
+    check_routing "$config"
+    check_hardware "$config"
+  fi
+}
+
+check_sysctl_profiles() {
+  local dir=$1
+  local lat surf terra
+  lat=$dir/51-linux-rg-net-rglat5340.conf
+  surf=$dir/51-linux-rg-net-rgSURFLat.conf
+  terra=$dir/51-linux-rg-net-rgam5terra.conf
+  [[ -r $lat && -r $surf && -r $terra ]] || return 0
+  grep -q '^net.ipv4.tcp_notsent_lowat = 131072$' "$lat" \
+    || fail "$lat missing tcp_notsent_lowat"
+  grep -q 'NetworkManager' "$lat" \
+    || fail "$lat must name NetworkManager"
+  grep -q '^net.core.default_qdisc' "$lat" && fail "$lat sets a host qdisc" || true
+  grep -q '^net.ipv4.tcp_notsent_lowat = 131072$' "$surf" \
+    || fail "$surf missing tcp_notsent_lowat"
+  grep -q '^net.core.default_qdisc' "$surf" && fail "$surf sets a host qdisc" || true
+  grep -q '^net.core.netdev_budget = 600$' "$terra" \
+    || fail "$terra missing wired budget"
+  if grep -q '^net.ipv4.tcp_notsent_lowat' "$terra"; then
+    fail "$terra carries the laptop lowat"
+  fi
 }
 
 require_nft_socket_module() {
@@ -115,6 +213,10 @@ require_nft_socket_module() {
 for config in "${configs[@]}"; do
   check_config "$config"
 done
+
+if [[ -d $repo ]]; then
+  check_sysctl_profiles "$repo"
+fi
 
 if ((live)); then
   live_config=$(mktemp)
