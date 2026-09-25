@@ -22,7 +22,9 @@ root=${LINUX_RG_ROOT:-$HOME/tmp/linux-rg-718}
 repo=${LINUX_RG_REPO:-$root/src}
 srcdest=${LINUX_RG_SRCDEST:-$root/srcdest}
 builddir=${LINUX_RG_BUILDDIR:-$root/build-$profile}
-pkgdest=${LINUX_RG_PKGDEST:-$root/pkgdest}
+# One package directory per profile: every profile produces the same package
+# name and version, and makepkg refuses to overwrite a built group.
+pkgdest=${LINUX_RG_PKGDEST:-$root/pkgdest-$profile}
 logdir=${LINUX_RG_LOGDIR:-$root}
 jobs=${SLURM_CPUS_PER_TASK:-${LINUX_RG_JOBS:-12}}
 toolchain=${LINUX_RG_RUST_TOOLCHAIN:-1.97.1}
