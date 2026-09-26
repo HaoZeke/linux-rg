@@ -8,6 +8,8 @@ context. Add seat_cgroup sysfs for optional per-slice PSI, clamp the
 vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
 
 ---
+diff --git a/kernel/sched/asa.c b/kernel/sched/asa.c
+index 385d69e21..927005318 100644
 --- a/kernel/sched/asa.c
 +++ b/kernel/sched/asa.c
 @@ -2,22 +2,28 @@
@@ -44,7 +46,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  
  enum asa_workload_class {
  	ASA_CLASS_INTERACTIVE = 0,
-@@ -46,10 +52,11 @@
+@@ -46,10 +52,11 @@ struct asa_vote_slot {
  };
  
  struct asa_router {
@@ -57,7 +59,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  	enum asa_workload_class	voted_class;
  
  	unsigned int		enabled;
-@@ -78,11 +85,25 @@
+@@ -78,11 +85,25 @@ static u32 asa_load_pct(unsigned long load)
  	return load * 100U / LOAD_AVG_MAX;
  }
  
@@ -86,7 +88,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  
  	cpus_read_lock();
  	for_each_online_cpu(cpu) {
-@@ -91,24 +112,48 @@
+@@ -91,24 +112,48 @@ static void asa_collect_features(u32 *rq_avg, u32 *csw_per_sec,
  	}
  	cpus_read_unlock();
  	*rq_avg = nr ? DIV_ROUND_UP(sum * 100, nr) : 0;
@@ -98,11 +100,6 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
 +	u64 now = jiffies;
 +	u64 ctxsw = nr_context_switches();
 +	unsigned long dt_jiffies = max(now - last_jiffies, 1UL);
-+
-+	*ctxsw_out = ctxsw;
-+	*now_out = now;
-+	return div64_u64((ctxsw - last_ctxsw) * HZ * 100, dt_jiffies);
-+}
  
 -	now = jiffies;
 -	ctxsw = nr_context_switches();
@@ -117,6 +114,11 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
 -	*io_psi = asa_load_pct(psi_system.avg[PSI_IO_SOME][0]);
 -	*mem_psi = asa_load_pct(psi_system.avg[PSI_MEM_SOME][0]);
 -	mutex_unlock(&psi_system.avgs_lock);
++	*ctxsw_out = ctxsw;
++	*now_out = now;
++	return div64_u64((ctxsw - last_ctxsw) * HZ * 100, dt_jiffies);
++}
++
 +static void asa_read_seat_psi(const char *seat_path, u32 *cpu_psi,
 +			      u32 *io_psi, u32 *mem_psi, u32 *goal_leaves)
 +{
@@ -149,7 +151,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  {
  	u32 scores[ASA_CLASS_NR] = { 0 };
  	u32 total = 0;
-@@ -122,6 +167,10 @@
+@@ -122,6 +167,10 @@ static void asa_classify(u32 rq_avg, u32 csw_per_sec, u32 cpu_psi,
  	if (csw_per_sec > 200 && io_psi < 15)
  		scores[ASA_CLASS_INTERACTIVE] += 60;
  	scores[ASA_CLASS_MIXED] = 25 + (rq_avg / 4) + (cpu_psi / 4) + (io_psi / 4);
@@ -160,7 +162,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  
  	for (i = 0; i < ASA_CLASS_NR; i++)
  		total += scores[i];
-@@ -137,28 +186,43 @@
+@@ -137,28 +186,43 @@ static void asa_classify(u32 rq_avg, u32 csw_per_sec, u32 cpu_psi,
  static enum asa_workload_class asa_vote_locked(void)
  {
  	u64 scores[ASA_CLASS_NR] = { 0 };
@@ -206,7 +208,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  	asa.voted_class = best;
  	return best;
  }
-@@ -178,7 +242,7 @@
+@@ -178,7 +242,7 @@ static void asa_update_recommendation_locked(bool force_notify)
  	changed = force_notify || strcmp(asa.recommended, new_rec);
  	strscpy(asa.recommended, new_rec);
  
@@ -215,7 +217,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  	    asa.last_switch_jiffies + msecs_to_jiffies(asa.cooldown_ms))) {
  		asa.last_switch_jiffies = jiffies;
  		kobject_uevent(asa_kobj, KOBJ_CHANGE);
-@@ -187,28 +251,47 @@
+@@ -187,28 +251,47 @@ static void asa_update_recommendation_locked(bool force_notify)
  
  static void asa_sample(struct asa_router *r)
  {
@@ -270,7 +272,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  		r->vote_count++;
  
  	asa_vote_locked();
-@@ -217,42 +300,49 @@
+@@ -217,42 +300,49 @@ static void asa_sample(struct asa_router *r)
  	mutex_unlock(&r->lock);
  }
  
@@ -340,7 +342,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  }
  
  static ssize_t workload_show(struct kobject *kobj, struct kobj_attribute *a,
-@@ -283,46 +373,42 @@
+@@ -283,46 +373,42 @@ static ssize_t mapping_store(struct kobject *kobj, struct kobj_attribute *a,
  			     const char *buf, size_t count)
  {
  	char line[ASA_MAP_LINE_LEN];
@@ -350,6 +352,20 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
 -	int i;
 +	char *eq, *key, *val;
 +	int i, found = 0;
++
++	if (count == 0 || count >= sizeof(line))
++		return -EINVAL;
++	memcpy(line, buf, count);
++	line[count] = '\0';
++	strim(line);
++	eq = strchr(line, '=');
++	if (!eq || eq == line)
++		return -EINVAL;
++	*eq = '\0';
++	key = strim(line);
++	val = strim(eq + 1);
++	if (!key[0] || strlen(key) >= ASA_NAME_LEN || strlen(val) >= ASA_NAME_LEN)
++		return -EINVAL;
  
 -	while (len > 0) {
 -		size_t chunk = min(len, sizeof(line) - 1);
@@ -374,20 +390,6 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
 -				strscpy(asa.schedulers[i], val);
 -				break;
 -			}
-+	if (count == 0 || count >= sizeof(line))
-+		return -EINVAL;
-+	memcpy(line, buf, count);
-+	line[count] = '\0';
-+	strim(line);
-+	eq = strchr(line, '=');
-+	if (!eq || eq == line)
-+		return -EINVAL;
-+	*eq = '\0';
-+	key = strim(line);
-+	val = strim(eq + 1);
-+	if (!key[0] || strlen(key) >= ASA_NAME_LEN || strlen(val) >= ASA_NAME_LEN)
-+		return -EINVAL;
-+
 +	mutex_lock(&asa.lock);
 +	for (i = 0; i < ASA_CLASS_NR; i++) {
 +		if (!strcmp(key, asa_class_names[i])) {
@@ -414,7 +416,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  }
  
  static ssize_t enabled_store(struct kobject *kobj, struct kobj_attribute *a,
-@@ -335,14 +421,76 @@
+@@ -335,14 +421,76 @@ static ssize_t enabled_store(struct kobject *kobj, struct kobj_attribute *a,
  	if (ret)
  		return ret;
  
@@ -462,7 +464,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  	mutex_unlock(&asa.lock);
 +	return count;
 +}
-+
+ 
 +static ssize_t voting_window_show(struct kobject *kobj, struct kobj_attribute *a,
 +				  char *buf)
 +{
@@ -481,7 +483,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
 +		return ret;
 +	if (val < 1 || val > ASA_WINDOW_MAX)
 +		return -EINVAL;
- 
++
 +	ring = kcalloc(val, sizeof(*ring), GFP_KERNEL);
 +	if (!ring)
 +		return -ENOMEM;
@@ -496,7 +498,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  	return count;
  }
  
-@@ -373,7 +521,6 @@
+@@ -373,7 +521,6 @@ static ssize_t enabled_store(struct kobject *kobj, struct kobj_attribute *a,
  
  ASA_UINT_ATTR(cooldown_ms, cooldown_ms);
  ASA_UINT_ATTR(sample_ms, sample_ms);
@@ -504,7 +506,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  ASA_UINT_ATTR(vote_threshold_pct, vote_threshold_pct);
  ASA_UINT_ATTR(decay_pct, decay_pct);
  
-@@ -404,12 +551,25 @@
+@@ -404,12 +551,25 @@ static struct kobj_attribute asa_attr_enabled = {
  	.store = enabled_store,
  };
  
@@ -530,7 +532,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  	&asa_attr_cooldown_ms.attr,
  	&asa_attr_sample_ms.attr,
  	&asa_attr_voting_window.attr,
-@@ -427,6 +587,7 @@
+@@ -427,6 +587,7 @@ int asa_init(struct kset *scx_kset)
  	int i, ret;
  
  	mutex_init(&asa.lock);
@@ -538,7 +540,7 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
  	asa.cooldown_ms = 5000;
  	asa.sample_ms = 1000;
  	asa.voting_window = 8;
-@@ -458,8 +619,6 @@
+@@ -458,8 +619,6 @@ int asa_init(struct kset *scx_kset)
  		return ret;
  	}
  
@@ -548,3 +550,4 @@ vote ring, trim mapping writes, and apply vote_threshold / per-age decay.
 +	pr_info("sched_asa: workqueue router, optional seat_cgroup PSI\n");
  	return 0;
  }
+\ No newline at end of file

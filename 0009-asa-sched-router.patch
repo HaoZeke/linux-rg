@@ -8,48 +8,11 @@ selection. Heuristic perception and time-weighted voting; userspace
 loads expert BPF schedulers via tools/asa-router.
 
 ---
---- a/kernel/sched/build_policy.c
-+++ b/kernel/sched/build_policy.c
-@@ -20,4 +20,7 @@
- # include "ext/idle.c"
-+# ifdef CONFIG_SCHED_ASA
-+#  include "asa.c"
-+# endif
- #endif
- 
- #include "syscalls.c"
-
---- a/kernel/sched/ext/ext.c
-+++ b/kernel/sched/ext/ext.c
-@@ -10863,5 +10863,9 @@
- 	return -EACCES;
- }
- 
-+#ifdef CONFIG_SCHED_ASA
-+int asa_init(struct kset *scx_kset);
-+#endif
-+
- static int __init scx_init(void)
- {
-@@ -11006,6 +11010,14 @@ static int __init scx_init(void)
- 		pr_err("sched_ext: Failed to add global attributes\n");
- 		return ret;
- 	}
-+
-+#ifdef CONFIG_SCHED_ASA
-+	ret = asa_init(scx_kset);
-+	if (ret) {
-+		pr_err("sched_ext: Failed to initialize ASA router (%d)\n", ret);
-+		return ret;
-+	}
-+#endif
- 
- 	return 0;
- }
-
+diff --git a/kernel/Kconfig.preempt b/kernel/Kconfig.preempt
+index f95859e4e..30f902956 100644
 --- a/kernel/Kconfig.preempt
 +++ b/kernel/Kconfig.preempt
-@@ -192,3 +192,15 @@ config SCHED_CLASS_EXT
+@@ -193,3 +193,15 @@ config SCHED_CLASS_EXT
  	  For more information:
  	    Documentation/scheduler/sched-ext.rst
  	    https://github.com/sched-ext/scx
@@ -65,8 +28,10 @@ loads expert BPF schedulers via tools/asa-router.
 +	  mapping under /sys/kernel/sched_ext/asa/. Userspace loads expert
 +	  sched_ext BPF schedulers; the kernel recommends switches via sysfs
 +	  uevents.
-
---- a/kernel/sched/asa.c	2026-06-16 11:41:50.131862895 -0500
+diff --git a/kernel/sched/asa.c b/kernel/sched/asa.c
+new file mode 100644
+index 000000000..385d69e21
+--- /dev/null
 +++ b/kernel/sched/asa.c
 @@ -0,0 +1,465 @@
 +// SPDX-License-Identifier: GPL-2.0
@@ -535,3 +500,47 @@ loads expert BPF schedulers via tools/asa-router.
 +	return 0;
 +}
 \ No newline at end of file
+diff --git a/kernel/sched/build_policy.c b/kernel/sched/build_policy.c
+index d74b54f81..5142951c4 100644
+--- a/kernel/sched/build_policy.c
++++ b/kernel/sched/build_policy.c
+@@ -70,6 +70,9 @@
+ # include "ext/cid.c"
+ # include "ext/arena.c"
+ # include "ext/idle.c"
++# ifdef CONFIG_SCHED_ASA
++#  include "asa.c"
++# endif
+ #endif
+ 
+ #include "syscalls.c"
+diff --git a/kernel/sched/ext/ext.c b/kernel/sched/ext/ext.c
+index 548f46a42..9ee2dd624 100644
+--- a/kernel/sched/ext/ext.c
++++ b/kernel/sched/ext/ext.c
+@@ -10862,6 +10862,10 @@ int scx_kfunc_context_filter(const struct bpf_prog *prog, u32 kfunc_id)
+ 	return -EACCES;
+ }
+ 
++#ifdef CONFIG_SCHED_ASA
++int asa_init(struct kset *scx_kset);
++#endif
++
+ static int __init scx_init(void)
+ {
+ 	int ret;
+@@ -11007,6 +11011,14 @@ static int __init scx_init(void)
+ 		return ret;
+ 	}
+ 
++#ifdef CONFIG_SCHED_ASA
++	ret = asa_init(scx_kset);
++	if (ret) {
++		pr_err("sched_ext: Failed to initialize ASA router (%d)\n", ret);
++		return ret;
++	}
++#endif
++
+ 	return 0;
+ }
+ __initcall(scx_init);
