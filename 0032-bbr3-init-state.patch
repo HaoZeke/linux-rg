@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Sun, 27 Sep 2026 00:00:00 +0000
+Subject: [PATCH] tcp_bbr: restore the BBRv3 state setup in bbr_init
+
+The 0003 hunk that extends bbr_init rejects on 7.1 and 7.2, and the
+0004 adaptation does not carry it. bbr_init then leaves the BBRv3
+bounds at the zero the congestion-control area starts with: bw_lo
+and inflight_lo of 0 clamp the bandwidth estimate to 0 and cwnd to
+its floor of 4. The pacing rate stays at 0 and every BBR socket
+crawls: 0.3 MB/s over loopback, against 1.3 GB/s under cubic.
+
+Set the lower bounds to ~0U and the remaining ECN, loss-round and
+probe state as the 7.0 carry did.
+---
+ net/ipv4/tcp_bbr.c | 39 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 39 insertions(+)
+
+--- a/net/ipv4/tcp_bbr.c
++++ b/net/ipv4/tcp_bbr.c
+@@ -2117,7 +2117,46 @@
+ 	bbr->extra_acked[0] = 0;
+ 	bbr->extra_acked[1] = 0;
+ 
++	bbr->ce_state = 0;
++	bbr->prior_rcv_nxt = tp->rcv_nxt;
++	bbr->try_fast_path = 0;
++
+ 	cmpxchg(&sk->sk_pacing_status, SK_PACING_NONE, SK_PACING_NEEDED);
++
++	/* Start sampling ECN mark rate after first full flight is ACKed: */
++	bbr->loss_round_delivered = tp->delivered + 1;
++	bbr->loss_round_start = 0;
++	bbr->undo_bw_lo = 0;
++	bbr->undo_inflight_lo = 0;
++	bbr->undo_inflight_hi = 0;
++	bbr->loss_events_in_round = 0;
++	bbr->startup_ecn_rounds = 0;
++	bbr_reset_congestion_signals(sk);
++	bbr->bw_lo = ~0U;
++	bbr->bw_hi[0] = 0;
++	bbr->bw_hi[1] = 0;
++	bbr->inflight_lo = ~0U;
++	bbr->inflight_hi = ~0U;
++	bbr_reset_full_bw(sk);
++	bbr->bw_probe_up_cnt = ~0U;
++	bbr->bw_probe_up_acks = 0;
++	bbr->bw_probe_up_rounds = 0;
++	bbr->probe_wait_us = 0;
++	bbr->stopped_risky_probe = 0;
++	bbr->ack_phase = BBR_ACKS_INIT;
++	bbr->rounds_since_probe = 0;
++	bbr->bw_probe_samples = 0;
++	bbr->prev_probe_too_high = 0;
++	bbr->ecn_eligible = 0;
++	bbr->ecn_alpha = bbr_param(sk, ecn_alpha_init);
++	bbr->alpha_last_delivered = 0;
++	bbr->alpha_last_delivered_ce = 0;
++	bbr->plb.pause_until = 0;
++
++	tp->fast_ack_mode = bbr_fast_ack_mode ? 1 : 0;
++
++	if (bbr_can_use_ecn(sk))
++		tp->ecn_flags |= TCP_ECN_ECT_PERMANENT;
+ }
+ 
+ static void bbr_note_loss(struct sock *sk)
+-- 
+2.45.0
