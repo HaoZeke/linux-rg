@@ -41,7 +41,6 @@ source=(
   https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/${_srcname}.tar.{xz,sign}
   $url/releases/download/$_srctag/linux-$_srctag.patch.zst{,.sig}
   0001-bore-cachy.patch
-  0002-bore-fair-arch-adapt.patch
   0003-bbr3-cachy.patch
   0004-bbr3-arch7-adapt.patch
   0005-v4l2loopback-pf.patch
@@ -65,7 +64,6 @@ source=(
   0030-asa-drop-goal-prefix.patch
   0031-asa-seat-walk-rcu.patch
   0032-bbr3-init-state.patch
-  0033-bore-7.2-placement.patch
   rgx1gen11.config
   rgam5terra.config
   rgSURFLat.config
@@ -121,8 +119,7 @@ sha256sums=('4ac34c47db2540ffb2713943f8d891ff1702e0ba6934525a493b7d1cad43145a'
             'SKIP'
             '22db40cf8a49b46518223ff78cc5b83377474948a4667ee40cacd3f1d571c609'
             'SKIP'
-            'aad0e084135305f9560c3df1ab0abe38d0ffc60a041df8410ee86d49bb89faee'
-            '33002aca79bcb719f71cc88d22bfd035b88bda373dd9da1e43d9765177012362'
+            'b6e70530c51c11a65c7b08f550cc755527adc7282592f38e55a6a7859c19a686'
             '55fcfaa8d9f35c9b7b61a2ffd6f147ced2e4d708e9f1336698dab0457d6f7992'
             '14ec55043d8247468aa5ccac6fde85096ff89b0182598d9d896d498acef784bd'
             '4552ccbf50e5a7c45c7f70ca8db55a444584c99c53f61ec42c74ced68ffd4658'
@@ -146,7 +143,6 @@ sha256sums=('4ac34c47db2540ffb2713943f8d891ff1702e0ba6934525a493b7d1cad43145a'
             'fed595b88e9e10dc65fdfba8a11a1a15ba43bac05c5232b0317d0e6a0d7655bb'
             '8cd612b9b0f43b0494baed2f5847fc3db18e248a810f59a060a361304fa3163e'
             'cd2832758bf311c5f097d5986a37e905787f6f4bd555bb933cce5f699f6da08b'
-            'e069b946f51569c3fed413e21c88e1bcad06a641fde4dc25042186736ecded36'
             'a66bd53cd044d2d3de73ef940602f97cf5477b675f6a814a875b447d366ae681'
             '8e16033cc65915f2db21e551ffe00d45814fd176b90a85a3d1d0a9b262d69f4e'
             'f15e6b7de2991447790ce13dff2243dd30f3804baa12ac3cd3ccd17bfe82b0e3'
@@ -196,8 +192,7 @@ b2sums=('0fa304e65b0d96d6082e3040db9c974ebdbcfd54a2bc22a8841db63291787f01bf63862
         'SKIP'
         '29c08d638cf058e63f3b40d4ccba5dc0d04a51c3f2ad6073d84dd34920f550c2ca7a9dfe11f92c632eb732d0ab76e061770c3659501ac5a40fbff4bd7e052655'
         'SKIP'
-        '2c2b7364a3a97b3535423eefe5ed6f4d774daf6f043701c952d7acf9e3f8113a0c2461654b4bbc4ce89e7338e42073b841387f3a5f9f570966fd485c079a7f4c'
-        '8f9b46c7d6ece0cc7113022b732a1606103f9cddfc06e6c09737a147feb38cf3efd962b923daaccecccae2a31c67f99f50ab90823efe8f8dc275d77397946a6a'
+        'fb4bad7cf39731d35b6feed97df0e174263e534af3805385c5fd7d382eec64bdd1b3ac2506211decbfb1235bb3f2f6766933cf59fb8d152665bdea6b0a56d79d'
         'df1ebde838b04eada2279872d8fa9452c914f521f33246782b5bde517b4d42407b5e5a7cc38db9c5ae004d72cee6fc064922552501355fe4a1931f916960ad70'
         'f80d355bd4f2875e55e3817d2853af4e5e9ee64703ec294a6d2a8244fbafce2fc152e1eee6539b1d6a2710f1148a7afe813b1aeb69a6b04f68821fa723cf1eab'
         'b4f108a878bfcebf5d765c7ef37a96ef4e76894c4453595aaca7a200dd65234572bf95b7bec8640af2c2f97534230e12c06a6330e853134932e22625308b3124'
@@ -221,7 +216,6 @@ b2sums=('0fa304e65b0d96d6082e3040db9c974ebdbcfd54a2bc22a8841db63291787f01bf63862
         '94c341663fe693e6ddf40e33cb3f7ed018d7f62f28726f25803ffb1af3c5cbaf93b56a28babfc8c220683fccfbb3e68910c268cc39be606c042bee89531a9618'
         'efda28c310e2d23a196705bba3653b6f3bc10ca2cb1edccdac7b8bb1b6341f516280ef4b1e1eae095cc30d3586edfe72502c1285b0aeb2bd7e3bb369c496a4ef'
         'a38b0eb3b6eea823af4b5242cf68d7b3ffdf3c756602ce17fce7bbc451379182ed5f9d1ddfe0134bd2afbb7dc2c82f47e731468e9ab81dff2df828a0a0447cc3'
-        '176f8ed3c699e701b3a946a2b916e9df8e964604b2e549846bba0b98f13bfaa81543b150fa0a5a5d24ae74e3537c9d3401145d715c08581b25b4e9979ab0a938'
         'c5d76813c22a5d1088a81766af82143370a467045cae428cbe44d614d60a9c531660e12da1d62b2e76a12bf2618eb112dbec8cf68fbf88aa4e5b5c63c04a23cf'
         '9966fc41caac7b6ec06fb6c2b1ef264c12895eabf64aa48d25550d045afd99c6cc84eae0e0a30581e55b1ac7fa47fdc5512047a0bd3921d6708bc527cb54c8f7'
         '5edaa0269d7ac78030f393e6f952f4cecacaff11fdffd4a939b772c56cdfbadd3a92ed045d1d5e8b399205af2ce2a6319138ca56cbc7ad300c2e09fddbc84694'
@@ -308,7 +302,6 @@ prepare() {
     src="${src##*/}"
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
-    [[ $src = 0002-bore-fair-arch-adapt.patch ]] && continue
     [[ $src = 0004-bbr3-arch7-adapt.patch ]] && continue
     [[ $src = 0010-cachy-hotpath-inline.patch ]] && continue
     [[ $src = 0012-sched-ext-smt-idle.patch ]] && continue
@@ -319,15 +312,7 @@ prepare() {
     [[ $src = evdi-1.14.7-linux-7.0.patch ]] && continue
     [[ $src = 0022-amd-znver5-rdseed.patch && $linux_rg_profile != rgam5terra ]] && continue
     echo "Applying patch $src..."
-    if [[ $src = 0001-bore-cachy.patch ]]; then
-      if ! patch -Np1 < "../$src"; then
-        test -s kernel/sched/fair.c.rej || exit 1
-        grep -q 'sysctl_sched_tunable_scaling' kernel/sched/fair.c.rej || exit 1
-        echo "Applying Arch fair.c adaptation for BORE..."
-        patch -Np1 < ../0002-bore-fair-arch-adapt.patch
-        rm -f kernel/sched/fair.c.rej kernel/fork.c.rej
-      fi
-    elif [[ $src = 0003-bbr3-cachy.patch ]]; then
+    if [[ $src = 0003-bbr3-cachy.patch ]]; then
       if ! patch -Np1 < "../$src"; then
         local bbr_rejects=(
           include/linux/tcp.h.rej

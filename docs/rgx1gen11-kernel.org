@@ -54,10 +54,11 @@ processes, background sync, and local builds share a 12-thread hybrid Intel
 laptop CPU. The goal is lower desktop latency under mixed work, while keeping
 Arch's fair scheduler fallback and normal Linux policy classes.
 
-Fit: the upstream CachyOS hunk for `kernel/sched/fair.c` did not match the Arch
-7.0 fair scheduler layout. `0002-bore-fair-arch-adapt.patch` carries only the
-local placement fix for the rejected fair.c hunk. The full build compiles
-`kernel/sched/bore.o` and the scheduler built-in archive.
+Fit: `0001-bore-cachy.patch` is CachyOS's 7.2 BORE 6.8.0 with its six fair.c
+rejects on Arch 7.2.7 resolved in the patch itself, so it applies without
+rejects and needs no adaptation patch. `scripts/linux-rg-reject-audit` checks
+that on every rebase. The full build compiles `kernel/sched/bore.o` and the
+scheduler built-in archive.
 
 Tradeoff: BORE is a downstream scheduler patch, not mainline Linux. This package
 keeps `CONFIG_SCHED_CLASS_EXT=y` as well, so sched_ext userspace schedulers can
