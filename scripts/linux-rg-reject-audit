@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Replay prepare()'s patch order on a pristine tree, keep every .rej, and
 # report which rejected hunks never landed after the adaptation patches,
-# and every hunk that applied with fuzz.
+# every hunk that applied with fuzz, and every hunk whose context is not
+# unique in the file it patches.
 # A rebase is finished when this prints nothing.
 #
 #   scripts/linux-rg-reject-audit SRCDEST [WORKDIR]
@@ -29,6 +30,7 @@ for p in "${patches[@]}"; do
     0017-bbr3-tcp-prototype.patch|0019-mglru-devtree-adapt.patch) continue ;;
     0022-amd-znver5-rdseed.patch|*-linux-7.0.patch) continue ;;
   esac
+  python3 "$repo/scripts/linux-rg-reject-audit.py" --unique "$repo/$p" .
   if ! patch -Np1 < "$repo/$p" > "$work/rej/$p.log" 2>&1; then
     echo "REJECTS in $p"
     find . -name '*.rej' | while read -r r; do

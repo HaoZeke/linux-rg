@@ -1,6 +1,41 @@
 #!/usr/bin/env python3
-"""For every rejected hunk, report whether its added lines landed in the final tree."""
-import sys, pathlib
+"""Reject audit helpers.
+
+  linux-rg-reject-audit.py REJDIR TREE     rejected hunks whose added lines never landed
+  linux-rg-reject-audit.py --unique PATCH TREE
+      hunks whose before-text (context plus removed lines) does not occur
+      exactly once in TREE; a hunk that matches twice can apply, with an
+      offset, inside the wrong function.
+"""
+import re, sys, pathlib
+
+
+def unique(patch, tree):
+    text = pathlib.Path(patch).read_text(errors="replace")
+    text = re.split(r"(?m)^-- $", text)[0]
+    for blk in re.split(r"(?m)^(?=diff --git |--- a/|--- /dev/null)", text):
+        new = re.search(r"(?m)^\+\+\+ b/(\S+)", blk)
+        old = re.search(r"(?m)^--- (\S+)", blk)
+        if not new or not old or old.group(1) == "/dev/null":
+            continue
+        path = pathlib.Path(tree) / new.group(1)
+        if not path.exists():
+            continue
+        body = path.read_text(errors="replace")
+        for h in re.split(r"(?m)^(?=@@ )", blk)[1:]:
+            lines = h.splitlines()
+            before = [l[1:] for l in lines[1:] if l[:1] in (" ", "-")]
+            if not before:
+                continue
+            n = body.count("\n".join(before))
+            if n != 1:
+                name = pathlib.Path(patch).name
+                print(f"{'AMBIG' if n else 'NOMATCH'}    x{n} {name} {new.group(1)} {lines[0][:60]}")
+
+
+if len(sys.argv) == 4 and sys.argv[1] == "--unique":
+    unique(sys.argv[2], sys.argv[3])
+    raise SystemExit(0)
 rejroot, tree = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 for rej in sorted(rejroot.rglob("*.rej")):
     patch = rej.relative_to(rejroot).parts[0]
