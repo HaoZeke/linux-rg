@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Sun, 27 Sep 2026 00:00:00 +0000
+Subject: [PATCH] sched/bore: finish the 7.2 placement hunks
+
+On 7.2.7 the 0001 fair.c hunks for place_entity and
+requeue_delayed_entity reject, and 0002 leaves two pieces of the BORE
+6.8 behaviour that CachyOS carries for 7.2 unapplied:
+
+- place_entity keeps upstream's early vslice computation, so a task
+  that BORE sends straight to vslice_found (futex waiter) still gets a
+  full slice. Start vslice at 0 and compute it only on the normal path.
+- requeue_delayed_entity does not mark the placement as a wakeup, so
+  BORE's halved wakeup slice never applies to a requeued delayed task.
+---
+ kernel/sched/fair.c | 7 ++++---
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -6017,13 +6017,12 @@
+ static void
+ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
+ {
+-	u64 vslice, vruntime = avg_vruntime(cfs_rq);
++	u64 vslice = 0, vruntime = avg_vruntime(cfs_rq);
+ 	bool update_zero = false;
+ 	s64 lag = 0;
+ 
+ 	if (!se->custom_slice)
+ 		se->slice = sysctl_sched_base_slice;
+-	vslice = calc_delta_fair(se->slice, se);
+ 
+ 	/*
+ 	 * Due to how V is constructed as the weighted average of entities,
+@@ -7849,6 +7848,10 @@
+ 		cfs_rq->nr_queued--;
+ 		if (se != cfs_rq->curr)
+ 			__dequeue_entity(cfs_rq, se);
++#ifdef CONFIG_SCHED_BORE
++		if (static_branch_likely(&sched_bore_key))
++			flags |= ENQUEUE_WAKEUP;
++#endif /* CONFIG_SCHED_BORE */
+ 		place_entity(cfs_rq, se, flags);
+ 		if (se != cfs_rq->curr)
+ 			__enqueue_entity(cfs_rq, se);
+-- 
+2.45.0
