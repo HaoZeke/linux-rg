@@ -1020,17 +1020,17 @@ restart_burst_bore call. Applies to Arch 7.2.7 without rejects, so the
  /*
   * Used by other classes to account runtime.
   */
-@@ -2071,6 +2143,10 @@
+@@ -2014,6 +2086,10 @@
+ 	resched = update_deadline(cfs_rq, curr);
  
- 	stats = __schedstats_from_se(se);
- 
+ 	if (entity_is_task(curr)) {
 +#ifdef CONFIG_SCHED_BORE
-+	update_curr_bore(task_of(curr), delta_exec);
++		update_curr_bore(task_of(curr), delta_exec);
 +#endif /* CONFIG_SCHED_BORE */
 +
- 	/*
- 	 * When the sched_schedstat changes from 0 to 1, some sched se
- 	 * maybe already in the runqueue, the se->statistics.wait_start
+ 		/*
+ 		 * If the fair_server is active, we need to account for the
+ 		 * fair_server time whether or not the task is running on
 @@ -4671,8 +4747,8 @@
  		se->vprot = div64_long(se->vprot * old_weight, weight);
  }
