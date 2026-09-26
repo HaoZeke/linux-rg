@@ -105,10 +105,8 @@ asa.o from the Makefile, depend only on PSI+SYSFS, and register under
 
 --- a/kernel/sched/build_policy.c
 +++ b/kernel/sched/build_policy.c
-@@ -61,9 +61,6 @@
- # include "ext_internal.h"
- # include "ext.c"
- # include "ext_idle.c"
+@@ -22,7 +22,4 @@
+ # include "ext/idle.c"
 -# ifdef CONFIG_SCHED_ASA
 -#  include "asa.c"
 -# endif
@@ -118,28 +116,26 @@ asa.o from the Makefile, depend only on PSI+SYSFS, and register under
 
 --- a/kernel/sched/Makefile
 +++ b/kernel/sched/Makefile
-@@ -41,3 +41,4 @@
+@@ -41,2 +41,3 @@
  obj-y += build_policy.o
  obj-y += build_utility.o
- obj-$(CONFIG_SCHED_BORE) += bore.o
 +obj-$(CONFIG_SCHED_ASA) += asa.o
 
---- a/kernel/sched/ext.c
-+++ b/kernel/sched/ext.c
-@@ -4773,11 +4773,9 @@ static void scx_cgroup_exit(struct scx_sched *sch) {}
- static int scx_cgroup_init(struct scx_sched *sch) { return 0; }
- #endif
- 
+--- a/kernel/sched/ext/ext.c
++++ b/kernel/sched/ext/ext.c
+@@ -10863,9 +10863,7 @@
+ 	return -EACCES;
+ }
  
 -#ifdef CONFIG_SCHED_ASA
 -int asa_init(struct kset *scx_kset);
 -#endif
-+#include "asa.h"
- 
- /********************************************************************************
-  * Sysfs interface and ops enable/disable.
-  */
-@@ -10008,7 +10006,7 @@ static int __init scx_init(void)
+-
++#include "../asa.h"
++
+ static int __init scx_init(void)
+ {
+@@ -11010,8 +11008,8 @@ static int __init scx_init(void)
  		return ret;
  	}
  

@@ -14,7 +14,7 @@ fair-class latency knob compatible with BORE and detach_tasks.
 diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
 --- a/kernel/sched/fair.c
 +++ b/kernel/sched/fair.c
-@@ -96,7 +96,7 @@ static unsigned int normalized_sysctl_sched_base_slice	= 700000ULL;
+@@ -96,3 +96,3 @@
  #endif /* CONFIG_SCHED_BORE */
  
 -__read_mostly unsigned int sysctl_sched_migration_cost	= 500000UL;

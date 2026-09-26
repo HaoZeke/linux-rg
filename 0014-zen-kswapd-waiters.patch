@@ -37,14 +37,12 @@ index 2d4b6f1a554e..c8a31e5f9b12 100644
  /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
  static DEFINE_MUTEX(pcp_batch_high_lock);
  #define MIN_PERCPU_PAGELIST_HIGH_FRACTION (8)
-@@ -4734,6 +4736,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+@@ -4808,4 +4810,5 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
  	int reserve_flags;
  	bool compact_first = false;
  	bool can_retry_reserves = true;
 +	bool woke_kswapd = false;
- 
- 	if (unlikely(nofail)) {
- 		/*
+ 	unsigned long alloc_start_time = jiffies;
 @@ -4803,8 +4806,13 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
  
  retry:

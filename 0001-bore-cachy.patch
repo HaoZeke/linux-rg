@@ -217,10 +217,11 @@ index 5dd8301dc..0db23e436 100644
  	/*
  	 * Make it visible to the rest of the system, but dont wake it up yet.
  	 * Need tasklist lock for parent etc handling!
-@@ -2446,7 +2455,11 @@ __latent_entropy struct task_struct *copy_process(
- 			 */
+@@ -2524,8 +2533,12 @@ __latent_entropy struct task_struct *copy_process(
  			p->signal->has_child_subreaper = p->real_parent->signal->has_child_subreaper ||
  							 p->real_parent->signal->is_child_subreaper;
+ 			if (clone_flags & CLONE_AUTOREAP)
+ 				p->signal->autoreap = 1;
 +#ifdef CONFIG_SCHED_BORE
 +			list_add_tail_rcu(&p->sibling, &p->real_parent->children);
 +#else /* !CONFIG_SCHED_BORE */
