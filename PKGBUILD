@@ -55,8 +55,6 @@ source=(
   0015-zen-schedutil-limits.patch
   0016-cpuidle-teo-default.patch
   0018-cachy-mm-ratios.patch
-  0020-cache-aware-sched.patch
-  0021-mm-bulk-free-hotpaths.patch
   0022-amd-znver5-rdseed.patch
   0023-asa-workqueue-seat.patch
   0024-asa-alg1-vote.patch
@@ -135,9 +133,7 @@ sha256sums=('4ac34c47db2540ffb2713943f8d891ff1702e0ba6934525a493b7d1cad43145a'
             '45e2ed57c81a4a227c2802184788706a0e226f9f2c98b33e946e4819a8c3bc7a'
             'f936b1e3264284b87ffe25ddbde24e1f2cbd17337576767c4d630d7271fab0b0'
             '70f173e5682f791e2c2c7974fe46cb36c3247e770de664b238a6786c20c22c9c'
-            '6738c408e9b2c063da20277fd7d6f42f034dc970e6f009eb6f401268f4bf8d62'
-            '4a16ea6c11d1c41d4106845f7e855fd10b734a6dd91877d091c32b2509729d7a'
-            'f71db3626ffbc9be715c054ccf3127616868aa43cb2b2bf6a7b5833a26e8865a'
+            '60c7793494bfbd98849b042487c5dedea8e823c442e2c1e3af6d916826fcdd8b'
             'c1aa2ff3cfd18e6f024ca97ab5ee39b69d01dd15e7852e1bd3759f449272f9fc'
             'b7128076888db41d6b8049997aaefb84f8f16673c8d39ec87dbde0083618392e'
             'c1883c2e49882d06e889fab01e8e619283cad97e14beb260ada3be3f043dce76'
@@ -210,9 +206,7 @@ b2sums=('0fa304e65b0d96d6082e3040db9c974ebdbcfd54a2bc22a8841db63291787f01bf63862
         '476752130362d028b24d02ee5f12a760812b8f7058b7dad196d585572f3511cbf537c7698cca09ffe828756f398ce344bcfa38f232d7f52ad64e29aa2585afcf'
         '8ca24572f81b16fbb1138b7b4681e34c107b9e77bf031e69884a4abb0216aa666cf24215e5235276b15e335e397a3a42645103c1cb515f84f69172a145dddc85'
         'd15aab2d06223b62ba4a675f626539e6b75632cb5ba6820ba71fd2298dd9859eb4d83d614e44504e75f1aae4f6a78f1d8ef9f4f1eb135f79a5cd688fc4ce1253'
-        'ac381c060eeb5f39aa3432ddd84485db0a209fa476b947500dd04b54bda5ba843601a99fc8ca3d0e9f201ac8a9d0a4f390f681e92074e43cf3de8d36092f980f'
-        '92ee3cc4563c2eab361f02d9a7662bdf9a340a9f57cea58f8b9ba56c815772bc1529f3cc76c81aaaec6cd5f01a540db84f4f79dbd1f0840fa501c4ea141aedc0'
-        '4f344c4eff4acb548f75513d04eae88377444f2da3eee7f92f2fc9b216d66d04b90d612de81dee151285815eeadd13530087d69cb45c0064cf3e0fcf94319852'
+        '43b71c5d4a7009fa90a29132f3e7f85c1d6757b2fef0aad9f51f49da275c86381d0363ea226b625deb5f1dd0ed304d4a666a35104784e25427396253426225fb'
         'e4adc5f4d70c0a35472e5a1383a9cccb142dff0844cfe9000a4870c9633b7b9c57ea28c12f305c14e9e65a5d7ceb27f99edfb8d42f3434cc65f0142bf64bd862'
         '426294e76da1f86d013c81ef75abd675a090560959e1a686f808ae86099b577fff8b03e7b47c9f2cadb37e6795048fb0f55b0e083e2a49859de7a53ff981d511'
         '5c7f055cfee92d2eacedd2a6453c6050b7cafe14612d46cc7dc7a185030c7349602c5a10eb6e5c5972d4b22a7dc5da43593a1ec79700f826f7a5963aa3497490'
@@ -314,14 +308,6 @@ prepare() {
     [[ $src = 0012-sched-ext-smt-idle.patch ]] && continue
     [[ $src = 0017-bbr3-tcp-prototype.patch ]] && continue
     [[ $src = 0019-mglru-devtree-adapt.patch ]] && continue
-    # 7.2 already carries the cache-aware topology placement.
-    [[ $src = 0020-cache-aware-sched.patch ]] && continue
-    # Arch 7.2 udmabuf already calls sg_alloc_table_from_pages on ubuf->pages.
-    [[ $src = 0029-udmabuf-sg-table-from-pages.patch ]] && continue
-    # 7.2 frees contig pages through __free_contig_range. The 7.1 hunks are upstream.
-    [[ $src = 0021-mm-bulk-free-hotpaths.patch ]] && continue
-    # Liu and Ren (ROSS 2025) keep LRU_GEN. The 7.1 ratio weld does not apply to 7.2 vmscan.
-    [[ $src = 0018-cachy-mm-ratios.patch ]] && continue
     [[ $src = ddcci-0.4.5-linux-7.0.patch ]] && continue
     [[ $src = rtl88xxau-r1314-linux-7.0.patch ]] && continue
     [[ $src = evdi-1.14.7-linux-7.0.patch ]] && continue

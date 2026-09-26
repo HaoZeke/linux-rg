@@ -1,162 +1,21 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: linux-rg <linux-rg@local>
-Date: Wed, 19 Aug 2026 00:00:00 +0000
-Subject: [PATCH] mm ratios and mglru 7.1 adapt
+Subject: [PATCH] mm: anon and clean file ratio floors on 7.2
+
+Carry vm.anon_min_ratio, vm.clean_low_ratio, vm.clean_min_ratio,
+and vm.workingset_protection onto the 7.2 reclaim paths.
 
 ---
---- a/Documentation/admin-guide/sysctl/vm.rst	2026-08-09 13:26:58.000000000 -0500
-+++ b/Documentation/admin-guide/sysctl/vm.rst	2026-08-19 18:42:14.506660246 -0500
-@@ -25,6 +25,9 @@
- Currently, these files are in /proc/sys/vm:
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -13,6 +13,7 @@
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
  
- - admin_reserve_kbytes
-+- anon_min_ratio
-+- clean_low_ratio
-+- clean_min_ratio
- - compact_memory
- - compaction_proactiveness
- - compact_unevictable_allowed
-@@ -78,6 +81,7 @@
- - vfs_cache_pressure_denom
- - watermark_boost_factor
- - watermark_scale_factor
-+- workingset_protection
- - zone_reclaim_mode
- 
- 
-@@ -110,6 +114,51 @@
- Changing this takes effect whenever an application requests memory.
- 
- 
-+anon_min_ratio
-+==============
-+
-+This value provides hard protection for anonymous pages on each node.
-+Anonymous pages are not reclaimed when their amount is below this percentage
-+of node memory.
-+
-+This can reduce swap thrashing when compressed swap absorbs memory pressure.
-+Setting this value too high can make anonymous memory harder to reclaim and
-+can trigger earlier out-of-memory kills.
-+
-+The unit is a percentage of the node memory. The default value is controlled
-+by CONFIG_ANON_MIN_RATIO.
-+
-+
-+clean_low_ratio
-+===============
-+
-+This value provides best-effort protection for clean file pages on each node.
-+Clean file pages are avoided under memory pressure while their amount is below
-+this percentage of node memory, unless reclaim pressure escalates toward OOM.
-+
-+This can reduce file-cache churn under mixed desktop and build workloads.
-+Setting this value too high can push more pressure toward anonymous pages and
-+swap.
-+
-+The unit is a percentage of the node memory. The default value is controlled
-+by CONFIG_CLEAN_LOW_RATIO.
-+
-+
-+clean_min_ratio
-+===============
-+
-+This value provides hard protection for clean file pages on each node. Clean
-+file pages are not reclaimed when their amount is below this percentage of node
-+memory.
-+
-+This can preserve a small file-cache floor during memory pressure. Setting
-+this value too high can trigger earlier out-of-memory kills when other memory
-+types cannot be reclaimed.
-+
-+The unit is a percentage of the node memory. The default value is controlled
-+by CONFIG_CLEAN_MIN_RATIO.
-+
-+
- compact_memory
- ==============
- 
-@@ -1111,6 +1160,19 @@
- can then be used to tune kswapd aggressiveness accordingly.
- 
- 
-+workingset_protection
-+=====================
-+
-+This enables or disables the anon_min_ratio, clean_low_ratio, and
-+clean_min_ratio reclaim protections.
-+
-+When this is set to 1, reclaim computes node-local anonymous and clean-file
-+page floors from the configured ratios. When this is set to 0, reclaim ignores
-+the ratio floors.
-+
-+The default value is 1.
-+
-+
- zone_reclaim_mode
- =================
- 
---- a/mm/Kconfig	2026-08-09 13:26:58.000000000 -0500
-+++ b/mm/Kconfig	2026-08-19 18:42:14.507711515 -0500
-@@ -425,6 +425,55 @@
- config ARCH_WANT_HUGETLB_VMEMMAP_PREINIT
- 	bool
- 
-+config ANON_MIN_RATIO
-+	int "Default value for vm.anon_min_ratio"
-+	depends on SYSCTL
-+	range 0 100
-+	default 1
-+	help
-+	  This option sets the default value for vm.anon_min_ratio.
-+
-+	  vm.anon_min_ratio provides hard protection for anonymous pages on
-+	  each node. Anonymous pages are not reclaimed when their amount is
-+	  below the configured percentage of node memory.
-+
-+	  This can reduce swap thrashing when zram or zswap absorbs memory
-+	  pressure. Setting the value too high can make anonymous memory harder
-+	  to reclaim and can trigger earlier OOM kills.
-+
-+config CLEAN_LOW_RATIO
-+	int "Default value for vm.clean_low_ratio"
-+	depends on SYSCTL
-+	range 0 100
-+	default 15
-+	help
-+	  This option sets the default value for vm.clean_low_ratio.
-+
-+	  vm.clean_low_ratio provides best-effort protection for clean file
-+	  pages on each node. Clean file pages are avoided under memory pressure
-+	  while their amount is below the configured percentage of node memory,
-+	  unless reclaim pressure escalates toward OOM.
-+
-+	  This can reduce file-cache churn under mixed browser, build, and
-+	  desktop workloads. Setting the value too high can push more pressure
-+	  toward anonymous pages and swap.
-+
-+config CLEAN_MIN_RATIO
-+	int "Default value for vm.clean_min_ratio"
-+	depends on SYSCTL
-+	range 0 100
-+	default 4
-+	help
-+	  This option sets the default value for vm.clean_min_ratio.
-+
-+	  vm.clean_min_ratio provides hard protection for clean file pages on
-+	  each node. Clean file pages are not reclaimed when their amount is
-+	  below the configured percentage of node memory.
-+
-+	  This can preserve a small file-cache floor during memory pressure.
-+	  Setting the value too high can trigger earlier OOM kills when other
-+	  memory types cannot be reclaimed.
-+
- config HAVE_MEMBLOCK_PHYS_MAP
- 	bool
- 
---- a/mm/vmscan.c	2026-08-19 19:15:02.694019163 -0500
-+++ b/mm/vmscan.c	2026-08-19 19:16:13.158446187 -0500
-@@ -146,6 +146,15 @@
+ #include <linux/mm.h>
++#include <linux/sysinfo.h>
+ #include <linux/sched/mm.h>
+ #include <linux/module.h>
+ #include <linux/gfp.h>
+@@ -146,6 +147,15 @@
  	/* The file folios on the current node are dangerously low */
  	unsigned int file_is_tiny:1;
  
@@ -172,19 +31,7 @@ Subject: [PATCH] mm ratios and mglru 7.1 adapt
  	/* Always discard instead of demoting to lower tier memory */
  	unsigned int no_demotion:1;
  
-@@ -169,11 +178,9 @@
- 
- 	struct {
- 		unsigned int dirty;
--		unsigned int unqueued_dirty;
- 		unsigned int congested;
- 		unsigned int writeback;
- 		unsigned int immediate;
--		unsigned int file_taken;
- 		unsigned int taken;
- 	} nr;
- 
-@@ -199,6 +206,10 @@
+@@ -197,6 +207,10 @@
   * From 0 .. MAX_SWAPPINESS.  Higher means more swappy.
   */
  int vm_swappiness = 60;
@@ -193,9 +40,9 @@ Subject: [PATCH] mm ratios and mglru 7.1 adapt
 +static u8 sysctl_clean_low_ratio __read_mostly = CONFIG_CLEAN_LOW_RATIO;
 +static u8 sysctl_clean_min_ratio __read_mostly = CONFIG_CLEAN_MIN_RATIO;
  
- #ifdef CONFIG_MEMCG
- 
-@@ -1117,6 +1128,10 @@
+ static int sc_swappiness(struct scan_control *sc, struct mem_cgroup *memcg)
+ {
+@@ -1109,6 +1123,10 @@
  		if (!sc->may_unmap && folio_mapped(folio))
  			goto keep_locked;
  
@@ -206,95 +53,7 @@ Subject: [PATCH] mm ratios and mglru 7.1 adapt
  		/*
  		 * The number of dirty pages determines if a node is marked
  		 * reclaim_congested. kswapd will stall and start writing
-@@ -1944,6 +1959,44 @@
- 	return !(current->flags & PF_LOCAL_THROTTLE);
- }
- 
-+static void handle_reclaim_writeback(unsigned long nr_taken,
-+				     struct pglist_data *pgdat,
-+				     struct scan_control *sc,
-+				     struct reclaim_stat *stat)
-+{
-+	/*
-+	 * If dirty folios are scanned that are not queued for IO, it
-+	 * implies that flushers are not doing their job. This can
-+	 * happen when memory pressure pushes dirty folios to the end of
-+	 * the LRU before the dirty limits are breached and the dirty
-+	 * data has expired. It can also happen when the proportion of
-+	 * dirty folios grows not through writes but through memory
-+	 * pressure reclaiming all the clean cache. And in some cases,
-+	 * the flushers simply cannot keep up with the allocation
-+	 * rate. Nudge the flusher threads in case they are asleep.
-+	 */
-+	if (stat->nr_unqueued_dirty == nr_taken) {
-+		wakeup_flusher_threads(WB_REASON_VMSCAN);
-+		/*
-+		 * For cgroupv1 dirty throttling is achieved by waking up
-+		 * the kernel flusher here and later waiting on folios
-+		 * which are in writeback to finish (see shrink_folio_list()).
-+		 *
-+		 * Flusher may not be able to issue writeback quickly
-+		 * enough for cgroupv1 writeback throttling to work
-+		 * on a large system.
-+		 */
-+		if (!writeback_throttling_sane(sc))
-+			reclaim_throttle(pgdat, VMSCAN_THROTTLE_WRITEBACK);
-+	}
-+
-+	sc->nr.dirty += stat->nr_dirty;
-+	sc->nr.congested += stat->nr_congested;
-+	sc->nr.writeback += stat->nr_writeback;
-+	sc->nr.immediate += stat->nr_immediate;
-+	sc->nr.taken += nr_taken;
-+}
-+
- /*
-  * shrink_inactive_list() is a helper for shrink_node().  It returns the number
-  * of reclaimed pages
-@@ -2008,41 +2061,7 @@
- 	lru_note_cost_unlock_irq(lruvec, file, stat.nr_pageout,
- 					nr_scanned - nr_reclaimed);
- 
--	/*
--	 * If dirty folios are scanned that are not queued for IO, it
--	 * implies that flushers are not doing their job. This can
--	 * happen when memory pressure pushes dirty folios to the end of
--	 * the LRU before the dirty limits are breached and the dirty
--	 * data has expired. It can also happen when the proportion of
--	 * dirty folios grows not through writes but through memory
--	 * pressure reclaiming all the clean cache. And in some cases,
--	 * the flushers simply cannot keep up with the allocation
--	 * rate. Nudge the flusher threads in case they are asleep.
--	 */
--	if (stat.nr_unqueued_dirty == nr_taken) {
--		wakeup_flusher_threads(WB_REASON_VMSCAN);
--		/*
--		 * For cgroupv1 dirty throttling is achieved by waking up
--		 * the kernel flusher here and later waiting on folios
--		 * which are in writeback to finish (see shrink_folio_list()).
--		 *
--		 * Flusher may not be able to issue writeback quickly
--		 * enough for cgroupv1 writeback throttling to work
--		 * on a large system.
--		 */
--		if (!writeback_throttling_sane(sc))
--			reclaim_throttle(pgdat, VMSCAN_THROTTLE_WRITEBACK);
--	}
--
--	sc->nr.dirty += stat.nr_dirty;
--	sc->nr.congested += stat.nr_congested;
--	sc->nr.unqueued_dirty += stat.nr_unqueued_dirty;
--	sc->nr.writeback += stat.nr_writeback;
--	sc->nr.immediate += stat.nr_immediate;
--	sc->nr.taken += nr_taken;
--	if (file)
--		sc->nr.file_taken += nr_taken;
--
-+	handle_reclaim_writeback(nr_taken, pgdat, sc, &stat);
- 	trace_mm_vmscan_lru_shrink_inactive(pgdat->node_id,
- 			nr_scanned, nr_reclaimed, &stat, sc->priority, file);
- 	return nr_reclaimed;
-@@ -2544,6 +2563,11 @@
+@@ -2539,6 +2557,11 @@
  		goto out;
  	}
  
@@ -306,7 +65,7 @@ Subject: [PATCH] mm ratios and mglru 7.1 adapt
  	/*
  	 * If there is enough inactive page cache, we do not reclaim
  	 * anything from the anonymous working right now to make sure
-@@ -2602,6 +2626,9 @@
+@@ -2597,6 +2620,9 @@
  			BUG();
  		}
  
@@ -316,7 +75,7 @@ Subject: [PATCH] mm ratios and mglru 7.1 adapt
  		nr[lru] = scan;
  	}
  }
-@@ -2622,6 +2649,65 @@
+@@ -2617,6 +2643,65 @@
  			  lruvec_memcg(lruvec));
  }
  
@@ -382,444 +141,7 @@ Subject: [PATCH] mm ratios and mglru 7.1 adapt
  #ifdef CONFIG_LRU_GEN
  
  DEFINE_STATIC_KEY_FALSE(lru_switch);
-@@ -3220,7 +3306,7 @@
- }
- 
- /* protect pages accessed multiple times through file descriptors */
--static int folio_inc_gen(struct lruvec *lruvec, struct folio *folio, bool reclaiming)
-+static int folio_inc_gen(struct lruvec *lruvec, struct folio *folio)
- {
- 	int type = folio_is_file_lru(folio);
- 	struct lru_gen_folio *lrugen = &lruvec->lrugen;
-@@ -3239,9 +3325,6 @@
- 
- 		new_flags = old_flags & ~(LRU_GEN_MASK | LRU_REFS_FLAGS);
- 		new_flags |= (new_gen + 1UL) << LRU_GEN_PGOFF;
--		/* for folio_end_writeback() */
--		if (reclaiming)
--			new_flags |= BIT(PG_reclaim);
- 	} while (!try_cmpxchg(&folio->flags.f, &old_flags, new_flags));
- 
- 	lru_gen_update_size(lruvec, folio, old_gen, new_gen);
-@@ -3854,7 +3937,7 @@
- 			VM_WARN_ON_ONCE_FOLIO(folio_is_file_lru(folio) != type, folio);
- 			VM_WARN_ON_ONCE_FOLIO(folio_zonenum(folio) != zone, folio);
- 
--			new_gen = folio_inc_gen(lruvec, folio, false);
-+			new_gen = folio_inc_gen(lruvec, folio);
- 			list_move_tail(&folio->lru, &lrugen->folios[new_gen][type][zone]);
- 
- 			/* don't count the workingset being lazily promoted */
-@@ -3877,10 +3960,9 @@
- 	return true;
- }
- 
--static bool try_to_inc_min_seq(struct lruvec *lruvec, int swappiness)
-+static void try_to_inc_min_seq(struct lruvec *lruvec, int swappiness)
- {
- 	int gen, type, zone;
--	bool success = false;
- 	bool seq_inc_flag = false;
- 	struct lru_gen_folio *lrugen = &lruvec->lrugen;
- 	DEFINE_MIN_SEQ(lruvec);
-@@ -3906,11 +3988,10 @@
- 
- 	/*
- 	 * If min_seq[type] of both anonymous and file is not increased,
--	 * we can directly return false to avoid unnecessary checking
--	 * overhead later.
-+	 * return here to avoid unnecessary checking overhead later.
- 	 */
- 	if (!seq_inc_flag)
--		return success;
-+		return;
- 
- 	/* see the comment on lru_gen_folio */
- 	if (swappiness && swappiness <= MAX_SWAPPINESS) {
-@@ -3928,10 +4009,7 @@
- 
- 		reset_ctrl_pos(lruvec, type, true);
- 		WRITE_ONCE(lrugen->min_seq[type], min_seq[type]);
--		success = true;
- 	}
--
--	return success;
- }
- 
- static bool inc_max_seq(struct lruvec *lruvec, unsigned long seq, int swappiness)
-@@ -4083,27 +4161,33 @@
- 	sc->priority = clamp(priority, DEF_PRIORITY / 2, DEF_PRIORITY);
- }
- 
--static bool lruvec_is_sizable(struct lruvec *lruvec, struct scan_control *sc)
-+static unsigned long lruvec_evictable_size(struct lruvec *lruvec, int swappiness)
- {
- 	int gen, type, zone;
--	unsigned long total = 0;
--	int swappiness = get_swappiness(lruvec, sc);
-+	unsigned long seq, total = 0;
- 	struct lru_gen_folio *lrugen = &lruvec->lrugen;
--	struct mem_cgroup *memcg = lruvec_memcg(lruvec);
- 	DEFINE_MAX_SEQ(lruvec);
- 	DEFINE_MIN_SEQ(lruvec);
- 
- 	for_each_evictable_type(type, swappiness) {
--		unsigned long seq;
--
- 		for (seq = min_seq[type]; seq <= max_seq; seq++) {
- 			gen = lru_gen_from_seq(seq);
--
- 			for (zone = 0; zone < MAX_NR_ZONES; zone++)
- 				total += max(READ_ONCE(lrugen->nr_pages[gen][type][zone]), 0L);
- 		}
- 	}
- 
-+	return total;
-+}
-+
-+static bool lruvec_is_sizable(struct lruvec *lruvec, struct scan_control *sc)
-+{
-+	unsigned long total;
-+	int swappiness = get_swappiness(lruvec, sc);
-+	struct mem_cgroup *memcg = lruvec_memcg(lruvec);
-+
-+	total = lruvec_evictable_size(lruvec, swappiness);
-+
- 	/* whether the size is big enough to be helpful */
- 	return mem_cgroup_online(memcg) ? (total >> sc->priority) : total;
- }
-@@ -4576,7 +4660,6 @@
- 		       int tier_idx)
- {
- 	bool success;
--	bool dirty, writeback;
- 	int gen = folio_lru_gen(folio);
- 	int type = folio_is_file_lru(folio);
- 	int zone = folio_zonenum(folio);
-@@ -4606,7 +4689,7 @@
- 
- 	/* protected */
- 	if (tier > tier_idx || refs + workingset == BIT(LRU_REFS_WIDTH) + 1) {
--		gen = folio_inc_gen(lruvec, folio, false);
-+		gen = folio_inc_gen(lruvec, folio);
- 		list_move(&folio->lru, &lrugen->folios[gen][type][zone]);
- 
- 		/* don't count the workingset being lazily promoted */
-@@ -4621,26 +4704,11 @@
- 
- 	/* ineligible */
- 	if (zone > sc->reclaim_idx) {
--		gen = folio_inc_gen(lruvec, folio, false);
-+		gen = folio_inc_gen(lruvec, folio);
- 		list_move_tail(&folio->lru, &lrugen->folios[gen][type][zone]);
- 		return true;
- 	}
- 
--	dirty = folio_test_dirty(folio);
--	writeback = folio_test_writeback(folio);
--	if (type == LRU_GEN_FILE && dirty) {
--		sc->nr.file_taken += delta;
--		if (!writeback)
--			sc->nr.unqueued_dirty += delta;
--	}
--
--	/* waiting for writeback */
--	if (writeback || (type == LRU_GEN_FILE && dirty)) {
--		gen = folio_inc_gen(lruvec, folio, true);
--		list_move(&folio->lru, &lrugen->folios[gen][type][zone]);
--		return true;
--	}
--
- 	return false;
- }
- 
-@@ -4648,12 +4716,6 @@
- {
- 	bool success;
- 
--	/* swap constrained */
--	if (!(sc->gfp_mask & __GFP_IO) &&
--	    (folio_test_dirty(folio) ||
--	     (folio_test_anon(folio) && !folio_test_swapcache(folio))))
--		return false;
--
- 	/* raced with release_pages() */
- 	if (!folio_try_get(folio))
- 		return false;
-@@ -4668,9 +4730,6 @@
- 	if (!folio_test_referenced(folio))
- 		set_mask_bits(&folio->flags.f, LRU_REFS_MASK, 0);
- 
--	/* for shrink_folio_list() */
--	folio_clear_reclaim(folio);
--
- 	success = lru_gen_del_folio(lruvec, folio, true);
- 	VM_WARN_ON_ONCE_FOLIO(!success, folio);
- 
-@@ -4679,7 +4738,7 @@
- 
- static int scan_folios(unsigned long nr_to_scan, struct lruvec *lruvec,
- 		       struct scan_control *sc, int type, int tier,
--		       struct list_head *list)
-+		       struct list_head *list, int *isolatedp)
- {
- 	int i;
- 	int gen;
-@@ -4747,8 +4806,6 @@
- 	trace_mm_vmscan_lru_isolate(sc->reclaim_idx, sc->order, scan_batch,
- 				scanned, skipped, isolated,
- 				type ? LRU_INACTIVE_FILE : LRU_INACTIVE_ANON);
--	if (type == LRU_GEN_FILE)
--		sc->nr.file_taken += isolated;
- 	/*
- 	 * There might not be eligible folios due to reclaim_idx. Check the
- 	 * remaining to prevent livelock if it's not making progress.
-@@ -4776,11 +4833,21 @@
- 	return tier - 1;
- }
- 
--static int get_type_to_scan(struct lruvec *lruvec, int swappiness)
-+static int get_type_to_scan(struct lruvec *lruvec, struct scan_control *sc,
-+			    int swappiness)
- {
- 	struct ctrl_pos sp, pv = {};
- 
--	if (swappiness <= MIN_SWAPPINESS + 1)
-+	if (swappiness == MIN_SWAPPINESS)
-+		return LRU_GEN_FILE;
-+
-+	if (sc->clean_below_min || sc->clean_below_low)
-+		return LRU_GEN_ANON;
-+
-+	if (sc->anon_below_min)
-+		return LRU_GEN_FILE;
-+
-+	if (swappiness == MIN_SWAPPINESS + 1)
- 		return LRU_GEN_FILE;
- 
- 	if (swappiness >= MAX_SWAPPINESS)
-@@ -4797,33 +4864,41 @@
- 
- static int isolate_folios(unsigned long nr_to_scan, struct lruvec *lruvec,
- 			  struct scan_control *sc, int swappiness,
--			  int *type_scanned, struct list_head *list)
-+			  struct list_head *list, int *isolated,
-+			  int *isolate_type, int *isolate_scanned)
- {
- 	int i;
--	int type = get_type_to_scan(lruvec, swappiness);
-+	int total_scanned = 0;
-+	int type = get_type_to_scan(lruvec, sc, swappiness);
- 
- 	for_each_evictable_type(i, swappiness) {
- 		int scanned;
- 		int tier = get_tier_idx(lruvec, type);
- 
--		*type_scanned = type;
--
--		scanned = scan_folios(nr_to_scan, lruvec, sc, type, tier, list);
--		if (scanned)
--			return scanned;
-+		scanned = scan_folios(nr_to_scan, lruvec, sc,
-+				      type, tier, list, isolated);
- 
--		type = !type;
-+		total_scanned += scanned;
-+		if (*isolated) {
-+			*isolate_type = type;
-+			*isolate_scanned = scanned;
-+			break;
-+		}
-+		/*
-+		 * If scanned > 0 and isolated == 0, avoid falling back to the
-+		 * other type, as this type remains sufficient. Falling back
-+		 * too readily can disrupt the positive_ctrl_err() bias.
-+		 */
-+		if (!scanned)
-+			type = !type;
- 	}
- 
--	return 0;
-+	return total_scanned;
- }
- 
- static int evict_folios(unsigned long nr_to_scan, struct lruvec *lruvec,
- 			struct scan_control *sc, int swappiness)
- {
--	int type;
--	int scanned;
--	int reclaimed;
- 	LIST_HEAD(list);
- 	LIST_HEAD(clean);
- 	struct folio *folio;
-@@ -4831,6 +4906,8 @@
- 	enum node_stat_item item;
- 	struct reclaim_stat stat;
- 	struct lru_gen_mm_walk *walk;
-+	int scanned, reclaimed;
-+	int isolated = 0, type, type_scanned = 0;
- 	bool skip_retry = false;
- 	struct lru_gen_folio *lrugen = &lruvec->lrugen;
- 	struct mem_cgroup *memcg = lruvec_memcg(lruvec);
-@@ -4838,9 +4915,10 @@
- 
- 	lruvec_lock_irq(lruvec);
- 
--	scanned = isolate_folios(nr_to_scan, lruvec, sc, swappiness, &type, &list);
-+	scanned = isolate_folios(nr_to_scan, lruvec, sc, swappiness,
-+				 &list, &isolated, &type, &type_scanned);
- 
--	scanned += try_to_inc_min_seq(lruvec, swappiness);
-+	try_to_inc_min_seq(lruvec, swappiness);
- 
- 	if (evictable_min_seq(lrugen->min_seq, swappiness) + MIN_NR_GENS > lrugen->max_seq)
- 		scanned = 0;
-@@ -4851,10 +4929,12 @@
- 		return scanned;
- retry:
- 	reclaimed = shrink_folio_list(&list, pgdat, sc, &stat, false, memcg);
--	sc->nr.unqueued_dirty += stat.nr_unqueued_dirty;
- 	sc->nr_reclaimed += reclaimed;
-+	/* Retry pass is only meant for clean folios without new isolation */
-+	if (isolated)
-+		handle_reclaim_writeback(isolated, pgdat, sc, &stat);
- 	trace_mm_vmscan_lru_shrink_inactive(pgdat->node_id,
--			scanned, reclaimed, &stat, sc->priority,
-+			type_scanned, reclaimed, &stat, sc->priority,
- 			type ? LRU_INACTIVE_FILE : LRU_INACTIVE_ANON);
- 
- 	list_for_each_entry_safe_reverse(folio, next, &list, lru) {
-@@ -4897,6 +4977,7 @@
- 
- 	if (!list_empty(&list)) {
- 		skip_retry = true;
-+		isolated = 0;
- 		goto retry;
- 	}
- 
-@@ -4904,63 +4985,37 @@
- }
- 
- static bool should_run_aging(struct lruvec *lruvec, unsigned long max_seq,
--			     int swappiness, unsigned long *nr_to_scan)
-+			     struct scan_control *sc, int swappiness)
- {
--	int gen, type, zone;
--	unsigned long size = 0;
--	struct lru_gen_folio *lrugen = &lruvec->lrugen;
- 	DEFINE_MIN_SEQ(lruvec);
- 
--	*nr_to_scan = 0;
- 	/* have to run aging, since eviction is not possible anymore */
- 	if (evictable_min_seq(min_seq, swappiness) + MIN_NR_GENS > max_seq)
- 		return true;
- 
--	for_each_evictable_type(type, swappiness) {
--		unsigned long seq;
--
--		for (seq = min_seq[type]; seq <= max_seq; seq++) {
--			gen = lru_gen_from_seq(seq);
--
--			for (zone = 0; zone < MAX_NR_ZONES; zone++)
--				size += max(READ_ONCE(lrugen->nr_pages[gen][type][zone]), 0L);
--		}
--	}
-+	/* try to avoid aging, do gentle reclaim at the default priority */
-+	if (sc->priority == DEF_PRIORITY)
-+		return false;
- 
--	*nr_to_scan = size;
- 	/* better to run aging even though eviction is still possible */
- 	return evictable_min_seq(min_seq, swappiness) + MIN_NR_GENS == max_seq;
- }
- 
--/*
-- * For future optimizations:
-- * 1. Defer try_to_inc_max_seq() to workqueues to reduce latency for memcg
-- *    reclaim.
-- */
--static long get_nr_to_scan(struct lruvec *lruvec, struct scan_control *sc, int swappiness)
-+static long get_nr_to_scan(struct lruvec *lruvec, struct scan_control *sc,
-+			   struct mem_cgroup *memcg, int swappiness)
- {
--	bool success;
--	unsigned long nr_to_scan;
--	struct mem_cgroup *memcg = lruvec_memcg(lruvec);
--	DEFINE_MAX_SEQ(lruvec);
--
--	if (mem_cgroup_below_min(sc->target_mem_cgroup, memcg))
--		return -1;
-+	unsigned long nr_to_scan, evictable;
- 
--	success = should_run_aging(lruvec, max_seq, swappiness, &nr_to_scan);
-+	evictable = lruvec_evictable_size(lruvec, swappiness);
- 
- 	/* try to scrape all its memory if this memcg was deleted */
--	if (nr_to_scan && !mem_cgroup_online(memcg))
--		return nr_to_scan;
-+	if (!mem_cgroup_online(memcg))
-+		return evictable;
- 
--	nr_to_scan = apply_proportional_protection(memcg, sc, nr_to_scan);
-+	nr_to_scan = apply_proportional_protection(memcg, sc, evictable);
-+	nr_to_scan >>= sc->priority;
- 
--	/* try to get away with not aging at the default priority */
--	if (!success || sc->priority == DEF_PRIORITY)
--		return nr_to_scan >> sc->priority;
--
--	/* stop scanning this lruvec as it's low on cold folios */
--	return try_to_inc_max_seq(lruvec, max_seq, swappiness, false) ? -1 : 0;
-+	return nr_to_scan;
- }
- 
- static bool should_abort_scan(struct lruvec *lruvec, struct scan_control *sc)
-@@ -4995,11 +5050,12 @@
- 	long nr_to_scan;
- 	unsigned long scanned = 0;
- 	int swappiness = get_swappiness(lruvec, sc);
-+	struct mem_cgroup *memcg = lruvec_memcg(lruvec);
- 
- 	while (true) {
- 		int delta;
- 
--		nr_to_scan = get_nr_to_scan(lruvec, sc, swappiness);
-+		nr_to_scan = get_nr_to_scan(lruvec, sc, memcg, swappiness);
- 		if (nr_to_scan <= 0)
- 			break;
- 
-@@ -5021,24 +5077,6 @@
- 	 * If too many file cache in the coldest generation can't be evicted
- 	 * due to being dirty, wake up the flusher.
- 	 */
--	if (sc->nr.unqueued_dirty && sc->nr.unqueued_dirty == sc->nr.file_taken) {
--		struct pglist_data *pgdat = lruvec_pgdat(lruvec);
--
--		wakeup_flusher_threads(WB_REASON_VMSCAN);
--
--		/*
--		 * For cgroupv1 dirty throttling is achieved by waking up
--		 * the kernel flusher here and later waiting on folios
--		 * which are in writeback to finish (see shrink_folio_list()).
--		 *
--		 * Flusher may not be able to issue writeback quickly
--		 * enough for cgroupv1 writeback throttling to work
--		 * on a large system.
--		 */
--		if (!writeback_throttling_sane(sc))
--			reclaim_throttle(pgdat, VMSCAN_THROTTLE_WRITEBACK);
--	}
--
- 	/* whether this lruvec should be rotated */
- 	return nr_to_scan < 0;
- }
-@@ -5046,11 +5084,18 @@
- static int shrink_one(struct lruvec *lruvec, struct scan_control *sc)
- {
- 	bool success;
-+	bool need_rotate;
- 	unsigned long scanned = sc->nr_scanned;
- 	unsigned long reclaimed = sc->nr_reclaimed;
+@@ -5000,6 +5085,12 @@
  	struct mem_cgroup *memcg = lruvec_memcg(lruvec);
  	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
  
@@ -832,60 +154,20 @@ Subject: [PATCH] mm ratios and mglru 7.1 adapt
  	/* lru_gen_age_node() called mem_cgroup_calculate_protection() */
  	if (mem_cgroup_below_min(NULL, memcg))
  		return MEMCG_LRU_YOUNG;
-@@ -5063,7 +5108,7 @@
- 		memcg_memory_event(memcg, MEMCG_LOW);
- 	}
- 
--	success = try_to_shrink_lruvec(lruvec, sc);
-+	need_rotate = try_to_shrink_lruvec(lruvec, sc);
- 
- 	shrink_slab(sc->gfp_mask, pgdat->node_id, memcg, sc->priority);
- 
-@@ -5073,10 +5118,10 @@
- 
- 	flush_reclaim_state(sc);
- 
--	if (success && mem_cgroup_online(memcg))
-+	if (need_rotate && mem_cgroup_online(memcg))
- 		return MEMCG_LRU_YOUNG;
- 
--	if (!success && lruvec_is_sizable(lruvec, sc))
-+	if (!need_rotate && lruvec_is_sizable(lruvec, sc))
- 		return 0;
- 
- 	/* one retry if offlined or too small */
-@@ -5628,6 +5673,7 @@
- static int run_eviction(struct lruvec *lruvec, unsigned long seq, struct scan_control *sc,
- 			int swappiness, unsigned long nr_to_reclaim)
- {
-+	int nr_batch;
- 	DEFINE_MAX_SEQ(lruvec);
- 
- 	if (seq + MIN_NR_GENS > max_seq)
-@@ -5644,8 +5690,8 @@
- 		if (sc->nr_reclaimed >= nr_to_reclaim)
- 			return 0;
- 
--		if (!evict_folios(nr_to_reclaim - sc->nr_reclaimed, lruvec, sc,
--				  swappiness))
-+		nr_batch = min(nr_to_reclaim - sc->nr_reclaimed, MAX_LRU_BATCH);
-+		if (!evict_folios(nr_batch, lruvec, sc, swappiness))
- 			return 0;
- 
- 		cond_resched();
-@@ -6209,6 +6255,8 @@
- 
- 	prepare_scan_control(pgdat, sc);
+@@ -6140,6 +6231,8 @@
+ 	struct lruvec *target_lruvec;
+ 	bool reclaimable = false;
  
 +	prepare_workingset_protection(pgdat, sc);
 +
- 	shrink_node_memcgs(pgdat, sc);
- 
- 	flush_reclaim_state(sc);
-@@ -7673,6 +7721,40 @@
- 
- static const struct ctl_table vmscan_sysctl_table[] = {
- 	{
+ 	if ((lru_gen_enabled() || lru_gen_switching()) && root_reclaim(sc)) {
+ 		memset(&sc->nr, 0, sizeof(sc->nr));
+ 		lru_gen_shrink_node(pgdat, sc);
+@@ -7629,6 +7722,40 @@
+ 		.extra1		= SYSCTL_ZERO,
+ 		.extra2		= SYSCTL_TWO_HUNDRED,
+ 	},
++	{
 +		.procname	= "workingset_protection",
 +		.data		= &sysctl_workingset_protection,
 +		.maxlen		= sizeof(sysctl_workingset_protection),
@@ -919,7 +201,55 @@ Subject: [PATCH] mm ratios and mglru 7.1 adapt
 +		.extra1		= SYSCTL_ZERO,
 +		.extra2		= SYSCTL_ONE_HUNDRED,
 +	},
-+	{
- 		.procname	= "swappiness",
- 		.data		= &vm_swappiness,
- 		.maxlen		= sizeof(vm_swappiness),
+ #ifdef CONFIG_NUMA
+ 	{
+ 		.procname	= "zone_reclaim_mode",
+--- a/mm/Kconfig
++++ b/mm/Kconfig
+@@ -478,6 +478,33 @@
+ config ARCH_WANT_HUGETLB_VMEMMAP_PREINIT
+ 	bool
+ 
++config ANON_MIN_RATIO
++	int "Default value for vm.anon_min_ratio"
++	depends on SYSCTL
++	range 0 100
++	default 1
++	help
++	  Default for vm.anon_min_ratio. Anonymous pages below this
++	  percentage of node memory are not reclaimed.
++
++config CLEAN_LOW_RATIO
++	int "Default value for vm.clean_low_ratio"
++	depends on SYSCTL
++	range 0 100
++	default 15
++	help
++	  Default for vm.clean_low_ratio. Clean file pages below this
++	  percentage are avoided until reclaim pressure rises.
++
++config CLEAN_MIN_RATIO
++	int "Default value for vm.clean_min_ratio"
++	depends on SYSCTL
++	range 0 100
++	default 4
++	help
++	  Default for vm.clean_min_ratio. Clean file pages below this
++	  percentage are not reclaimed.
++
+ config HAVE_MEMBLOCK_PHYS_MAP
+ 	bool
+ 
+--- a/Documentation/admin-guide/sysctl/vm.rst
++++ b/Documentation/admin-guide/sysctl/vm.rst
+@@ -25,6 +25,10 @@
+ Currently, these files are in /proc/sys/vm:
+ 
+ - admin_reserve_kbytes
++- anon_min_ratio
++- clean_low_ratio
++- clean_min_ratio
++- workingset_protection
+ - compact_memory
+ - compaction_proactiveness
+ - compact_unevictable_allowed
