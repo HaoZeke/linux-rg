@@ -2,7 +2,7 @@
 
 pkgbase=linux-rg
 pkgver=7.2.7.arch1
-pkgrel=1
+pkgrel=2
 pkgdesc='Linux kernel for linux-rg machine profiles'
 url='https://github.com/archlinux/linux'
 arch=(
