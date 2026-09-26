@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Replay prepare()'s patch order on a pristine tree, keep every .rej, and
+# report which rejected hunks never landed after the adaptation patches.
+# A rebase is finished when every line reads LANDED or is explained.
+#
+#   scripts/linux-rg-reject-audit SRCDEST [WORKDIR]
+set -euo pipefail
+
+repo=$(cd "$(dirname "$0")/.." && pwd)
+srcdest=${1:?usage: linux-rg-reject-audit SRCDEST [WORKDIR]}
+work=${2:-${TMPDIR:-/tmp}/linux-rg-reject-audit}
+
+cd "$repo"
+pkgver=$(makepkg --printsrcinfo | sed -n 's/^\tpkgver = //p')
+kver=${pkgver%.arch*}
+tag="v${kver}-${pkgver##*.}"
+mapfile -t patches < <(makepkg --printsrcinfo | sed -n 's/^\tsource = //p' | grep '\.patch$')
+
+rm -rf "$work"; mkdir -p "$work/rej"; cd "$work"
+tar -xf "$srcdest/linux-${kver}.tar.xz"
+cd "linux-${kver}"
+zstd -dc "$srcdest/linux-${tag}.patch.zst" | patch -Np1 -s
+
+for p in "${patches[@]}"; do
+  case "$p" in
+    0002-bore-fair-arch-adapt.patch|0004-bbr3-arch7-adapt.patch) continue ;;
+    0010-cachy-hotpath-inline.patch|0012-sched-ext-smt-idle.patch) continue ;;
+    0017-bbr3-tcp-prototype.patch|0019-mglru-devtree-adapt.patch) continue ;;
+    0022-amd-znver5-rdseed.patch|*-linux-7.0.patch) continue ;;
+  esac
+  if ! patch -Np1 -s < "$repo/$p" > "$work/rej/$p.log" 2>&1; then
+    echo "REJECTS in $p"
+    find . -name '*.rej' | while read -r r; do
+      mkdir -p "$work/rej/$p/$(dirname "$r")"; mv "$r" "$work/rej/$p/$r"
+    done
+    case "$p" in
+      0001-bore-cachy.patch) patch -Np1 -s < "$repo/0002-bore-fair-arch-adapt.patch" ;;
+      0003-bbr3-cachy.patch) patch -Np1 -s < "$repo/0004-bbr3-arch7-adapt.patch" ;;
+      *) echo "UNHANDLED rejects in $p" ;;
+    esac
+  fi
+  find . -name '*.orig' -delete
+done
+
+python3 "$repo/scripts/linux-rg-reject-audit.py" "$work/rej" .
