@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Replay prepare()'s patch order on a pristine tree, keep every .rej, and
-# report which rejected hunks never landed after the adaptation patches.
-# A rebase is finished when every line reads LANDED or is explained.
+# report which rejected hunks never landed after the adaptation patches,
+# and every hunk that applied with fuzz.
+# A rebase is finished when this prints nothing.
 #
 #   scripts/linux-rg-reject-audit SRCDEST [WORKDIR]
 set -euo pipefail
@@ -23,23 +24,25 @@ zstd -dc "$srcdest/linux-${tag}.patch.zst" | patch -Np1 -s
 
 for p in "${patches[@]}"; do
   case "$p" in
-    0002-bore-fair-arch-adapt.patch|0004-bbr3-arch7-adapt.patch) continue ;;
+    0004-bbr3-arch7-adapt.patch) continue ;;
     0010-cachy-hotpath-inline.patch|0012-sched-ext-smt-idle.patch) continue ;;
     0017-bbr3-tcp-prototype.patch|0019-mglru-devtree-adapt.patch) continue ;;
     0022-amd-znver5-rdseed.patch|*-linux-7.0.patch) continue ;;
   esac
-  if ! patch -Np1 -s < "$repo/$p" > "$work/rej/$p.log" 2>&1; then
+  if ! patch -Np1 < "$repo/$p" > "$work/rej/$p.log" 2>&1; then
     echo "REJECTS in $p"
     find . -name '*.rej' | while read -r r; do
       mkdir -p "$work/rej/$p/$(dirname "$r")"; mv "$r" "$work/rej/$p/$r"
     done
     case "$p" in
-      0001-bore-cachy.patch) patch -Np1 -s < "$repo/0002-bore-fair-arch-adapt.patch" ;;
       0003-bbr3-cachy.patch) patch -Np1 -s < "$repo/0004-bbr3-arch7-adapt.patch" ;;
       *) echo "UNHANDLED rejects in $p" ;;
     esac
   fi
   find . -name '*.orig' -delete
 done
+
+# A fuzzy hunk can land in the wrong place without a reject.
+grep -H "with fuzz" "$work"/rej/*.log | sed "s|$work/rej/||; s|\.log:| |; s|^|FUZZ     |" || true
 
 python3 "$repo/scripts/linux-rg-reject-audit.py" "$work/rej" .
