@@ -90,31 +90,8 @@ emit_pairs() {
   to_git_patch "$dest" "$subject"
 }
 
-# BBR: full 7.1 carry vs clean Arch tree (0003 applies in one shot).
-emit_pairs "$repo/0003-bbr3-cachy.patch" "bbr3 for linux 7.1.8" \
-  "$clean/include/linux/tcp.h" "$work/include/linux/tcp.h" \
-  "$clean/include/net/tcp.h" "$work/include/net/tcp.h" \
-  "$clean/include/net/tcp_ecn.h" "$work/include/net/tcp_ecn.h" \
-  "$clean/include/net/inet_connection_sock.h" "$work/include/net/inet_connection_sock.h" \
-  "$clean/include/uapi/linux/inet_diag.h" "$work/include/uapi/linux/inet_diag.h" \
-  "$clean/include/uapi/linux/rtnetlink.h" "$work/include/uapi/linux/rtnetlink.h" \
-  "$clean/include/uapi/linux/tcp.h" "$work/include/uapi/linux/tcp.h" \
-  "$clean/net/ipv4/Kconfig" "$work/net/ipv4/Kconfig" \
-  "$clean/net/ipv4/bpf_tcp_ca.c" "$work/net/ipv4/bpf_tcp_ca.c" \
-  "$clean/net/ipv4/tcp.c" "$work/net/ipv4/tcp.c" \
-  "$clean/net/ipv4/tcp_bbr.c" "$work/net/ipv4/tcp_bbr.c" \
-  "$clean/net/ipv4/tcp_cong.c" "$work/net/ipv4/tcp_cong.c" \
-  "$clean/net/ipv4/tcp_input.c" "$work/net/ipv4/tcp_input.c" \
-  "$clean/net/ipv4/tcp_minisocks.c" "$work/net/ipv4/tcp_minisocks.c" \
-  "$clean/net/ipv4/tcp_output.c" "$work/net/ipv4/tcp_output.c" \
-  "$clean/net/ipv4/tcp_timer.c" "$work/net/ipv4/tcp_timer.c"
-
-# 0018/0020/0021 vs mid-series (no those patches).
-mid=${3:-}
-if [[ -z $mid || ! -d $mid ]]; then
-  printf 'mid tree omitted; only refreshed 0003\n'
-  exit 0
-fi
+# BBR: 0003 is zen-kernel's 7.2/bbr3 branch (tcp_bbr3.c beside stock
+# tcp_bbr.c). Refresh it from zen for a new base; do not regenerate it here.
 
 emit_pairs "$repo/0018-cachy-mm-ratios.patch" "mm ratios and mglru 7.1 adapt" \
   "$mid/Documentation/admin-guide/sysctl/vm.rst" "$work/Documentation/admin-guide/sysctl/vm.rst" \

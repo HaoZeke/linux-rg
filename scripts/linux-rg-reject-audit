@@ -25,9 +25,8 @@ zstd -dc "$srcdest/linux-${tag}.patch.zst" | patch -Np1 -s
 
 for p in "${patches[@]}"; do
   case "$p" in
-    0004-bbr3-arch7-adapt.patch) continue ;;
     0010-cachy-hotpath-inline.patch|0012-sched-ext-smt-idle.patch) continue ;;
-    0017-bbr3-tcp-prototype.patch|0019-mglru-devtree-adapt.patch) continue ;;
+    0019-mglru-devtree-adapt.patch) continue ;;
     0022-amd-znver5-rdseed.patch|*-linux-7.0.patch) continue ;;
   esac
   python3 "$repo/scripts/linux-rg-reject-audit.py" --unique "$repo/$p" .
@@ -37,7 +36,6 @@ for p in "${patches[@]}"; do
       mkdir -p "$work/rej/$p/$(dirname "$r")"; mv "$r" "$work/rej/$p/$r"
     done
     case "$p" in
-      0003-bbr3-cachy.patch) patch -Np1 -s < "$repo/0004-bbr3-arch7-adapt.patch" ;;
       *) echo "UNHANDLED rejects in $p" ;;
     esac
   fi

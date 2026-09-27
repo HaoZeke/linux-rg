@@ -34,21 +34,14 @@ fail=0
 for src in "$repo"/00*.patch; do
   base=${src##*/}
   case $base in
-    0002-bore-fair-arch-adapt.patch|0003-bbr3-cachy.patch|0004-bbr3-arch7-adapt.patch) continue ;;
+    0003-bbr3-zen.patch) continue ;;
     0010-cachy-hotpath-inline.patch|0012-sched-ext-smt-idle.patch) continue ;;
     0018-cachy-mm-ratios.patch|0019-mglru-devtree-adapt.patch) continue ;;
     0020-cache-aware-sched.patch|0021-mm-bulk-free-hotpaths.patch) continue ;;
     0022-amd-znver5-rdseed.patch|0029-udmabuf-sg-table-from-pages.patch) continue ;;
   esac
   echo "mid apply $base"
-  if [[ $base == 0001-bore-cachy.patch ]]; then
-    if ! patch -Np1 --batch --forward <"$src"; then
-      patch -Np1 --batch --forward <"$repo/0002-bore-fair-arch-adapt.patch"
-      rm -f kernel/sched/fair.c.rej
-    fi
-  else
-    patch -Np1 --batch --forward <"$src" || fail=$((fail + 1))
-  fi
+  patch -Np1 --batch --forward <"$src" || fail=$((fail + 1))
 done
 find . -name '*.rej' -print
 if (( fail > 0 )); then
