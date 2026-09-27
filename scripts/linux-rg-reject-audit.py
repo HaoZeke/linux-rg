@@ -24,7 +24,26 @@ def unique(patch, tree):
         body = path.read_text(errors="replace")
         for h in re.split(r"(?m)^(?=@@ )", blk)[1:]:
             lines = h.splitlines()
-            before = [l[1:] for l in lines[1:] if l[:1] in (" ", "-")]
+            m = re.match(r"@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@", lines[0])
+            want_old = int(m.group(1) or 1) if m else None
+            want_new = int(m.group(2) or 1) if m else None
+            before, n_old, n_new = [], 0, 0
+            for l in lines[1:]:
+                # Read exactly the lines the header counts, so a following
+                # commit's "---" separator is never taken for a removed line.
+                if want_old is not None and n_old >= want_old and n_new >= want_new:
+                    break
+                tag = l[:1]
+                if tag == " ":
+                    before.append(l[1:]); n_old += 1; n_new += 1
+                elif tag == "-":
+                    before.append(l[1:]); n_old += 1
+                elif tag == "+":
+                    n_new += 1
+                elif tag == "\\":
+                    continue
+                else:
+                    break
             if not before:
                 continue
             n = body.count("\n".join(before))
