@@ -1,0 +1,219 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linux-rg <linux-rg@local>
+Date: Sun, 27 Sep 2026 00:00:00 +0000
+Subject: [PATCH] tcp_bbr3: give bbr3 its own kfunc names
+
+zen's tcp_bbr3.c exports its struct_ops kfuncs under the same names as
+stock tcp_bbr.c (bbr_init, bbr_main, ...) and the same set name,
+tcp_bbr_check_kfunc_ids. With bbr3 built in, loading tcp_bbr fails:
+"kfunc bbr_cwnd_event_tx_start ... is already present in vmlinux", and
+insmod returns EINVAL. With both built in, resolve_btfids fails and the
+vmlinux link stops.
+
+Rename bbr3's exported kfuncs to bbr3_* and its set to
+tcp_bbr3_check_kfunc_ids, so bbr and bbr3 load together in any mix of
+built-in and module. The BPF selftest zen extended calls bbr3's
+cwnd_event and follows the rename.
+---
+ net/ipv4/tcp_bbr3.c                                | 78 ++++++++++----------
+ tools/testing/selftests/bpf/progs/tcp_ca_kfunc.c   |  4 +-
+ 2 files changed
+
+--- a/net/ipv4/tcp_bbr3.c
++++ b/net/ipv4/tcp_bbr3.c
+@@ -169,7 +169,7 @@
+ 		ecn_in_round:1,	       /* ECN marked in this round trip? */
+ 		ack_phase:3,	       /* bbr_ack_phase: meaning of ACKs */
+ 		loss_events_in_round:4,/* losses in STARTUP round */
+-		initialized:1;	       /* has bbr_init() been called? */
++		initialized:1;	       /* has bbr3_init() been called? */
+ 	u32	alpha_last_delivered;	 /* tp->delivered    at alpha update */
+ 	u32	alpha_last_delivered_ce; /* tp->delivered_ce at alpha update */
+ 
+@@ -507,12 +507,12 @@
+ }
+ 
+ /* Custom tcp_tso_autosize() for BBR, used at transmit time to cap skb size. */
+-__bpf_kfunc static u32 bbr_tso_segs(struct sock *sk, unsigned int mss_now)
++__bpf_kfunc static u32 bbr3_tso_segs(struct sock *sk, unsigned int mss_now)
+ {
+ 	return bbr_tso_segs_generic(sk, mss_now, sk->sk_gso_max_size);
+ }
+ 
+-/* Like bbr_tso_segs(), using mss_cache, ignoring driver's sk_gso_max_size. */
++/* Like bbr3_tso_segs(), using mss_cache, ignoring driver's sk_gso_max_size. */
+ static u32 bbr_tso_segs_goal(struct sock *sk)
+ {
+ 	struct tcp_sock *tp = tcp_sk(sk);
+@@ -532,7 +532,7 @@
+ 		bbr->prior_cwnd = max(bbr->prior_cwnd, tcp_snd_cwnd(tp));
+ }
+ 
+-__bpf_kfunc static void bbr_cwnd_event(struct sock *sk, enum tcp_ca_event event)
++__bpf_kfunc static void bbr3_cwnd_event(struct sock *sk, enum tcp_ca_event event)
+ {
+ 	struct bbr *bbr = inet_csk_ca(sk);
+ 
+@@ -549,7 +549,7 @@
+ 	}
+ }
+ 
+-__bpf_kfunc static void bbr_cwnd_event_tx_start(struct sock *sk)
++__bpf_kfunc static void bbr3_cwnd_event_tx_start(struct sock *sk)
+ {
+ 	struct tcp_sock *tp = tcp_sk(sk);
+ 	struct bbr *bbr = inet_csk_ca(sk);
+@@ -979,7 +979,7 @@
+ 	}
+ }
+ 
+-__bpf_kfunc static u32 bbr_sndbuf_expand(struct sock *sk)
++__bpf_kfunc static u32 bbr3_sndbuf_expand(struct sock *sk)
+ {
+ 	/* Provision 3 * cwnd since BBR may slow-start even during recovery. */
+ 	return 3;
+@@ -2041,7 +2041,7 @@
+ 	return false;
+ }
+ 
+-__bpf_kfunc static void bbr_main(struct sock *sk, u32 ack, int flag,
++__bpf_kfunc static void bbr3_main(struct sock *sk, u32 ack, int flag,
+ 				 const struct rate_sample *rs)
+ {
+ 	struct tcp_sock *tp = tcp_sk(sk);
+@@ -2083,7 +2083,7 @@
+ 	bbr->ecn_in_cycle  |= rs->delivered_ce > 0;
+ }
+ 
+-__bpf_kfunc static void bbr_init(struct sock *sk)
++__bpf_kfunc static void bbr3_init(struct sock *sk)
+ {
+ 	struct tcp_sock *tp = tcp_sk(sk);
+ 	struct bbr *bbr = inet_csk_ca(sk);
+@@ -2181,7 +2181,7 @@
+ }
+ 
+ /* Core TCP stack informs us that the given skb was just marked lost. */
+-__bpf_kfunc static void bbr_skb_marked_lost(struct sock *sk,
++__bpf_kfunc static void bbr3_skb_marked_lost(struct sock *sk,
+ 					    const struct sk_buff *skb)
+ {
+ 	struct tcp_sock *tp = tcp_sk(sk);
+@@ -2230,7 +2230,7 @@
+ }
+ 
+ /* Revert short-term model if current loss recovery event was spurious. */
+-__bpf_kfunc static u32 bbr_undo_cwnd(struct sock *sk)
++__bpf_kfunc static u32 bbr3_undo_cwnd(struct sock *sk)
+ {
+ 	struct bbr *bbr = inet_csk_ca(sk);
+ 
+@@ -2246,7 +2246,7 @@
+ }
+ 
+ /* Entering loss recovery, so save state for when we undo recovery. */
+-__bpf_kfunc static u32 bbr_ssthresh(struct sock *sk)
++__bpf_kfunc static u32 bbr3_ssthresh(struct sock *sk)
+ {
+ 	struct bbr *bbr = inet_csk_ca(sk);
+ 
+@@ -2320,7 +2320,7 @@
+ 	return 0;
+ }
+ 
+-__bpf_kfunc static void bbr_set_state(struct sock *sk, u8 new_state)
++__bpf_kfunc static void bbr3_set_state(struct sock *sk, u8 new_state)
+ {
+ 	struct tcp_sock *tp = tcp_sk(sk);
+ 	struct bbr *bbr = inet_csk_ca(sk);
+@@ -2352,35 +2352,35 @@
+ 	.flags		= TCP_CONG_NON_RESTRICTED | TCP_CONG_WANTS_CE_EVENTS,
+ 	.name		= "bbr3",
+ 	.owner		= THIS_MODULE,
+-	.init		= bbr_init,
+-	.cong_control	= bbr_main,
+-	.sndbuf_expand	= bbr_sndbuf_expand,
+-	.skb_marked_lost = bbr_skb_marked_lost,
+-	.undo_cwnd	= bbr_undo_cwnd,
+-	.cwnd_event	= bbr_cwnd_event,
+-	.cwnd_event_tx_start	= bbr_cwnd_event_tx_start,
+-	.ssthresh	= bbr_ssthresh,
+-	.tso_segs	= bbr_tso_segs,
++	.init		= bbr3_init,
++	.cong_control	= bbr3_main,
++	.sndbuf_expand	= bbr3_sndbuf_expand,
++	.skb_marked_lost = bbr3_skb_marked_lost,
++	.undo_cwnd	= bbr3_undo_cwnd,
++	.cwnd_event	= bbr3_cwnd_event,
++	.cwnd_event_tx_start	= bbr3_cwnd_event_tx_start,
++	.ssthresh	= bbr3_ssthresh,
++	.tso_segs	= bbr3_tso_segs,
+ 	.get_info	= bbr_get_info,
+-	.set_state	= bbr_set_state,
++	.set_state	= bbr3_set_state,
+ };
+ 
+-BTF_KFUNCS_START(tcp_bbr_check_kfunc_ids)
+-BTF_ID_FLAGS(func, bbr_init)
+-BTF_ID_FLAGS(func, bbr_main)
+-BTF_ID_FLAGS(func, bbr_sndbuf_expand)
+-BTF_ID_FLAGS(func, bbr_skb_marked_lost)
+-BTF_ID_FLAGS(func, bbr_undo_cwnd)
+-BTF_ID_FLAGS(func, bbr_cwnd_event)
+-BTF_ID_FLAGS(func, bbr_cwnd_event_tx_start)
+-BTF_ID_FLAGS(func, bbr_ssthresh)
+-BTF_ID_FLAGS(func, bbr_tso_segs)
+-BTF_ID_FLAGS(func, bbr_set_state)
+-BTF_KFUNCS_END(tcp_bbr_check_kfunc_ids)
++BTF_KFUNCS_START(tcp_bbr3_check_kfunc_ids)
++BTF_ID_FLAGS(func, bbr3_init)
++BTF_ID_FLAGS(func, bbr3_main)
++BTF_ID_FLAGS(func, bbr3_sndbuf_expand)
++BTF_ID_FLAGS(func, bbr3_skb_marked_lost)
++BTF_ID_FLAGS(func, bbr3_undo_cwnd)
++BTF_ID_FLAGS(func, bbr3_cwnd_event)
++BTF_ID_FLAGS(func, bbr3_cwnd_event_tx_start)
++BTF_ID_FLAGS(func, bbr3_ssthresh)
++BTF_ID_FLAGS(func, bbr3_tso_segs)
++BTF_ID_FLAGS(func, bbr3_set_state)
++BTF_KFUNCS_END(tcp_bbr3_check_kfunc_ids)
+ 
+-static const struct btf_kfunc_id_set tcp_bbr_kfunc_set = {
++static const struct btf_kfunc_id_set tcp_bbr3_kfunc_set = {
+ 	.owner = THIS_MODULE,
+-	.set   = &tcp_bbr_check_kfunc_ids,
++	.set   = &tcp_bbr3_check_kfunc_ids,
+ };
+ 
+ static int __init bbr_register(void)
+@@ -2389,7 +2389,7 @@
+ 
+ 	BUILD_BUG_ON(sizeof(struct bbr) > ICSK_CA_PRIV_SIZE);
+ 
+-	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_STRUCT_OPS, &tcp_bbr_kfunc_set);
++	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_STRUCT_OPS, &tcp_bbr3_kfunc_set);
+ 	if (ret < 0)
+ 		return ret;
+ 	return tcp_register_congestion_control(&tcp_bbr_cong_ops);
+--- a/tools/testing/selftests/bpf/progs/tcp_ca_kfunc.c
++++ b/tools/testing/selftests/bpf/progs/tcp_ca_kfunc.c
+@@ -8,7 +8,7 @@
+ extern void bbr_main(struct sock *sk, u32 ack, int flag, const struct rate_sample *rs) __ksym;
+ extern u32 bbr_sndbuf_expand(struct sock *sk) __ksym;
+ extern u32 bbr_undo_cwnd(struct sock *sk) __ksym;
+-extern void bbr_cwnd_event(struct sock *sk, enum tcp_ca_event event) __ksym;
++extern void bbr3_cwnd_event(struct sock *sk, enum tcp_ca_event event) __ksym;
+ extern void bbr_cwnd_event_tx_start(struct sock *sk) __ksym;
+ extern u32 bbr_ssthresh(struct sock *sk) __ksym;
+ extern u32 bbr_min_tso_segs(struct sock *sk) __ksym;
+@@ -71,7 +71,7 @@
+ SEC("struct_ops")
+ void BPF_PROG(cwnd_event, struct sock *sk, enum tcp_ca_event event)
+ {
+-	bbr_cwnd_event(sk, event);
++	bbr3_cwnd_event(sk, event);
+ 	dctcp_cwnd_event(sk, event);
+ }
+ 
+-- 
+2.45.0
