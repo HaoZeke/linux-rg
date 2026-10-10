@@ -124,14 +124,31 @@ routing_symbols=(
   IP_MULTIPLE_TABLES
   IPV6_MULTIPLE_TABLES
   TCP_CONG_BBR
-  DEFAULT_BBR
+  TCP_CONG_BBR3
   NET_SCH_FQ
   DEFAULT_FQ
 )
 
+# Every profile builds bbr and bbr3. rglat5340 defaults to cubic until
+# bbr3 is measured there (8a0cdeb); the others default to bbr3 (3af5bfa).
+check_tcp_default() {
+  local config=$1 slug
+  slug=$(basename "$config" .config)
+  case "$slug" in
+    rglat5340)
+      require_set_str "$config" CONFIG_DEFAULT_TCP_CONG cubic
+      require_builtin "$config" CONFIG_DEFAULT_CUBIC
+      ;;
+    *)
+      require_set_str "$config" CONFIG_DEFAULT_TCP_CONG bbr3
+      require_builtin "$config" CONFIG_DEFAULT_BBR3
+      ;;
+  esac
+}
+
 check_routing() {
   local config=$1 key
-  require_set_str "$config" CONFIG_DEFAULT_TCP_CONG bbr
+  check_tcp_default "$config"
   require_set_str "$config" CONFIG_DEFAULT_NET_SCH fq
   for key in "${routing_symbols[@]}"; do
     require_enabled "$config" "CONFIG_$key"
