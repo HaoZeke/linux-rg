@@ -35,8 +35,15 @@ dry_run_patch() {
   local log rc
 
   if [[ ! -d $src_root ]]; then
-    printf 'FAIL: missing DKMS source for dry-run: %s\n' "$src_root" >&2
-    return 1
+    # CI and build hosts have no DKMS trees. Machines that ship the
+    # overlays set RG_DKMS_REQUIRE_SRC=1 so a missing tree still fails.
+    if [[ ${RG_DKMS_REQUIRE_SRC:-0} == 1 ]]; then
+      printf 'FAIL: missing DKMS source for dry-run: %s\n' "$src_root" >&2
+      return 1
+    fi
+    printf 'skip: no DKMS source for dry-run: %s\n' "$src_root"
+    skipped=$((skipped + 1))
+    return 0
   fi
 
   local tmp
@@ -58,6 +65,7 @@ dry_run_patch() {
   ((rc == 0 || rc == 1))
 }
 
+skipped=0
 require_executable rgx1gen11-dkms-overlay-apply
 require_file 69-linux-rg-dkms-overlays.hook
 
@@ -92,4 +100,8 @@ dry_run_patch dkms-overlays/ddcci-0.4.5-linux-7.0.patch ddcci-0.4.5
 dry_run_patch dkms-overlays/rtl88xxau-r1314-linux-7.0.patch rtl88xxau-r1314.7344855
 dry_run_patch dkms-overlays/evdi-1.14.7-linux-7.0.patch evdi-1.14.7
 
-printf 'ok: dkms overlays are present and apply cleanly\n'
+if ((skipped > 0)); then
+  printf 'ok: dkms overlays are present (%d dry-run(s) skipped)\n' "$skipped"
+else
+  printf 'ok: dkms overlays are present and apply cleanly\n'
+fi
