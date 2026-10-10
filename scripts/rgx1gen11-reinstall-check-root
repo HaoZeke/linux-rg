@@ -135,7 +135,7 @@ png_color_type() {
 
 png_corner_alpha() {
   local path=$1
-  python - "$path" 2>/dev/null <<'PY' || true
+  python3 - "$path" 2>/dev/null <<'PY' || true
 import struct
 import sys
 import zlib
