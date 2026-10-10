@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Report how far the packaged base trails Arch and kernel.org.
+#
+#   scripts/linux-rg-upstream-check [--quiet]
+#
+# Prints key=value lines: the packaged pkgver, the newest Arch tag in the
+# same series, the newest Arch tag overall, and kernel.org's stable and
+# mainline versions. Exits 0 when the package is on the newest Arch tag of
+# its series, 10 when Arch has a newer tag in that series, 11 when only a
+# newer series exists, and 2 when a source cannot be read.
+#
+# LINUX_RG_ARCH_TAGS: file with one tag per line (default: git ls-remote
+# of archlinux/linux). LINUX_RG_RELEASES_JSON: a kernel.org releases.json
+# (default: fetched). Both exist for the selftest and offline runs.
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+quiet=0
+[[ ${1:-} == --quiet ]] && quiet=1
+
+pkgver=$(sed -n 's/^pkgver=//p' "$repo/PKGBUILD")
+[[ -n $pkgver ]] || { echo 'no pkgver in PKGBUILD' >&2; exit 2; }
+kver=${pkgver%.arch*}
+archrel=${pkgver##*.}
+series=${kver%.*}
+
+if [[ -n ${LINUX_RG_ARCH_TAGS:-} ]]; then
+  tags=$(<"$LINUX_RG_ARCH_TAGS")
+else
+  tags=$(git ls-remote --tags --refs https://github.com/archlinux/linux.git 'v*-arch*' \
+    | sed 's|.*refs/tags/||') || { echo 'cannot list Arch tags' >&2; exit 2; }
+fi
+tags=$(printf '%s\n' "$tags" | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?-arch[0-9]+$' | sort -V || true)
+[[ -n $tags ]] || { echo 'no Arch tags' >&2; exit 2; }
+
+if [[ -n ${LINUX_RG_RELEASES_JSON:-} ]]; then
+  releases=$(<"$LINUX_RG_RELEASES_JSON")
+else
+  releases=$(curl -fsSL --retry 2 https://www.kernel.org/releases.json) \
+    || { echo 'cannot fetch releases.json' >&2; exit 2; }
+fi
+read -r stable mainline < <(python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+pick = lambda m: next((r["version"] for r in d["releases"] if r["moniker"] == m), "none")
+print(pick("stable"), pick("mainline"))' <<<"$releases")
+
+series_tip=$(printf '%s\n' "$tags" | grep -E "^v${series//./\\.}(\.[0-9]+)?-arch" | tail -1 || true)
+overall_tip=$(printf '%s\n' "$tags" | tail -1)
+current="v${kver}-${archrel}"
+
+printf 'pkgver=%s\ncurrent=%s\nseries_tip=%s\narch_tip=%s\nstable=%s\nmainline=%s\n' \
+  "$pkgver" "$current" "${series_tip:-none}" "$overall_tip" "$stable" "$mainline"
+
+newest() { printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1; }
+if [[ -n $series_tip && $series_tip != "$current" && $(newest "$series_tip" "$current") == "$series_tip" ]]; then
+  (( quiet )) || echo "behind: Arch has $series_tip in the $series series"
+  exit 10
+fi
+if [[ $overall_tip != "$current" && $(newest "$overall_tip" "$current") == "$overall_tip" ]]; then
+  (( quiet )) || echo "series: Arch has moved on to $overall_tip"
+  exit 11
+fi
+(( quiet )) || echo "ok: $current is the newest Arch tag"

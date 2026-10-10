@@ -93,6 +93,19 @@ contracts. `LINUX_RG_MODULE_BUDGET` defaults to `1500` for this profile so a
 broad Arch-style module build fails during `prepare()` instead of during final
 module linking.
 
+## Upstream lag
+
+Check whether Arch has tagged a newer kernel than the one `PKGBUILD` builds:
+
+```sh
+scripts/linux-rg-upstream-check
+```
+
+It prints the packaged tag, the newest Arch tag in the same series, the
+newest Arch tag overall, and kernel.org's stable and mainline versions. It
+exits 0 when the package is current, 10 when Arch has a newer tag in the same
+series, and 11 when Arch has only moved to a newer series.
+
 ## Hardware Checks
 
 Validate the AX211 policy from the repo config:

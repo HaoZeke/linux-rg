@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+checker="$repo/scripts/linux-rg-upstream-check"
+
+fail() {
+  printf 'fail: %s\n' "$1" >&2
+  exit 1
+}
+
+test -x "$checker" || fail "missing checker: $checker"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+pkgver=$(sed -n 's/^pkgver=//p' "$repo/PKGBUILD")
+kver=${pkgver%.arch*}
+series=${kver%.*}
+major=${series%%.*}
+minor=${series#*.}
+current="v${kver}-${pkgver##*.}"
+
+cat >"$tmpdir/releases.json" <<'JSON'
+{"releases": [
+ {"moniker": "mainline", "version": "99.1-rc1"},
+ {"moniker": "stable", "version": "99.0.1"}
+]}
+JSON
+export LINUX_RG_RELEASES_JSON="$tmpdir/releases.json"
+
+run() {
+  local rc=0
+  LINUX_RG_ARCH_TAGS="$tmpdir/tags" "$checker" >"$tmpdir/out" 2>&1 || rc=$?
+  echo "$rc"
+}
+
+printf '%s\nv%s.0-arch1\n' "$current" "$series" >"$tmpdir/tags"
+[[ $(run) == 0 ]] || fail "the current tag should be up to date: $(cat "$tmpdir/out")"
+rg -Fq "current=$current" "$tmpdir/out" || fail "should print the current tag"
+rg -Fq 'stable=99.0.1' "$tmpdir/out" || fail "should print kernel.org stable"
+rg -Fq 'mainline=99.1-rc1' "$tmpdir/out" || fail "should print kernel.org mainline"
+
+printf '%s\nv%s.999-arch1\n' "$current" "$series" >"$tmpdir/tags"
+[[ $(run) == 10 ]] || fail "a newer tag in the series should exit 10: $(cat "$tmpdir/out")"
+rg -Fq "series_tip=v${series}.999-arch1" "$tmpdir/out" || fail "should name the series tip"
+
+printf '%s\nv%s.%s.1-arch1\n' "$current" "$major" "$((minor + 1))" >"$tmpdir/tags"
+[[ $(run) == 11 ]] || fail "only a newer series should exit 11: $(cat "$tmpdir/out")"
+
+printf 'v%s.%s.1-arch1\n%s\n' "$major" "$((minor - 1))" "$current" >"$tmpdir/tags"
+[[ $(run) == 0 ]] || fail "an older series must not count as newer: $(cat "$tmpdir/out")"
+
+printf 'not-a-tag\n' >"$tmpdir/tags"
+[[ $(run) == 2 ]] || fail "no usable tags should exit 2"
+
+printf 'ok\n'
