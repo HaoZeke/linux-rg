@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Check that the committed .SRCINFO matches PKGBUILD without makepkg:
 # pkgver, pkgrel, and the source, sha256sums and b2sums arrays in order.
+# Then check each local source file against both checksums.
 #
 #   scripts/linux-rg-srcinfo-check [REPO]
 set -euo pipefail
@@ -30,4 +31,23 @@ if ! diff -u --label PKGBUILD --label .SRCINFO "$tmp/pkgbuild" "$tmp/srcinfo"; t
   printf 'fail: .SRCINFO is stale; run makepkg --printsrcinfo > .SRCINFO\n' >&2
   exit 1
 fi
-printf 'ok: .SRCINFO matches PKGBUILD (%s sources)\n' "$(grep -c '^source = ' "$tmp/pkgbuild")"
+
+# Every local source must match its checksums, or makepkg stops at
+# the integrity check.
+mapfile -t src < <(sed -n 's/^source = //p' "$tmp/pkgbuild")
+mapfile -t sha < <(sed -n 's/^sha256sums = //p' "$tmp/pkgbuild")
+mapfile -t b2 < <(sed -n 's/^b2sums = //p' "$tmp/pkgbuild")
+bad=0
+for i in "${!src[@]}"; do
+  [[ ${src[$i]} == *://* ]] && continue
+  f=${src[$i]%%::*}
+  if [[ ! -f $f ]]; then
+    printf 'fail: missing local source %s\n' "$f" >&2; bad=1; continue
+  fi
+  [[ ${sha[$i]} == SKIP ]] || [[ $(sha256sum "$f" | cut -d' ' -f1) == "${sha[$i]}" ]] \
+    || { printf 'fail: sha256sums[%d] does not match %s\n' "$i" "$f" >&2; bad=1; }
+  [[ ${b2[$i]} == SKIP ]] || [[ $(b2sum "$f" | cut -d' ' -f1) == "${b2[$i]}" ]] \
+    || { printf 'fail: b2sums[%d] does not match %s\n' "$i" "$f" >&2; bad=1; }
+done
+(( bad == 0 )) || exit 1
+printf 'ok: .SRCINFO matches PKGBUILD, local checksums match (%s sources)\n' "$(grep -c '^source = ' "$tmp/pkgbuild")"

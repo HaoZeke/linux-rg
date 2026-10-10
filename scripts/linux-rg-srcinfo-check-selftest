@@ -12,6 +12,8 @@ fail() {
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 cp "$repo/PKGBUILD" "$repo/.SRCINFO" "$tmpdir/"
+bash -c 'source "$1/PKGBUILD"; printf "%s\\n" "${source[@]}"' _ "$repo" | grep -v '://' | sed 's/::.*//' |
+  while read -r f; do cp "$repo/$f" "$tmpdir/"; done
 
 "$check" "$tmpdir" >"$tmpdir/out" || fail "the committed pair should match"
 rg -q '^ok: .SRCINFO matches PKGBUILD' "$tmpdir/out" || fail "missing ok line"
@@ -27,5 +29,12 @@ sed -i '0,/^\tsource = 0001-bore-cachy.patch$/{/^\tsource = 0001-bore-cachy.patc
 if "$check" "$tmpdir" >/dev/null 2>&1; then
   fail "a dropped source line should fail"
 fi
+
+cp "$repo/PKGBUILD" "$repo/.SRCINFO" "$tmpdir/"
+printf '# edited\n' >>"$tmpdir/rgx1gen11.config"
+if "$check" "$tmpdir" >"$tmpdir/out" 2>&1; then
+  fail "an edited local source without new checksums should fail"
+fi
+rg -q 'sha256sums\[[0-9]+\] does not match rgx1gen11.config' "$tmpdir/out" || fail "should name the stale source"
 
 printf 'ok\n'
