@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Fetch the kernel tarball and Arch patch that .SRCINFO names, check
+# them against .SRCINFO's sha256sums, then replay the carry series with
+# linux-rg-reject-audit. Fails when the audit prints anything: a reject,
+# a fuzzy hunk, or a hunk whose context is not unique.
+#
+#   scripts/linux-rg-ci-replay [SRCDEST [WORKDIR]]
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+srcdest=${1:-${TMPDIR:-/tmp}/linux-rg-srcdest}
+mkdir -p "$srcdest"
+cd -- "$repo"
+
+mapfile -t sources < <(sed -n 's/^\tsource = //p' .SRCINFO)
+mapfile -t sums < <(sed -n 's/^\tsha256sums = //p' .SRCINFO)
+(( ${#sources[@]} == ${#sums[@]} )) || { echo "source/sha256sums length mismatch" >&2; exit 1; }
+
+for i in "${!sources[@]}"; do
+  url=${sources[$i]}
+  name=${url##*/}
+  case "$name" in
+    linux-*.tar.xz | linux-v*-arch*.patch.zst) ;;
+    *) continue ;;
+  esac
+  if [[ ! -s $srcdest/$name ]]; then
+    curl -fsSL --retry 3 -o "$srcdest/$name.part" "$url"
+    mv "$srcdest/$name.part" "$srcdest/$name"
+  fi
+  echo "${sums[$i]}  $srcdest/$name" | sha256sum -c --quiet -
+  echo "ok: $name"
+done
+
+rc=0
+out=$(bash "$repo/scripts/linux-rg-reject-audit" "$srcdest" ${2:+"$2"} 2>&1) || rc=$?
+if (( rc != 0 )) || [[ -n $out ]]; then
+  printf '%s\n' "$out"
+  echo "fail: carry series does not replay cleanly (audit rc=$rc)" >&2
+  exit 1
+fi
+echo "ok: carry series replays without rejects, fuzz or ambiguous context"

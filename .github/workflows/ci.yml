@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # Mondays 11:17 UTC, after Arch's usual weekend tags.
+    - cron: '17 11 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck ripgrep
+      - name: Shell syntax and shellcheck errors
+        run: |
+          mapfile -t files < <(git ls-files | while read -r f; do
+            [ -f "$f" ] && head -n1 "$f" | grep -qE '^#!.*\b(ba)?sh\b' && echo "$f"; done)
+          for f in "${files[@]}"; do bash -n "$f"; done
+          shellcheck -S error "${files[@]}"
+      - name: Python syntax
+        run: |
+          for f in $(git ls-files '*.py'); do python3 -m py_compile "$f"; done
+      - name: .SRCINFO matches PKGBUILD
+        run: scripts/linux-rg-srcinfo-check
+
+  selftests:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep libarchive-tools zstd
+      - name: Selftests
+        run: scripts/linux-rg-ci-selftests
+
+  replay:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source key
+        id: key
+        run: echo "pkgver=$(sed -n 's/^\tpkgver = //p' .SRCINFO)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/linux-rg-srcdest
+          key: srcdest-${{ steps.key.outputs.pkgver }}
+      - name: Replay carry series on the packaged Arch tag
+        run: scripts/linux-rg-ci-replay ~/linux-rg-srcdest
+
+  upstream:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail when Arch has tagged a newer kernel
+        run: scripts/linux-rg-upstream-check

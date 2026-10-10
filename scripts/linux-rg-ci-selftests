@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Run every *-selftest in the repo and print one line per test.
+# Exits non-zero when any test fails. No root, no kernel build.
+set -uo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd -- "$repo"
+
+failed=0
+total=0
+while IFS= read -r t; do
+  total=$((total + 1))
+  log=$(mktemp)
+  if timeout 600 bash "$t" >"$log" 2>&1; then
+    printf 'pass  %s\n' "$t"
+  else
+    rc=$?
+    failed=$((failed + 1))
+    printf 'FAIL  %s (rc=%s)\n' "$t" "$rc"
+    sed 's/^/      /' "$log" | tail -n 20
+  fi
+  rm -f "$log"
+done < <(git ls-files '*-selftest' | sort)
+
+printf '%d/%d selftests passed\n' "$((total - failed))" "$total"
+(( failed == 0 ))

@@ -106,6 +106,20 @@ newest Arch tag overall, and kernel.org's stable and mainline versions. It
 exits 0 when the package is current, 10 when Arch has a newer tag in the same
 series, and 11 when Arch has only moved to a newer series.
 
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push without building a kernel:
+
+- `lint`: `bash -n` and `shellcheck -S error` on every shell script,
+  `py_compile` on the Python helpers, and `scripts/linux-rg-srcinfo-check`.
+- `selftests`: `scripts/linux-rg-ci-selftests` runs every `*-selftest`.
+- `replay`: `scripts/linux-rg-ci-replay` fetches the tarball and Arch patch
+  named in `.SRCINFO`, checks their sha256sums, and fails if
+  `scripts/linux-rg-reject-audit` reports a reject, fuzz, or ambiguous context.
+- `upstream`: weekly, `scripts/linux-rg-upstream-check` fails the run when
+  Arch has tagged a newer kernel. It opens no issues.
+
 ## Hardware Checks
 
 Validate the AX211 policy from the repo config:
