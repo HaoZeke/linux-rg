@@ -17,7 +17,7 @@ module_path() {
 section_ids() {
   local object=$1 section=$2
   readelf -SW "$object" |
-    sed -nE "s/^[[:space:]]*\\[[[:space:]]*([0-9]+)\\][[:space:]]+$section[[:space:]].*$/\\1/p" |
+    sed -nE "s/^[[:space:]]*\\[[[:space:]]*([0-9]+)\\][[:space:]]+${section}[[:space:]].*$/\\1/p" |
     paste -sd,
 }
 

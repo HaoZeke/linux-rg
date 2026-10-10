@@ -46,7 +46,7 @@ for cfg in "$@"; do
     fi
   done
   for key in "${forbid[@]}"; do
-    if grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$cfg"; then
+    if grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$cfg"; then
       printf 'FAIL: %s must not set %s\n' "$cfg" "$key" >&2
       fail=1
     fi
