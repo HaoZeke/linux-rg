@@ -57,9 +57,26 @@ jobs:
           path: ~/linux-rg-srcdest
           key: srcdest-${{ steps.key.outputs.pkgver }}
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison libelf-dev libssl-dev
+        # dwarves gives pahole for DEBUG_INFO_BTF (and SCHED_CLASS_EXT with
+        # it); libclang-dev is what bindgen loads for the Rust probe.
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison libelf-dev libssl-dev dwarves libclang-dev
+      - name: Rust toolchain for the kernel's Rust probe
+        # Kconfig only offers CONFIG_RUST when scripts/rust_is_available.sh
+        # finds rustc, rust-src and bindgen at or above
+        # scripts/min-tool-version.sh. Pinned so a new stable cannot move
+        # the result under us.
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rust-src
+          rustup default 1.99.0
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install bindgen
+        run: cargo binstall --no-confirm bindgen-cli@0.71.1 || cargo install --locked bindgen-cli@0.71.1
       - name: Replay carry series on the packaged Arch tag
         run: scripts/linux-rg-ci-replay ~/linux-rg-srcdest ~/replay-work
+      - name: Kernel finds Rust and pahole
+        run: |
+          pahole --version
+          make -s -C ~/replay-work/linux-* rustavailable
       - name: Every profile overlay line survives olddefconfig
         run: scripts/linux-rg-overlay-check ~/replay-work/linux-*
 
