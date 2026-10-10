@@ -302,9 +302,6 @@ prepare() {
     src="${src##*/}"
     src="${src%.zst}"
     [[ $src = *.patch ]] || continue
-    [[ $src = 0010-cachy-hotpath-inline.patch ]] && continue
-    [[ $src = 0012-sched-ext-smt-idle.patch ]] && continue
-    [[ $src = 0019-mglru-devtree-adapt.patch ]] && continue
     [[ $src = ddcci-0.4.5-linux-7.0.patch ]] && continue
     [[ $src = rtl88xxau-r1314-linux-7.0.patch ]] && continue
     [[ $src = evdi-1.14.7-linux-7.0.patch ]] && continue

@@ -6,7 +6,7 @@ set -euo pipefail
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 tree=${1:-}
 if [[ -z $tree || ! -d $tree ]]; then
-  printf 'usage: %s /path/to/linux-7.1.8\n' "$0" >&2
+  printf 'usage: %s /path/to/linux-X.Y.Z\n' "$0" >&2
   exit 2
 fi
 cd -- "$tree"
@@ -17,10 +17,8 @@ skipped=0
 
 skip_src() {
   case "$1" in
-    0010-cachy-hotpath-inline.patch|0012-sched-ext-smt-idle.patch) return 0 ;;
-    0019-mglru-devtree-adapt.patch) return 0 ;;
     ddcci-0.4.5-linux-7.0.patch|rtl88xxau-r1314-linux-7.0.patch|evdi-1.14.7-linux-7.0.patch) return 0 ;;
-    0022-amd-znver5-rdseed.patch|0029-udmabuf-sg-table-from-pages.patch) return 0 ;;
+    0022-amd-znver5-rdseed.patch) return 0 ;;
     *) return 1 ;;
   esac
 }
