@@ -38,6 +38,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep libarchive-tools zstd
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install rtrash
+        run: cargo binstall --no-confirm rtrash || cargo install --locked rtrash
       - name: Selftests
         run: scripts/linux-rg-ci-selftests
 
