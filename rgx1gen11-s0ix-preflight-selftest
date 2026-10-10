@@ -33,15 +33,15 @@ output=$(
     "$checker"
 )
 
-printf '%s\n' "$output" | rg -q 'ok: mem_sleep exposes s2idle' \
+rg -q 'ok: mem_sleep exposes s2idle' <<<"$output" \
   || fail "preflight should accept s2idle mem_sleep"
-printf '%s\n' "$output" | rg -q 'ok: pmc_core SLP_S0 residency counter readable' \
+rg -q 'ok: pmc_core SLP_S0 residency counter readable' <<<"$output" \
   || fail "preflight should find PMC residency counter"
-printf '%s\n' "$output" | rg -q 'sudo bash .*s0ix-selftest-tool.sh -s' \
+rg -q 'sudo bash .*s0ix-selftest-tool.sh -s' <<<"$output" \
   || fail "preflight should print suspend selftest command"
-printf '%s\n' "$output" | rg -q 'sudo bash .*s0ix-selftest-tool.sh -r on' \
+rg -q 'sudo bash .*s0ix-selftest-tool.sh -r on' <<<"$output" \
   || fail "preflight should print runtime PC10 screen-on command"
-printf '%s\n' "$output" | rg -q 'sudo bash .*s0ix-selftest-tool.sh -r off' \
+rg -q 'sudo bash .*s0ix-selftest-tool.sh -r off' <<<"$output" \
   || fail "preflight should print runtime PC10 screen-off command"
 
 mkdir -p "$tmpdir/cache/rg-kernel/S0ixSelftestTool"
@@ -54,7 +54,7 @@ output=$(
     PATH="$tmpdir/bin:$PATH" \
     "$checker"
 )
-printf '%s\n' "$output" | rg -q 'ok: S0ixSelftestTool executable .*/rg-kernel/S0ixSelftestTool/s0ix-selftest-tool.sh' \
+rg -q 'ok: S0ixSelftestTool executable .*/rg-kernel/S0ixSelftestTool/s0ix-selftest-tool.sh' <<<"$output" \
   || fail "preflight should discover the managed S0ixSelftestTool checkout"
 
 chmod 000 "$tmpdir/sys/kernel/debug/pmc_core/slp_s0_residency_usec"
@@ -64,7 +64,7 @@ output=$(
     PATH="$tmpdir/bin:$PATH" \
     "$checker"
 )
-printf '%s\n' "$output" | rg -q 'ok: pmc_core SLP_S0 residency counter present; root required to read' \
+rg -q 'ok: pmc_core SLP_S0 residency counter present; root required to read' <<<"$output" \
   || fail "preflight should treat non-root PMC debugfs permission as root-required"
 
 if RGX1GEN11_STRICT_PMC=1 \

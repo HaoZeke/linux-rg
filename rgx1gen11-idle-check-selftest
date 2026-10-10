@@ -35,11 +35,11 @@ output=$(
     --live
 )
 
-printf '%s\n' "$output" | rg -q 'ok: CONFIG_CPU_IDLE=y' \
+rg -q 'ok: CONFIG_CPU_IDLE=y' <<<"$output" \
   || fail "checker should require CPU_IDLE"
-printf '%s\n' "$output" | rg -q 'ok: cpuidle driver intel_idle' \
+rg -q 'ok: cpuidle driver intel_idle' <<<"$output" \
   || fail "checker should require intel_idle"
-printf '%s\n' "$output" | rg -q 'ok: cpuidle governor teo' \
+rg -q 'ok: cpuidle governor teo' <<<"$output" \
   || fail "checker should require teo governor"
 rg -Fq '/usr/lib/modules/$(uname -r)/build/.config' "$checker" \
   || fail "live mode should default to the running kernel config"

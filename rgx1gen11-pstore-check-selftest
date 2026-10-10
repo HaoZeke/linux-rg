@@ -41,15 +41,15 @@ output=$(
     "$checker"
 )
 
-printf '%s\n' "$output" | rg -q 'pstore mount: readable' \
+rg -q 'pstore mount: readable' <<<"$output" \
   || fail "checker should report a readable pstore mount"
-printf '%s\n' "$output" | rg -q 'pstore files: 0' \
+rg -q 'pstore files: 0' <<<"$output" \
   || fail "checker should report empty pstore state"
-printf '%s\n' "$output" | rg -q 'efi_pstore disabled: Y' \
+rg -q 'efi_pstore disabled: Y' <<<"$output" \
   || fail "checker should report disabled EFI pstore"
-printf '%s\n' "$output" | rg -q 'ramoops: not active' \
+rg -q 'ramoops: not active' <<<"$output" \
   || fail "checker should keep ramoops inactive without reservation"
-printf '%s\n' "$output" | rg -q 'systemd-pstore active: active' \
+rg -q 'systemd-pstore active: active' <<<"$output" \
   || fail "checker should report systemd-pstore active state"
 
 printf 'dmesg-pstore sample\n' >"$tmpdir/sys/fs/pstore/dmesg-efi-1"
@@ -59,9 +59,9 @@ output=$(
     "$checker"
 )
 
-printf '%s\n' "$output" | rg -q 'pstore files: 1' \
+rg -q 'pstore files: 1' <<<"$output" \
   || fail "checker should count pstore records"
-printf '%s\n' "$output" | rg -q 'dmesg-efi-1' \
+rg -q 'dmesg-efi-1' <<<"$output" \
   || fail "checker should list pstore record names"
 
 rm -rf "$tmpdir/sys/fs/pstore"
@@ -71,9 +71,9 @@ output=$(
     "$checker"
 )
 
-printf '%s\n' "$output" | rg -q 'pstore mount: unavailable' \
+rg -q 'pstore mount: unavailable' <<<"$output" \
   || fail "checker should report missing pstore mount"
-printf '%s\n' "$output" | rg -q 'systemd-pstore active: active' \
+rg -q 'systemd-pstore active: active' <<<"$output" \
   || fail "checker should continue after missing pstore mount"
 
 mkdir -p "$tmpdir/sys/fs/pstore"
@@ -85,9 +85,9 @@ output=$(
 )
 chmod 700 "$tmpdir/sys/fs/pstore"
 
-printf '%s\n' "$output" | rg -q 'pstore mount: present but not readable' \
+rg -q 'pstore mount: present but not readable' <<<"$output" \
   || fail "checker should report unreadable pstore mount distinctly"
-printf '%s\n' "$output" | rg -q 'systemd-pstore active: active' \
+rg -q 'systemd-pstore active: active' <<<"$output" \
   || fail "checker should continue after unreadable pstore mount"
 
 printf 'ok\n'

@@ -99,7 +99,7 @@ output=$(
       --vconsole-conf "$vconsole_conf"
 )
 
-printf '%s\n' "$output" | rg -q 'ok: crypto module cryptd:' \
+rg -q 'ok: crypto module cryptd:' <<<"$output" \
   || fail "installed check should require cryptd.ko in the linux-rg module tree"
 rtrash -f "$tmpdir/modules/9.9.9-rg/kernel/crypto/cryptd.ko"
 if RGX1GEN11_HELPER_DIR="$tmpdir/bin" PATH="$tmpdir/bin:$PATH" \
@@ -115,31 +115,31 @@ if RGX1GEN11_HELPER_DIR="$tmpdir/bin" PATH="$tmpdir/bin:$PATH" \
   fail "installed check accepted a module tree without cryptd.ko"
 fi
 touch "$tmpdir/modules/9.9.9-rg/kernel/crypto/cryptd.ko"
-printf '%s\n' "$output" | rg -q 'ok: mkinitcpio hook encrypt' \
+rg -q 'ok: mkinitcpio hook encrypt' <<<"$output" \
   || fail "installed check should require the encrypt hook"
-printf '%s\n' "$output" | rg -q 'ok: mkinitcpio hook btrfs' \
+rg -q 'ok: mkinitcpio hook btrfs' <<<"$output" \
   || fail "installed check should require the btrfs hook"
-printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg option cryptdevice=\*' \
+rg -q 'ok: rEFInd linux-rg option cryptdevice=\*' <<<"$output" \
   || fail "installed check should require a cryptdevice option"
-printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg option i915' \
+rg -q 'ok: rEFInd linux-rg option i915' <<<"$output" \
   || fail "installed check should require the standalone i915 option"
-printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon /EFI/refind/icons/os_linux_rg.png' \
+rg -q 'ok: rEFInd linux-rg icon /EFI/refind/icons/os_linux_rg.png' <<<"$output" \
   || fail "installed check should require the linux-rg rEFInd icon"
-printf '%s\n' "$output" | rg -q "ok: rEFInd linux-rg icon file $tmpdir/boot/EFI/refind/icons/os_linux_rg.png" \
+rg -q "ok: rEFInd linux-rg icon file $tmpdir/boot/EFI/refind/icons/os_linux_rg.png" <<<"$output" \
   || fail "installed check should require the linux-rg rEFInd icon file"
-printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon keeps PNG alpha channel' \
+rg -q 'ok: rEFInd linux-rg icon keeps PNG alpha channel' <<<"$output" \
   || fail "installed check should require the linux-rg rEFInd icon alpha channel"
 if command -v identify >/dev/null 2>&1; then
-  printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon has transparent corner' \
+  rg -q 'ok: rEFInd linux-rg icon has transparent corner' <<<"$output" \
     || fail "installed check should require the linux-rg rEFInd icon corner alpha"
 fi
 if command -v magick >/dev/null 2>&1; then
-  printf '%s\n' "$output" | rg -q 'ok: rEFInd linux-rg icon transparent matte is dark' \
+  rg -q 'ok: rEFInd linux-rg icon transparent matte is dark' <<<"$output" \
     || fail "installed check should require a non-white transparent icon matte"
 fi
-printf '%s\n' "$output" | rg -q 'ok: vconsole keymap colemak' \
+rg -q 'ok: vconsole keymap colemak' <<<"$output" \
   || fail "installed check should require Colemak for the LUKS prompt"
-printf '%s\n' "$output" | rg -q 'ok: vconsole font Lat2-Terminus16' \
+rg -q 'ok: vconsole font Lat2-Terminus16' <<<"$output" \
   || fail "installed check should require FONT in vconsole.conf"
 
 base64 -d >"$tmpdir/boot/EFI/refind/icons/os_linux_rg.png" <<'EOF'
