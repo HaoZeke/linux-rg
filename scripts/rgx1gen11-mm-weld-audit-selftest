@@ -15,17 +15,23 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 cp "$repo/0018-cachy-mm-ratios.patch" "$tmpdir/0018.patch"
-cp "$repo/0019-mglru-devtree-adapt.patch" "$tmpdir/0019.patch"
+"$audit" "$tmpdir/0018.patch" >"$tmpdir/good"
+rg -Fq 'ok: 0018 prepares the floors on both the MGLRU and classic paths' "$tmpdir/good" \
+  || fail "audit should report both reclaim paths"
 
-"$audit" "$tmpdir/0018.patch" "$tmpdir/0019.patch" >/tmp/rgx1gen11-mm-weld-audit.good
-rg -Fq 'ok: 0019 keeps ratio-aware get_type_to_scan call' /tmp/rgx1gen11-mm-weld-audit.good \
-  || fail "audit should report the ratio-aware get_type_to_scan call"
-
-sed -i 's/get_type_to_scan(lruvec, sc, swappiness)/get_type_to_scan(lruvec, swappiness)/' "$tmpdir/0019.patch"
-if "$audit" "$tmpdir/0018.patch" "$tmpdir/0019.patch" >/tmp/rgx1gen11-mm-weld-audit.bad 2>&1; then
-  fail "audit should fail when 0019 drops scan_control from get_type_to_scan"
+# Drop the first call site (the lru_gen memcg walk).
+awk '/^\+[ \t]*prepare_workingset_protection\(pgdat, sc\);/ && !done { done = 1; next } { print }' \
+  "$repo/0018-cachy-mm-ratios.patch" >"$tmpdir/0018.patch"
+if "$audit" "$tmpdir/0018.patch" >"$tmpdir/bad" 2>&1; then
+  fail "audit should fail when one reclaim path loses the floors"
 fi
-rg -Fq 'fail: 0019 lacks ratio-aware get_type_to_scan(lruvec, sc, swappiness)' /tmp/rgx1gen11-mm-weld-audit.bad \
-  || fail "audit failure should name the dropped ratio weld"
+rg -Fq 'fail: 0018 prepares the floors on 1 reclaim path(s)' "$tmpdir/bad" \
+  || fail "audit failure should count the remaining reclaim paths"
+
+cp "$repo/0018-cachy-mm-ratios.patch" "$tmpdir/0018.patch"
+sed -i 's/scan_balance = SCAN_ANON;/scan_balance = SCAN_FILE;/' "$tmpdir/0018.patch"
+if "$audit" "$tmpdir/0018.patch" >"$tmpdir/bad" 2>&1; then
+  fail "audit should fail when clean floors stop forcing anon scans"
+fi
 
 printf 'ok\n'

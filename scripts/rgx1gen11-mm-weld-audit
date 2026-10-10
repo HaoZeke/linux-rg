@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+# Static audit of the 7.2 ratio-floor carry (0018). The MGLRU dev-tree
+# weld (0019) is gone: 7.2 MGLRU reclaim reaches the floors through
+# shrink_node() and the lru_gen memcg walk, so both call sites are checked.
 set -euo pipefail
 
 ratio_patch=${1:-0018-cachy-mm-ratios.patch}
-mglru_patch=${2:-0019-mglru-devtree-adapt.patch}
 failures=0
 
 pass() {
@@ -14,57 +16,41 @@ fail() {
   failures=$((failures + 1))
 }
 
-want_file() {
-  local path=$1
-  if [[ -r $path ]]; then
-    return 0
-  fi
-  fail "not readable: $path"
-  return 1
-}
-
 want_pattern() {
-  local file=$1
-  local pattern=$2
-  local description=$3
-  local failure_description=${4:-$description}
-
-  if rg -q "$pattern" "$file"; then
+  local pattern=$1 description=$2 failure_description=${3:-$2}
+  if rg -qU "$pattern" "$ratio_patch"; then
     pass "$description"
   else
     fail "$failure_description"
   fi
 }
 
-want_file "$ratio_patch" || exit 1
-want_file "$mglru_patch" || exit 1
+if [[ ! -r $ratio_patch ]]; then
+  fail "not readable: $ratio_patch"
+  exit 1
+fi
 
-want_pattern "$ratio_patch" 'config ANON_MIN_RATIO' '0018 defines ANON_MIN_RATIO'
-want_pattern "$ratio_patch" 'config CLEAN_LOW_RATIO' '0018 defines CLEAN_LOW_RATIO'
-want_pattern "$ratio_patch" 'config CLEAN_MIN_RATIO' '0018 defines CLEAN_MIN_RATIO'
-want_pattern "$ratio_patch" 'workingset_protection' '0018 defines workingset_protection sysctl'
-want_pattern "$ratio_patch" 'get_type_to_scan\(struct lruvec \*lruvec, struct scan_control \*sc,' \
-  '0018 makes get_type_to_scan scan_control-aware'
-want_pattern "$ratio_patch" 'sc->clean_below_min \|\| sc->clean_below_low' \
-  '0018 gates file reclaim under clean ratios'
-want_pattern "$ratio_patch" 'sc->anon_below_min' \
-  '0018 gates anonymous reclaim under anon ratio'
-want_pattern "$ratio_patch" 'prepare_workingset_protection\(pgdat, sc\)' \
+for key in ANON_MIN_RATIO CLEAN_LOW_RATIO CLEAN_MIN_RATIO; do
+  want_pattern "config $key\b" "0018 defines $key"
+done
+for knob in workingset_protection anon_min_ratio clean_low_ratio clean_min_ratio; do
+  want_pattern "\.procname\s*=\s*\"$knob\"" "0018 registers vm.$knob"
+done
+want_pattern 'folio_is_file_lru\(folio\) \? sc->clean_below_min' \
+  '0018 keeps folios below the floors in shrink_folio_list'
+want_pattern '\(sc->clean_below_low \|\| sc->clean_below_min\) \{\n\+\s*scan_balance = SCAN_ANON;' \
+  '0018 forces anon scanning when clean file is under its floors'
+want_pattern 'file \? sc->clean_below_min : sc->anon_below_min' \
+  '0018 zeroes per-LRU scan targets under the min floors'
+want_pattern 'prepare_workingset_protection\(pgdat, sc\)' \
   '0018 prepares node-local ratio state'
 
-want_pattern "$mglru_patch" 'handle_reclaim_writeback' \
-  '0019 carries MGLRU writeback helper'
-want_pattern "$mglru_patch" 'lruvec_evictable_size' \
-  '0019 carries MGLRU evictable-size helper'
-want_pattern "$mglru_patch" 'try_to_inc_min_seq\(lruvec, swappiness\)' \
-  '0019 carries MGLRU min-seq flushing'
-want_pattern "$mglru_patch" 'get_type_to_scan\(lruvec, sc, swappiness\)' \
-  '0019 keeps ratio-aware get_type_to_scan call' \
-  '0019 lacks ratio-aware get_type_to_scan(lruvec, sc, swappiness)'
-want_pattern "$mglru_patch" 'isolate_folios\(nr_to_scan, lruvec, sc, swappiness,' \
-  '0019 keeps scan_control in isolate_folios call'
-want_pattern "$mglru_patch" 'handle_reclaim_writeback\(isolated, pgdat, sc, &stat\)' \
-  '0019 accounts writeback after isolated folios'
+calls=$(rg -c '^\+\s*prepare_workingset_protection\(pgdat, sc\);' "$ratio_patch" || true)
+if [[ ${calls:-0} -ge 2 ]]; then
+  pass '0018 prepares the floors on both the MGLRU and classic paths'
+else
+  fail "0018 prepares the floors on ${calls:-0} reclaim path(s), want MGLRU and classic"
+fi
 
 if (( failures > 0 )); then
   exit 1
