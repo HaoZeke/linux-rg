@@ -13,15 +13,22 @@ srcdest=${1:?usage: linux-rg-reject-audit SRCDEST [WORKDIR]}
 work=${2:-${TMPDIR:-/tmp}/linux-rg-reject-audit}
 
 cd "$repo"
-pkgver=$(makepkg --printsrcinfo | sed -n 's/^\tpkgver = //p')
+# makepkg is Arch-only and refuses root; the committed .SRCINFO is the
+# same data (linux-rg-srcinfo-check keeps them in sync).
+if command -v makepkg >/dev/null 2>&1 && (( EUID != 0 )); then
+  srcinfo=$(makepkg --printsrcinfo)
+else
+  srcinfo=$(cat .SRCINFO)
+fi
+pkgver=$(sed -n 's/^\tpkgver = //p' <<<"$srcinfo")
 kver=${pkgver%.arch*}
 tag="v${kver}-${pkgver##*.}"
-mapfile -t patches < <(makepkg --printsrcinfo | sed -n 's/^\tsource = //p' | grep '\.patch$')
+mapfile -t patches < <(sed -n 's/^\tsource = //p' <<<"$srcinfo" | grep '\.patch$')
 
 rm -rf "$work"; mkdir -p "$work/rej"; cd "$work"
 tar -xf "$srcdest/linux-${kver}.tar.xz"
 cd "linux-${kver}"
-zstd -dc "$srcdest/linux-${tag}.patch.zst" | patch -Np1 -s
+zstd -dc <"$srcdest/linux-${tag}.patch.zst" | patch -Np1 -s
 
 for p in "${patches[@]}"; do
   case "$p" in

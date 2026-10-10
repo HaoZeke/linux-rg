@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+check="$repo/scripts/linux-rg-srcinfo-check"
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+cp "$repo/PKGBUILD" "$repo/.SRCINFO" "$tmpdir/"
+
+"$check" "$tmpdir" >"$tmpdir/out" || fail "the committed pair should match"
+rg -q '^ok: .SRCINFO matches PKGBUILD' "$tmpdir/out" || fail "missing ok line"
+
+sed -i 's/^pkgrel=.*/pkgrel=99/' "$tmpdir/PKGBUILD"
+if "$check" "$tmpdir" >"$tmpdir/out" 2>&1; then
+  fail "a pkgrel bump without .SRCINFO should fail"
+fi
+rg -q '^\+pkgrel = |^-pkgrel = 99' "$tmpdir/out" || fail "diff should show pkgrel"
+
+cp "$repo/PKGBUILD" "$tmpdir/"
+sed -i '0,/^\tsource = 0001-bore-cachy.patch$/{/^\tsource = 0001-bore-cachy.patch$/d}' "$tmpdir/.SRCINFO"
+if "$check" "$tmpdir" >/dev/null 2>&1; then
+  fail "a dropped source line should fail"
+fi
+
+printf 'ok\n'

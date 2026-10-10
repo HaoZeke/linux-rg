@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Check that the committed .SRCINFO matches PKGBUILD without makepkg:
+# pkgver, pkgrel, and the source, sha256sums and b2sums arrays in order.
+#
+#   scripts/linux-rg-srcinfo-check [REPO]
+set -euo pipefail
+
+repo=${1:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}
+cd -- "$repo"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# PKGBUILD only assigns variables at top level; functions are not called.
+(
+  # shellcheck disable=SC1091
+  source ./PKGBUILD
+  printf 'pkgver = %s\n' "$pkgver"
+  printf 'pkgrel = %s\n' "$pkgrel"
+  printf 'source = %s\n' "${source[@]}"
+  printf 'sha256sums = %s\n' "${sha256sums[@]}"
+  printf 'b2sums = %s\n' "${b2sums[@]}"
+) >"$tmp/pkgbuild"
+
+for key in pkgver pkgrel source sha256sums b2sums; do
+  sed -n "/^pkgbase = /,/^pkgname = /s/^\t$key = /$key = /p" .SRCINFO
+done >"$tmp/srcinfo"
+
+if ! diff -u --label PKGBUILD --label .SRCINFO "$tmp/pkgbuild" "$tmp/srcinfo"; then
+  printf 'fail: .SRCINFO is stale; run makepkg --printsrcinfo > .SRCINFO\n' >&2
+  exit 1
+fi
+printf 'ok: .SRCINFO matches PKGBUILD (%s sources)\n' "$(grep -c '^source = ' "$tmp/pkgbuild")"
