@@ -36,7 +36,9 @@ need=(
   CONFIG_PACKET=y
   CONFIG_PACKET_DIAG=y
   CONFIG_NETLINK_DIAG=y
-  CONFIG_NETFILTER_XT_MARK=y
+  # x_tables is a module in the Arch base, which caps xt_mark at =m;
+  # the kernel autoloads it for CRIU's mark rules.
+  CONFIG_NETFILTER_XT_MARK=m
   CONFIG_TUN=y
   CONFIG_INOTIFY_USER=y
   CONFIG_FANOTIFY=y
