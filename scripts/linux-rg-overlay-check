@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Configure a patched kernel tree for each profile the way PKGBUILD's
+# prepare() does, then report every overlay line that olddefconfig did
+# not honour: a dead or renamed symbol, a hidden symbol nothing selects,
+# a value a select or a module dependency overrides. Fails on any.
+#
+#   scripts/linux-rg-overlay-check TREE [PROFILE...]
+set -euo pipefail
+
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+tree=${1:?usage: linux-rg-overlay-check TREE [PROFILE...]}
+shift
+(($# > 0)) || set -- rgx1gen11 rgam5terra rgSURFLat rglat5340
+cd -- "$tree"
+
+total=0
+for profile in "$@"; do
+  cp "$repo/config.x86_64" .config
+  if [[ -s $repo/$profile.lsmod ]]; then
+    make -s LSMOD="$repo/$profile.lsmod" localmodconfig </dev/null >/dev/null 2>&1
+  fi
+  while IFS= read -r line; do
+    if [[ $line =~ ^\#\ CONFIG_([A-Za-z0-9_]+)\ is\ not\ set$ ]]; then
+      scripts/config --disable "${BASH_REMATCH[1]}"
+    elif [[ $line =~ ^CONFIG_([A-Za-z0-9_]+)=(y|m)$ ]]; then
+      if [[ ${BASH_REMATCH[2]} == y ]]; then
+        scripts/config --enable "${BASH_REMATCH[1]}"
+      else
+        scripts/config --module "${BASH_REMATCH[1]}"
+      fi
+    elif [[ $line =~ ^CONFIG_([A-Za-z0-9_]+)=\"(.*)\"$ ]]; then
+      scripts/config --set-str "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    elif [[ $line =~ ^CONFIG_([A-Za-z0-9_]+)=([0-9]+)$ ]]; then
+      scripts/config --set-val "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    fi
+  done <"$repo/$profile.config"
+  make -s olddefconfig >/dev/null
+
+  dropped=0
+  while IFS= read -r line; do
+    case "$line" in
+      "# CONFIG_"*" is not set")
+        key=${line#\# }
+        key=${key%% *}
+        if grep -qE "^$key=" .config; then
+          printf '%s: wanted off, got %s\n' "$profile" "$(grep -E "^$key=" .config)"
+          dropped=$((dropped + 1))
+        fi
+        ;;
+      CONFIG_*=*)
+        if ! grep -qxF -- "$line" .config; then
+          got=$(grep -E "^${line%%=*}=|^# ${line%%=*} is not set" .config || echo absent)
+          printf '%s: wanted %s, got %s\n' "$profile" "$line" "$got"
+          dropped=$((dropped + 1))
+        fi
+        ;;
+    esac
+  done <"$repo/$profile.config"
+  printf '%s: %d overlay line(s) not honoured\n' "$profile" "$dropped"
+  total=$((total + dropped))
+done
+((total == 0))

@@ -56,8 +56,12 @@ jobs:
         with:
           path: ~/linux-rg-srcdest
           key: srcdest-${{ steps.key.outputs.pkgver }}
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq flex bison libelf-dev libssl-dev
       - name: Replay carry series on the packaged Arch tag
-        run: scripts/linux-rg-ci-replay ~/linux-rg-srcdest
+        run: scripts/linux-rg-ci-replay ~/linux-rg-srcdest ~/replay-work
+      - name: Every profile overlay line survives olddefconfig
+        run: scripts/linux-rg-overlay-check ~/replay-work/linux-*
 
   upstream:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

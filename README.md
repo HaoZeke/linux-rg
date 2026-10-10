@@ -112,11 +112,14 @@ series, and 11 when Arch has only moved to a newer series.
 `.github/workflows/ci.yml` runs on every push without building a kernel:
 
 - `lint`: `bash -n` and `shellcheck -S error` on every shell script,
-  `py_compile` on the Python helpers, and `scripts/linux-rg-srcinfo-check`.
+  `py_compile` on the Python helpers, and `scripts/linux-rg-srcinfo-check`,
+  which also hashes every local source against `sha256sums` and `b2sums`.
 - `selftests`: `scripts/linux-rg-ci-selftests` runs every `*-selftest`.
 - `replay`: `scripts/linux-rg-ci-replay` fetches the tarball and Arch patch
   named in `.SRCINFO`, checks their sha256sums, and fails if
   `scripts/linux-rg-reject-audit` reports a reject, fuzz, or ambiguous context.
+  On the same patched tree, `scripts/linux-rg-overlay-check` configures each
+  profile like `prepare()` and fails on any overlay line `olddefconfig` drops.
 - `upstream`: weekly, `scripts/linux-rg-upstream-check` fails the run when
   Arch has tagged a newer kernel. It opens no issues.
 
